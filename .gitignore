@@ -1,0 +1,17 @@
+# Dependencies and build artifacts
+deps/
+*.wasm
+*.log
+
+# OS files
+.DS_Store
+
+# Editor files
+*.swp
+*~
+
+# Web demo build artifacts
+web/node_modules/
+web/dist/
+web/public/python-component/
+web/public/stdlib.tar.gz

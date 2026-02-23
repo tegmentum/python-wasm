@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CPython WASI P2 Web Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: #1e1e2e;
+      color: #cdd6f4;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      background: #181825;
+      border-bottom: 1px solid #313244;
+    }
+
+    .toolbar h1 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #89b4fa;
+      margin-right: auto;
+    }
+
+    .toolbar select,
+    .toolbar button {
+      font-size: 13px;
+      padding: 6px 12px;
+      border: 1px solid #313244;
+      border-radius: 4px;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      cursor: pointer;
+    }
+
+    .toolbar button {
+      background: #89b4fa;
+      color: #1e1e2e;
+      border-color: #89b4fa;
+      font-weight: 600;
+    }
+
+    .toolbar button:hover:not(:disabled) {
+      background: #b4d0fb;
+    }
+
+    .toolbar button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .status {
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .status.loading { color: #f9e2af; }
+    .status.running { color: #f9e2af; }
+    .status.ready { color: #a6e3a1; }
+    .status.error { color: #f38ba8; }
+
+    .panels {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    .panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .panel + .panel {
+      border-left: 1px solid #313244;
+    }
+
+    .panel-header {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 12px;
+      background: #181825;
+      border-bottom: 1px solid #313244;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #6c7086;
+    }
+
+    #editor {
+      flex: 1;
+      resize: none;
+      border: none;
+      outline: none;
+      padding: 12px;
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      tab-size: 4;
+    }
+
+    #output {
+      flex: 1;
+      overflow: auto;
+      padding: 12px;
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      background: #1e1e2e;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    #output .stderr {
+      color: #f38ba8;
+    }
+
+    .hint {
+      font-size: 11px;
+      color: #6c7086;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>CPython 3.14 WASI P2</h1>
+    <select id="example-select">
+    </select>
+    <button id="run-btn" disabled>Run</button>
+    <span class="hint">Ctrl+Enter</span>
+    <span id="status" class="status loading">Loading...</span>
+  </div>
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-header">Code</div>
+      <textarea id="editor" spellcheck="false"></textarea>
+    </div>
+    <div class="panel">
+      <div class="panel-header">Output</div>
+      <pre id="output"></pre>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "name": "python-wasm-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tegmentum/wasi-polyfill": "file:../../wasi-polyfill",
+    "fflate": "^0.8.2"
+  },
+  "devDependencies": {
+    "@bytecodealliance/jco": "^1.8.0",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.21"
+  }
+}
