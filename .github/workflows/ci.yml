@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Fast, dependency-free checks. Run on every push and PR.
+  checks:
+    name: Shell checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck scripts/*.sh tests/*.sh
+
+  # Heavy: full WASI SDK download + CPython wasip2 cross-build (~10 min on a
+  # cold cache). Gated to PRs into main and manual dispatch so it does not run
+  # on every push. Needs an Apple Silicon runner — fetch-sdk.sh is arm64-macos.
+  build:
+    name: Build CPython (wasip2) + smoke tests
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        # wasmtime runs the smoke tests; the GNU tools match what CPython's
+        # WASI build detects locally (gsed / ginstall / gmkdir / pkg-config).
+        run: brew install wasmtime pkg-config coreutils gnu-sed
+
+      - name: Cache deps (WASI SDK + CPython source + build)
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: deps-${{ runner.os }}-${{ hashFiles('scripts/fetch-sdk.sh', 'scripts/fetch-cpython.sh', 'patches/**', 'Makefile') }}
+
+      - name: Build python.wasm
+        run: make build
+
+      - name: Smoke tests
+        run: make test
