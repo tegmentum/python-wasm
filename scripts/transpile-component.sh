@@ -14,6 +14,9 @@ if [ ! -f "$PYTHON_WASM" ]; then
     exit 1
 fi
 
+# Clean first so a changed module count (e.g. across WASI SDK versions) doesn't
+# leave orphaned core wasm modules behind.
+rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
 
 echo "Transpiling python.wasm for browser use..."
