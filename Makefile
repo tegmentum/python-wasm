@@ -1,7 +1,7 @@
 PROJECT_DIR := $(shell pwd)
 DEPS_DIR := $(PROJECT_DIR)/deps
 CPYTHON_DIR := $(DEPS_DIR)/cpython
-WASI_SDK_DIR := $(DEPS_DIR)/wasi-sdk-29.0-arm64-macos
+WASI_SDK_DIR := $(DEPS_DIR)/wasi-sdk-33.0-arm64-macos
 HOST_TRIPLE := wasm32-wasip2
 PYTHON_WASM := $(CPYTHON_DIR)/cross-build/$(HOST_TRIPLE)/python.wasm
 

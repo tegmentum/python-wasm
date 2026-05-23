@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DEPS_DIR="$PROJECT_DIR/deps"
 
-SDK_VERSION="29.0"
+SDK_VERSION="33.0"
 SDK_DIR="$DEPS_DIR/wasi-sdk-${SDK_VERSION}-arm64-macos"
 
 # Guard: skip if already downloaded
@@ -17,7 +17,7 @@ fi
 mkdir -p "$DEPS_DIR"
 
 TARBALL="wasi-sdk-${SDK_VERSION}-arm64-macos.tar.gz"
-URL="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-29/${TARBALL}"
+URL="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/${TARBALL}"
 
 echo "Downloading WASI SDK $SDK_VERSION..."
 curl -L --retry 3 --progress-bar -o "$DEPS_DIR/$TARBALL" "$URL"
