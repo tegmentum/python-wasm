@@ -291,15 +291,17 @@ Resolved 2026-05-23:
   CPython-WASM per worker) plus a remote endpoint for native packages. No browser
   parallelism work in this design; native packages in-browser are only reachable
   via a remote server running Tiers 1/P.
+- **Tier-1 positioning — interactive-capable.** v86 Tier 1 is fast enough for
+  interactive use, so the `offload` API and the import hook (#4) may route
+  fine-grained calls to it, not only coarse batches. A resident,
+  snapshot-restored worker is still required (never boot-per-call), and batching
+  large native work remains good practice where it helps. Phase 2 still
+  benchmarks warm-call latency — now to characterize the operating envelope
+  (where batching pays off, the emulated-CPU multiplier), not as a go/no-go gate
+  on interactivity.
 
-## 11. Still open
+## 11. Open questions
 
-- **Latency budget for Tier 1 (needs Phase 2 data).** Cold Linux boot under
-  emulated x86 is seconds; snapshot-restore plausibly yields tens-to-hundreds of
-  ms warm-call overhead, and the native call runs at interpreter-only emulated CPU
-  speed. Working assumption: treat v86 as a **batch/bulk-compatibility tier, not
-  interactive** — coarse-grained calls against a resident, snapshot-restored,
-  long-lived worker (never boot-per-call). Validate in Phase 2 against a concrete
-  target (e.g. warm overhead < ~200 ms → semi-interactive acceptable). If native
-  work is performance-sensitive, that is the signal to build a `wasip2` wheel
-  instead of leaning on v86.
+None outstanding — every design fork above is resolved as of 2026-05-23. Phase 2
+benchmarking (Issue #2) will characterize Tier-1 latency to tune API granularity,
+but it no longer gates the design.
