@@ -45,9 +45,40 @@ py_offload/
   worker.py      run(): resolve entry, decode, invoke, encode, map exceptions
   codecs.py      json + msgpack encode/decode
   _msgpack.py    small self-contained MessagePack (no third-party dependency)
+  protocol.py    length-prefixed frames over a byte stream (request/response)
+  serve.py       resident worker loop (the guest-side dispatcher)
+  client.py      host-side StreamClient / SubprocessClient
 tests/
-  test_worker.py ok + raised paths over json and msgpack
+  test_worker.py     ok + raised paths over json and msgpack
+  test_transport.py  resident worker driven over a subprocess byte stream
 ```
+
+## Resident worker over a byte stream (Tier-1 transport)
+
+Tier 1 (Issue #2) runs the worker as a long-lived process inside a v86 guest,
+reached over the guest's serial/virtiofs channel. `serve.py` is that resident
+loop and `protocol.py` is the wire format — a 4-byte length prefix plus a msgpack
+control frame (the control plane is separate from the task's data-plane `codec`;
+`args` and `ok` values ride as opaque bytes). `client.py` drives it from the host.
+
+`SubprocessClient` stands in for the guest: it launches `python -m py_offload.serve`
+and talks to it over stdio. The transport is identical to the v86 case; only the
+channel differs.
+
+```python
+from py_offload import Codec, Ok, Task, codecs
+from py_offload.client import SubprocessClient
+
+with SubprocessClient() as client:                      # resident worker process
+    task = Task("math:factorial", codecs.encode(Codec.JSON, {"args": [6]}), Codec.JSON)
+    out = client.run("local", task)
+    assert isinstance(out, Ok)
+    assert codecs.decode(Codec.JSON, out.value) == 720  # one process, many calls
+```
+
+Note: `serve.py` redirects a task's stdout to stderr so a stray `print()` inside an
+offloaded call can't corrupt the frame stream — the same hazard as a shared serial
+console.
 
 ## Run the tests
 
@@ -74,8 +105,12 @@ assert codecs.decode(Codec.JSON, out.value) == 120
 
 This is Phase 1 (Issue #1). Later phases reuse this exact contract:
 
-- **Issue #2** — implement `offload.run` against a native CPython inside the v86
-  wasmmachine (Tier 1).
+- **Issue #2** — Tier 1 native exec via v86. The transport core is in place: the
+  resident dispatcher (`serve.py`), the framed byte-stream protocol
+  (`protocol.py`), and the host client (`client.py`), proven over a subprocess.
+  Remaining: run `serve.py` on a native CPython inside a v86 guest, bind the
+  client to the guest's serial/virtiofs channel, add snapshot restore, and
+  benchmark.
 - **Issue #3** — wrap CPython-WASM as a girder actor and fan calls across
   instances (Tier P); adds the `arrow` codec + SIR.
 - **Issue #4** — an import hook that routes native-only package calls through this
