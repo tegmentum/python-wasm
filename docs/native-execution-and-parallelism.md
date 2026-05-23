@@ -264,15 +264,42 @@ itself.
    (numpy) as the proof case.
 5. **Revisit transparent proxying** only if call-offload proves insufficient.
 
-## 10. Open questions
+## 10. Decisions
 
-- **Serialization across the boundary:** standardize on Arrow for arrays/frames +
-  msgpack for the rest? Where (if ever) is `pickle` acceptable? (trust boundary)
-- **Worker environment management:** how is an `env-id` built and pinned — a v86
-  `package` manifest per package set? who resolves digests?
-- **Latency budget for Tier 1:** is snapshot-restore fast enough for interactive
-  use, or is v86 strictly a batch/bulk-compute tier?
-- **Free-threaded CPython (PEP 703):** worth a wasip2 free-threaded build as a
-  complementary in-process parallelism path, independent of girder?
-- **Browser story:** commit to "interface-only" reuse (Web Workers / remote), or
-  out of scope?
+Resolved 2026-05-23:
+
+- **Serialization — Arrow + msgpack, pickle opt-in.** Arrow IPC for arrays/frames
+  (pairs with girder SIR for zero-copy read-only fan-out); msgpack as the default
+  for everything else. `pickle` is permitted only on a same-version, same-trust
+  hop (e.g. CPython-WASM ↔ CPython-WASM girder actors we own) — never as the wire
+  default and never across the v86 boundary. Phase 1 still ships msgpack/json;
+  Arrow lands with Phase 3.
+- **`env-id` — content digest, tags as aliases.** Identity is the digest of a
+  resolved spec (interpreter version + exact wheels), expressed as a v86 package
+  manifest; `digest(manifest + resolved artifacts)` = `env-id`. Human tags are
+  convenience aliases over digests. First use builds and caches the v86 snapshot
+  keyed by the `env-id`.
+- **Free-threaded CPython (PEP 703) — deferred.** wasip2 has no usable OS threads
+  (the shared-memory `wasi-threads` model is the one girder deliberately avoids),
+  so removing the GIL gains nothing in-process and adds extension-ABI cost. The
+  parallelism path is girder's multiple isolated instances. Revisit only if a
+  native (non-WASM) CPython tier is added or the component model gains usable
+  shared-memory threads.
+- **Browser — interface-only reuse, build deferred.** Keep Tier 0 (in-WASM
+  CPython) working in the browser and make the `offload` boundary
+  transport-agnostic so a browser can later adopt it via Web Workers (one
+  CPython-WASM per worker) plus a remote endpoint for native packages. No browser
+  parallelism work in this design; native packages in-browser are only reachable
+  via a remote server running Tiers 1/P.
+
+## 11. Still open
+
+- **Latency budget for Tier 1 (needs Phase 2 data).** Cold Linux boot under
+  emulated x86 is seconds; snapshot-restore plausibly yields tens-to-hundreds of
+  ms warm-call overhead, and the native call runs at interpreter-only emulated CPU
+  speed. Working assumption: treat v86 as a **batch/bulk-compatibility tier, not
+  interactive** — coarse-grained calls against a resident, snapshot-restored,
+  long-lived worker (never boot-per-call). Validate in Phase 2 against a concrete
+  target (e.g. warm overhead < ~200 ms → semi-interactive acceptable). If native
+  work is performance-sensitive, that is the signal to build a `wasip2` wheel
+  instead of leaning on v86.
