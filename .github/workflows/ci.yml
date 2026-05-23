@@ -19,6 +19,33 @@ jobs:
       - name: shellcheck
         run: shellcheck scripts/*.sh tests/*.sh
 
+  # TypeScript typecheck of the web app. Fast; runs on every push and PR.
+  web-typecheck:
+    name: Web typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Fetch wasi-polyfill (sibling dep)
+        # web/package.json depends on @tegmentum/wasi-polyfill via
+        # file:../../wasi-polyfill, which resolves to a sibling of the repo
+        # checkout. The package is published from dist/, so it must be built.
+        run: |
+          git clone --depth 1 https://github.com/tegmentum/wasi-polyfill.git \
+            "$GITHUB_WORKSPACE/../wasi-polyfill"
+          cd "$GITHUB_WORKSPACE/../wasi-polyfill"
+          npm install
+          npm run build
+
+      - name: Typecheck web
+        working-directory: web
+        run: |
+          npm install
+          npx tsc --noEmit
+
   # Heavy: full WASI SDK download + CPython wasip2 cross-build (~10 min on a
   # cold cache). Gated to PRs into main and manual dispatch so it does not run
   # on every push. Needs an Apple Silicon runner — fetch-sdk.sh is arm64-macos.
