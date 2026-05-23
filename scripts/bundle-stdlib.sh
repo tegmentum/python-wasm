@@ -36,5 +36,5 @@ tar czf "$OUTPUT" \
     Lib/ \
     cross-build/wasm32-wasip2/build/lib.wasi-wasm32-3.14/
 
-SIZE=$(ls -lh "$OUTPUT" | awk '{print $5}')
+SIZE=$(du -h "$OUTPUT" | cut -f1)
 echo "stdlib bundled: $OUTPUT ($SIZE)"
