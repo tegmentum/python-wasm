@@ -1,0 +1,57 @@
+// tegmentum:py-offload — a transport-agnostic boundary for offloading a single
+// Python call to another execution environment (a native interpreter inside the
+// v86 wasmmachine, a girder actor, a remote worker, ...).
+//
+// See docs/native-execution-and-parallelism.md (§4 for the contract, §10 for the
+// decisions that pin codecs and env-id).
+package tegmentum:py-offload@0.1.0;
+
+interface offload {
+    // Identity of the worker environment: which interpreter + which packages are
+    // installed. Content-addressed — the digest of a resolved spec (interpreter
+    // version + exact wheels), with human tags as aliases. Opaque to callers; the
+    // Phase 1 reference worker accepts any value (a single local environment).
+    type env-id = string;
+
+    // How `task.args` and the returned value are encoded. Phase 1 implements
+    // msgpack and json. arrow is reserved for array/frame payloads (Phase 3, pairs
+    // with girder SIR); pickle is opt-in for same-version, same-trust hops only.
+    // Neither arrow nor pickle is implemented yet.
+    enum codec {
+        msgpack,
+        arrow,
+        pickle,
+        json,
+    }
+
+    // A call to perform. `entry` is "package.module:callable" (the attribute after
+    // ':' may be dotted). `args` is the encoded call payload, an object
+    // { "args": [...], "kwargs": {...} }. `codec` selects the encoding used for
+    // both `args` and the returned value.
+    record task {
+        entry: string,
+        args: list<u8>,
+        codec: codec,
+    }
+
+    // A Python exception that crossed the boundary.
+    record py-error {
+        kind: string,       // exception class name, e.g. "ValueError"
+        message: string,    // str(exc)
+        traceback: string,  // formatted traceback
+    }
+
+    // The result of a call: the encoded return value, or a raised exception.
+    variant outcome {
+        ok(list<u8>),
+        raised(py-error),
+    }
+
+    // Run one call. Synchronous from the caller's perspective.
+    run: func(env: env-id, t: task) -> outcome;
+}
+
+// A worker that can execute offloaded Python calls.
+world py-worker {
+    export offload;
+}

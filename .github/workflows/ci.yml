@@ -46,6 +46,16 @@ jobs:
           npm install
           npx tsc --noEmit
 
+  # py-offload reference worker tests (stdlib only). Run on every push and PR.
+  reference-worker:
+    name: Reference worker tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run tests
+        working-directory: reference-worker
+        run: python3 -m unittest discover -s tests -t .
+
   # Heavy: full WASI SDK download + CPython wasip2 cross-build (~10 min on a
   # cold cache). Gated to PRs into main and manual dispatch so it does not run
   # on every push. Needs an Apple Silicon runner — fetch-sdk.sh is arm64-macos.
