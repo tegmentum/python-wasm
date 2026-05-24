@@ -116,6 +116,40 @@ codecs are proven (Issue #1 + the transport tests).
   3. Decide the **resident-v86 lifetime owner** (B6).
   4. Wire `workspace/init` to launch the resident mailbox worker; snapshot; bench.
 
+## B1 experiment result (2026-05-24)
+
+Attempted to actually run a native CPython in the guest:
+
+- **Artifact:** python-build-standalone
+  `cpython-3.14.5 … x86_64-unknown-linux-musl-install_only` (27 MB, 84 MB
+  extracted). Its `python3` is **dynamically linked** (`interp
+  /lib/ld-musl-x86_64.so.1`), so we also supplied `ld-musl-x86_64.so.1` (musl
+  1.2.5, from the Alpine `musl` apk) at the guest `/lib`.
+- **Default kernel (`p04`) panics** under `rootfstype=virtiofs` — no virtiofs driver.
+- **The repo's virtiofs kernel** (`artifacts/kernels/virtiofs/6.8.12/.../bzImage`,
+  selected via `V86_BZIMAGE`) **mounts the virtiofs root** (FUSE INIT + root
+  lookup), but the guest then **hangs** — it spins at a single kernel EIP for
+  ~1.4B instructions and never reaches `/init` (no shell, no python). Likely
+  timer-IRQ/scheduling or virtio-fs completion under `noapic/nolapic` — a v86
+  emulator issue, **not** CPython.
+
+| boot path | result |
+| --- | --- |
+| virtiofs-root + virtiofs kernel | mounts, then **hangs** before `/init` |
+| virtiofs-root + default kernel | panic (no virtiofs driver) |
+| initramfs + default kernel (proven cold-boot path) | works, but 64 MB guest RAM < 84 MB python |
+
+**Realistic paths forward (all further v86-runtime work):**
+1. **Disk-image (IDE) rootfs + the storage kernel** (`assets/s13-storage-bzimage.bin`
+   / `artifacts/kernels/storage`) — not RAM-limited, sidesteps the virtiofs hang.
+2. **Prune python** (drop tcl/tk, tests, pip, ensurepip, idle → ~30–40 MB) **and
+   raise guest RAM** (hardcoded 64 MB in `main.rs`) for initramfs.
+3. **Fix the v86 virtiofs-root cold-boot hang** (timer/IRQ) — deep emulator work.
+4. Snapshot-based boot doesn't help yet — the cold boot must succeed once to
+   capture a snapshot.
+
+(The native CPython tree + `ld-musl` are cached under `/tmp` for a next attempt.)
+
 ## Key references in `~/git/v86`
 
 - `workspace/init` — guest init/console.
