@@ -150,6 +150,41 @@ Attempted to actually run a native CPython in the guest:
 
 (The native CPython tree + `ld-musl` are cached under `/tmp` for a next attempt.)
 
+### Root-cause diagnosis of the hang (2026-05-24)
+
+Reproduced **minimally** — plain busybox workspace, no python (so payload/size is
+not involved): boot the virtiofs kernel with `V86_VIRTIOFS_ROOT=1` and the guest
+mounts the virtiofs root (FUSE INIT + root lookup = 2 requests) then **idles
+forever** at the kernel `sti; hlt` loop (decoded from `vmlinux` at `0xc11d6cd2`).
+The timer (IRQ0, master PIC) keeps waking it each tick — so the CPU is not dead;
+**init (PID 1) is blocked waiting for the next virtio-fs completion that never
+arrives**, and the CPU idles.
+
+Ruled out:
+- **Not CPython** — the minimal repro hangs identically with no python.
+- **Not MSI-X** — `virtio/config_io.rs` advertises none; the driver uses legacy INTx.
+- **Not the PIC cascade logic** — `pic::set_irq(12)` sets the slave IRR and
+  `check_irqs_slave` asserts master IR2; `pic_acknowledge_irq` handles the cascade
+  ack (upstream v86 `cpu/pic.rs`, which boots real Linux).
+- **Not a missing service call** — the cold-boot loop calls `tick_virtio(mem)`
+  every iteration (`main.rs` ~3514), which runs `fs.process_requests` and, when
+  `irq_pending`, calls `pic::set_irq(12)`. So IRQ12 is re-asserted continuously.
+- **`fs.rs` sets `irq_pending`** after `push_used` (line 365), same as the working
+  net device.
+
+Open question (needs instrumentation): why the continuously-asserted IRQ12 is never
+**taken** by the guest while IRQ0 is. Most likely either the slave/cascade isn't
+*unmasked* at hang time (the guest's virtio-fs `request_irq` didn't take effect), or
+the CPU's wake-from-`hlt` / interrupt acceptance doesn't pick up the cascaded slave
+IRQ on this path.
+
+Next step: instrument the cold-boot loop to dump `pic::diag_master_irr/imr/isr` +
+`diag_slave_*` + the fs `irq_pending` during the hang (rebuild `v86-component`,
+re-run the minimal repro) to see whether IRQ12/IR2 are masked or simply not taken.
+Note: v86 already byte-patches a *different* tick-wait spin (`F3 90 EB F0` →
+"patched WaitForTick spin" in `main.rs`), so this class of timing/IRQ hang is a
+known thorny area in this emulator.
+
 ## Key references in `~/git/v86`
 
 - `workspace/init` — guest init/console.
