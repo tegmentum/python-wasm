@@ -46,11 +46,13 @@ py_offload/
   codecs.py      json + msgpack encode/decode
   _msgpack.py    small self-contained MessagePack (no third-party dependency)
   protocol.py    length-prefixed frames over a byte stream (request/response)
-  serve.py       resident worker loop (the guest-side dispatcher)
+  serve.py       resident worker loop over a byte stream (stdio dispatcher)
   client.py      host-side StreamClient / SubprocessClient
+  mailbox.py     file-mailbox transport over a shared dir (the Tier-1/virtiofs channel)
 tests/
   test_worker.py     ok + raised paths over json and msgpack
   test_transport.py  resident worker driven over a subprocess byte stream
+  test_mailbox.py    resident worker driven over a shared directory
 ```
 
 ## Resident worker over a byte stream (Tier-1 transport)
@@ -80,6 +82,21 @@ Note: `serve.py` redirects a task's stdout to stderr so a stray `print()` inside
 offloaded call can't corrupt the frame stream — the same hazard as a shared serial
 console.
 
+### File mailbox over a shared directory (the Tier-1 channel)
+
+`mailbox.py` is the transport Tier 1 actually uses: host and a guest-resident
+worker exchange request/response frames as files in a directory the guest sees
+over **virtiofs**. Because virtiofs is just a host directory mounted into the
+guest, this needs **no changes inside the v86 emulator**. Frames are written with
+a temp file + `os.replace`, so a reader never sees a torn file; and unlike the
+stdio transport, a task's `print()` cannot corrupt the channel. The guest loop is
+`serve_mailbox(dir)` (run via `python -m py_offload.mailbox <dir>`); the host uses
+`MailboxClient(dir)`, which has the same `run(env, task)` shape as `StreamClient`.
+
+`test_mailbox.py` exercises it with a tmpdir standing in for the virtiofs mount
+and a subprocess standing in for the guest — identical transport, only the
+directory's backing differs.
+
 ## Run the tests
 
 ```sh
@@ -105,12 +122,13 @@ assert codecs.decode(Codec.JSON, out.value) == 120
 
 This is Phase 1 (Issue #1). Later phases reuse this exact contract:
 
-- **Issue #2** — Tier 1 native exec via v86. The transport core is in place: the
-  resident dispatcher (`serve.py`), the framed byte-stream protocol
-  (`protocol.py`), and the host client (`client.py`), proven over a subprocess.
-  Remaining: run `serve.py` on a native CPython inside a v86 guest, bind the
-  client to the guest's serial/virtiofs channel, add snapshot restore, and
-  benchmark.
+- **Issue #2** — Tier 1 native exec via v86. The transport is in place and proven
+  locally: the resident dispatcher (`serve.py`), the framed protocol
+  (`protocol.py`), the host clients (`client.py`), and the **virtiofs file-mailbox
+  channel** (`mailbox.py`) that Tier 1 actually uses. Remaining (needs the v86
+  runtime): a self-contained x86_64 CPython in the guest running
+  `python -m py_offload.mailbox /run/py-offload`, wired via `workspace/init`, with
+  snapshot restore and a latency benchmark. See `../docs/tier1-v86-integration.md`.
 - **Issue #3** — wrap CPython-WASM as a girder actor and fan calls across
   instances (Tier P); adds the `arrow` codec + SIR.
 - **Issue #4** — an import hook that routes native-only package calls through this
