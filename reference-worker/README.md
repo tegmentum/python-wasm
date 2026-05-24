@@ -51,11 +51,13 @@ py_offload/
   mailbox.py     file-mailbox transport over a shared dir (the Tier-1/virtiofs channel)
   actor.py       girder turn-actor adapter: init/handle -> worker.run (Tier P)
   pool.py        host-side parallel map over a pool of resident workers (Tier P)
+  importhook.py  meta_path finder: route native-only package calls via a backend
 tests/
-  test_worker.py     ok + raised paths over json and msgpack
-  test_transport.py  resident worker driven over a subprocess byte stream
-  test_mailbox.py    resident worker driven over a shared directory
-  test_pool.py       actor adapter + parallel map across separate processes
+  test_worker.py      ok + raised paths over json and msgpack
+  test_transport.py   resident worker driven over a subprocess byte stream
+  test_mailbox.py     resident worker driven over a shared directory
+  test_pool.py        actor adapter + parallel map across separate processes
+  test_importhook.py  proxied import routes calls through an offload backend
 ```
 
 ## Resident worker over a byte stream (Tier-1 transport)
@@ -126,6 +128,31 @@ with WorkerPool(size=4) as pool:                       # 4 separate processes
 The CPU *speedup* measurement is the deferred benchmark — it needs multiple cores
 and the girder runtime, so it is not a unit test.
 
+## Import hook for native-only packages (Tier 4)
+
+`importhook.py` makes a package whose native code has no wasip2 build usable from
+the interpreter by routing its calls to a backend. `install(["numpy"], client)`
+registers a `meta_path` finder so `import numpy` returns a proxy module; attribute
+calls offload `numpy:<dotted.attr>(args, kwargs)` through any offload client and
+return the decoded result. A remote exception is re-raised locally (as the matching
+builtin type when one exists, else `OffloadError`).
+
+```python
+from py_offload import Codec
+from py_offload.client import SubprocessClient
+from py_offload.importhook import install
+
+client = SubprocessClient()
+with install(["math"], client, codec=Codec.MSGPACK):   # "math" stands in for a native pkg
+    import math                                          # the proxy
+    assert math.factorial(5) == 120                      # runs in the backend process
+```
+
+v1 is call-with-serializable-args. Transparent live-object proxying (ndarray views,
+callbacks, stateful objects) is Issue #5. `test_importhook.py` proves the mechanism
+with a stdlib module standing in for a native package; the numpy proof case needs
+numpy installed in a backend environment.
+
 ## Run the tests
 
 ```sh
@@ -164,5 +191,7 @@ This is Phase 1 (Issue #1). Later phases reuse this exact contract:
   CPython-WASM to export girder's `turn-actor` world, run the pool on real girder
   actors, add the `arrow` codec + SIR for large read-only inputs, and benchmark
   multicore scaling.
-- **Issue #4** — an import hook that routes native-only package calls through this
-  contract.
+- **Issue #4** — import hook / proxy. Implemented (`importhook.py`) and proven with
+  a stdlib stand-in: a proxied import routes calls through an offload backend and
+  re-raises remote exceptions. Remaining: the numpy proof case (numpy in a backend
+  env) and richer attribute/dotted handling.
