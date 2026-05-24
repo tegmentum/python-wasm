@@ -49,10 +49,13 @@ py_offload/
   serve.py       resident worker loop over a byte stream (stdio dispatcher)
   client.py      host-side StreamClient / SubprocessClient
   mailbox.py     file-mailbox transport over a shared dir (the Tier-1/virtiofs channel)
+  actor.py       girder turn-actor adapter: init/handle -> worker.run (Tier P)
+  pool.py        host-side parallel map over a pool of resident workers (Tier P)
 tests/
   test_worker.py     ok + raised paths over json and msgpack
   test_transport.py  resident worker driven over a subprocess byte stream
   test_mailbox.py    resident worker driven over a shared directory
+  test_pool.py       actor adapter + parallel map across separate processes
 ```
 
 ## Resident worker over a byte stream (Tier-1 transport)
@@ -97,6 +100,32 @@ stdio transport, a task's `print()` cannot corrupt the channel. The guest loop i
 and a subprocess standing in for the guest — identical transport, only the
 directory's backing differs.
 
+## Parallel execution across workers (Tier P)
+
+`actor.py` is the girder turn-actor adapter — `init` / `handle(message) -> bytes` —
+that bridges girder's actor ABI to `worker.run`. A CPython-WASM instance running
+this is one girder actor.
+
+`pool.py` is the host-side fan-out: `WorkerPool.map(env, tasks)` distributes tasks
+across N resident workers and collects results in order. Each worker is a separate
+process — its own interpreter, its own GIL, its own memory — which is exactly
+girder's shared-nothing model: the GIL never serializes work *across* workers.
+
+```python
+from py_offload import Codec, Task, codecs
+from py_offload.pool import WorkerPool
+
+def t(n):
+    return Task("math:factorial", codecs.encode(Codec.MSGPACK, {"args": [n]}), Codec.MSGPACK)
+
+with WorkerPool(size=4) as pool:                       # 4 separate processes
+    outcomes = pool.map("local", [t(n) for n in range(10)])
+```
+
+`test_pool.py` proves the model: tasks run in distinct processes (distinct pids).
+The CPU *speedup* measurement is the deferred benchmark — it needs multiple cores
+and the girder runtime, so it is not a unit test.
+
 ## Run the tests
 
 ```sh
@@ -129,7 +158,11 @@ This is Phase 1 (Issue #1). Later phases reuse this exact contract:
   runtime): a self-contained x86_64 CPython in the guest running
   `python -m py_offload.mailbox /run/py-offload`, wired via `workspace/init`, with
   snapshot restore and a latency benchmark. See `../docs/tier1-v86-integration.md`.
-- **Issue #3** — wrap CPython-WASM as a girder actor and fan calls across
-  instances (Tier P); adds the `arrow` codec + SIR.
+- **Issue #3** — Tier P parallel via girder. The actor adapter (`actor.py`) and a
+  parallel map over a worker pool (`pool.py`) are in place and proven across
+  separate processes. Remaining (needs the girder runtime): componentize
+  CPython-WASM to export girder's `turn-actor` world, run the pool on real girder
+  actors, add the `arrow` codec + SIR for large read-only inputs, and benchmark
+  multicore scaling.
 - **Issue #4** — an import hook that routes native-only package calls through this
   contract.
