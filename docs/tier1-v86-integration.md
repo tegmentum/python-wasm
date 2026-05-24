@@ -178,12 +178,42 @@ Open question (needs instrumentation): why the continuously-asserted IRQ12 is ne
 the CPU's wake-from-`hlt` / interrupt acceptance doesn't pick up the cascaded slave
 IRQ on this path.
 
-Next step: instrument the cold-boot loop to dump `pic::diag_master_irr/imr/isr` +
-`diag_slave_*` + the fs `irq_pending` during the hang (rebuild `v86-component`,
-re-run the minimal repro) to see whether IRQ12/IR2 are masked or simply not taken.
-Note: v86 already byte-patches a *different* tick-wait spin (`F3 90 EB F0` →
-"patched WaitForTick spin" in `main.rs`), so this class of timing/IRQ hang is a
-known thorny area in this emulator.
+### PIC-dump result (2026-05-24): it is NOT an interrupt bug
+
+Instrumented the cold-boot loop to dump the PIC state during the hang
+(`V86_PICDUMP=1`, rebuilt `v86-component`). Steady state, every sample:
+
+```
+m_irr=00 m_en=15 m_isr=00   s_irr=00 s_en=10 s_isr=00
+```
+
+(`m_en`/`s_en` are the *enabled* masks in v86's convention: master bits 0,2,4 =
+timer, cascade, UART; slave bit 4 = IRQ12.)
+
+This reframes the bug:
+- **IRQ12 is unmasked** (`s_en` bit4, `m_en` cascade bit2) — *not* a masking issue.
+- **The PIC is quiescent** (`s_irr=0`, nothing pending or in-service) — so the FS
+  device is **not asserting any completion**, and the timer/IRQ path is healthy.
+- The guest got the INIT + GETATTR completions (their IRQs were delivered and the
+  ISR read), then **stops issuing FUSE requests entirely** and idles.
+
+So this is **not** a PIC / interrupt-delivery bug. Also ruled out: `skip_ticks`
+(always 0, vestigial), FUSE opcode coverage (LOOKUP/OPEN/READ/READDIR all present),
+and the virtqueue avail-index logic (looks correct).
+
+**Reframed root cause:** the virtiofs-root **mount → exec-init handoff**. After
+GETATTR on the root inode, the kernel never issues the LOOKUP/OPEN/READ for
+`/init` (or `/sbin/init`) — it goes idle. The most likely culprit is the *content*
+of v86's FUSE responses (e.g. the root GETATTR attributes or the INIT feature
+negotiation) leaving the kernel unable to traverse the root, rather than anything
+in the interrupt path.
+
+**Next step to pin it:** resolve the idle/wait via a kallsyms backtrace, or
+instrument `handle_fuse_request` to log the GETATTR/INIT response bytes and compare
+against what the FUSE kernel client expects. This is deep v86 device-protocol work.
+
+**Pragmatic alternative:** the **disk-image (IDE) rootfs** path sidesteps virtiofs
+entirely and is likely the faster route to a working use-#2 guest.
 
 ## Key references in `~/git/v86`
 
