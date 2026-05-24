@@ -215,6 +215,36 @@ against what the FUSE kernel client expects. This is deep v86 device-protocol wo
 **Pragmatic alternative:** the **disk-image (IDE) rootfs** path sidesteps virtiofs
 entirely and is likely the faster route to a working use-#2 guest.
 
+### Localized to the kernel mount-completion (2026-05-24, cont.)
+
+Booted with `rcu_cpu_stall_timeout=7` (suppression removed) + `initcall_debug
+ignore_loglevel`:
+
+- **No RCU stall** fired over minutes of guest time → not an RCU grace-period hang.
+- **All initcalls complete** (last: `initcall 0xc11a0714 returned 0 after 253
+  usecs`); the two FUSE ops (INIT, GETATTR) happen *after* that, in the
+  post-initcall `mount_root` / `prepare_namespace` path.
+- The device serves both requests correctly (INIT 80 B; GETATTR 120 B with valid
+  `S_IFDIR|0755` root attrs, nlink=2), and their completion IRQs are taken (the PIC
+  is quiescent afterward). Then the kernel **stops** — no third FUSE request, no
+  "Mounted root", no "Freeing unused kernel memory", no init exec.
+
+So the wedge is in the **kernel's virtiofs root-mount completion**, *after* both
+requests are answered — not the device serving requests, not the PIC, not RCU, not
+the FUSE response content, not queue count (mount uses the serviced request queue;
+the unserviced hiprio queue 0 isn't on the mount path).
+
+**Remaining step (bigger lift):** a backtrace of the blocked mount thread —
+- rebuild the *guest kernel* with `CONFIG_DETECT_HUNG_TASK` (auto-dumps the stuck
+  task's stack), which needs the kernel build env (heavier than a v86 rebuild); or
+- emulator-side guest-stack walking of the wedged task.
+
+This is a v86/kernel mount-path interaction best **escalated to the v86 maintainer**
+with the above localization, or sidestepped via the **disk-image rootfs** path.
+Net: ruled out CPython, MSI-X, IRQ masking, PIC cascade, `tick_virtio`,
+`skip_ticks`, FUSE opcode coverage, virtqueue index logic, RCU, and the FUSE
+response content — the hang lives in the kernel's virtiofs mount completion.
+
 ## Key references in `~/git/v86`
 
 - `workspace/init` — guest init/console.
