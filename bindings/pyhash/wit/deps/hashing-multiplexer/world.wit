@@ -1,0 +1,10 @@
+package tegmentum:hashing-multiplexer@0.1.0;
+
+world hashing-multiplexer {
+    // TODO: once the Component Model supports multiple named imports of the same
+    // interface, import each algorithm component instead of building them in:
+    //   import xxhash: tegmentum:hashing-algorithm/hashing-provider;
+    //   import crc32:  tegmentum:hashing-algorithm/hashing-provider;
+    //   ...
+    export hashing-dispatcher;
+}

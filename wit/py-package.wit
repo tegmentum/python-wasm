@@ -1,0 +1,94 @@
+package tegmentum:py-offload@0.1.0;
+
+// Package catalog and transparent backend routing. The `offload` interface
+// (py-offload.wit) is the common call seam: every backend — an in-WASM build
+// (Tier 0), the v86 native worker (Tier 1), a girder actor, or a remote
+// endpoint — exports the SAME `offload`, so "swap in a wasm build for the v86
+// one" is just pointing the router at a different backend. This file adds the
+// availability catalog and the router that selects among backends per package.
+//
+// RECONCILE WITH THE EXISTING ECOSYSTEM (not a parallel orchestrator):
+//   - `registry` (the catalog) is the python-facing view of the per-family
+//     `<family>-components` indexes; populate it FROM those, don't re-curate.
+//   - `router` is a thin per-package backend *selector* over
+//     webassembly-component-orchestration (`composectl` plans do the actual
+//     composition/wiring); it must not duplicate composition.
+//
+// See docs/native-execution-and-parallelism.md (§4 the offload contract; the
+// 2026-05-25 status note for the ecosystem alignment).
+
+interface registry {
+    use offload.{env-id, codec};
+
+    // Execution backends, in rough preference order.
+    enum tier {
+        in-wasm,      // Tier 0: a wasm32-wasip2 build, run in-process or as a girder actor
+        native-v86,   // Tier 1: native (e.g. i686) code run in the v86 x86 guest
+        remote,       // off-box endpoint running either of the above
+    }
+
+    // One way to serve a package: a tier plus the content-addressed environment
+    // for that tier's build. A wasm build and a native build are different
+    // artifacts, hence different env-ids — which is exactly what lets them be
+    // swapped behind a single `offload` call.
+    record backend {
+        tier: tier,
+        env: env-id,
+    }
+
+    // A callable the package advertises as offload-able.
+    record entry-desc {
+        // "module:callable", resolvable inside the worker (matches an `offload`
+        // task.entry). The attribute after ':' may be dotted.
+        entry: string,
+        // Optional one-line summary.
+        doc: string,
+        // Codecs accepted for this entry's args/return (empty = any the worker
+        // implements).
+        codecs: list<codec>,
+    }
+
+    // A resolved Python distribution and how it can be served.
+    record dist {
+        name: string,          // distribution name, e.g. "numpy"
+        version: string,       // resolved version, e.g. "2.1.0"
+        // Backends that can serve this package, in preference order. A router
+        // picks the first available — e.g. in-wasm before native-v86 — so when a
+        // wasm build of a previously native-only package is published, you
+        // prepend its backend and v86 drops off the hot path with no change to
+        // callers. A single native-v86 entry is the unported-package case.
+        backends: list<backend>,
+    }
+
+    record manifest {
+        dist: dist,
+        // Advertised entries. May be empty: a package accepts arbitrary
+        // "module:callable" entries within its environment (the call-offload
+        // default), in which case `entries` is advisory / for discovery only.
+        entries: list<entry-desc>,
+    }
+
+    // Catalog lookup: the manifest for a package, or none if unknown here.
+    lookup: func(name: string) -> option<manifest>;
+    // The whole catalog.
+    list-packages: func() -> list<manifest>;
+}
+
+// The availability catalog component: maps package name -> backends + entries.
+// Populated from resolved environments (the typed counterpart to v86's
+// packages/*.json), it is the single source of truth the router consults.
+world catalog {
+    export registry;
+}
+
+// Transparent swap router. Exports the standard `offload` so callers are
+// unaffected; for each task it derives the package (from task.entry), consults
+// the catalog for the preferred available backend, and forwards the call to the
+// downstream env-id-keyed `offload` with that backend's env. Swapping a package
+// from v86 to a wasm build is a catalog edit — no caller, code, or recompile
+// change.
+world router {
+    export offload;     // callers see an ordinary offload worker
+    import registry;    // the availability catalog
+    import offload;     // downstream env-id-keyed dispatcher (the real backends)
+}

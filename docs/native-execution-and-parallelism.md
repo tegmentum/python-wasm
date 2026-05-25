@@ -6,6 +6,20 @@ WebAssembly, and (b) scale Python across cores without being throttled by the
 CPython GIL. The boundary in both cases is expressed as **WIT** so the pieces
 compose under the component model.
 
+> **Update (2026-05-25).** Capability components and their orchestration are
+> **not** built here — they already exist as a sibling ecosystem: per-capability
+> repos following the `compression-algorithm-wit` + `<algo>-wasm` +
+> `<family>-multiplexer` + `<family>-components` (index) pattern, composed/run by
+> `webassembly-component-orchestration` (`composectl`). The first new family
+> built this way is **hashing** (`hashing-algorithm-wit`, `hashing-multiplexer`,
+> `hashing-components`). The local prototype that reinvented this (the
+> `componentctl` driver, the `catalog/` index, and the bespoke
+> `components/hash*` + `tegmentum:hash` WIT) has been removed. `python-wasm`'s
+> lane is **Python consumption**: componentize-py bindings over those
+> capabilities, and the `offload` contract for the native/parallel tiers. The
+> §4.3 `registry`/`router` sketch is retained but is to be **reconciled with
+> `composectl`** rather than grown into a parallel orchestrator.
+
 It draws on two sibling repositories:
 
 - `~/git/v86` — a Rust port of the v86 x86 emulator, built to `wasm32-wasip2`
@@ -164,6 +178,32 @@ honest that only *call-with-serializable-args* is supported in v1.
   the host shim becomes a typed component-to-component call and the guest
   dispatcher can be packaged as a v86 `package`.
 
+### 4.3 The swap seam: catalog + router (`wit/py-package.wit`)
+`offload` is the common, backend-agnostic call seam — every backend (an in-WASM
+build, the v86 native worker, a girder actor, a remote endpoint) exports the
+*same* `offload`, so swapping one for another is just pointing at a different
+component. `wit/py-package.wit` makes that swap first-class with two pieces in
+the same `tegmentum:py-offload` package:
+
+- **`registry` (catalog).** `lookup(name)` / `list-packages()` return a
+  `manifest` whose `dist` carries `backends: list<backend>` — each `backend` a
+  `{ tier, env-id }` pair (`tier` ∈ `in-wasm` | `native-v86` | `remote`), in
+  preference order. A wasm build and a native build are different artifacts,
+  hence different env-ids; that is what makes them interchangeable behind
+  `offload`. (Typed counterpart to v86's `packages/*.json`.)
+- **`world router`.** Exports `offload` (callers are unaffected); for each task
+  it derives the package from `task.entry`, consults the catalog for the
+  preferred *available* backend, and forwards to a downstream env-id-keyed
+  `offload` with that backend's env. **Swapping v86 → wasm for a package is a
+  catalog edit** — prepend the `in-wasm` backend and v86 drops off its hot path,
+  with no caller/code/recompile change.
+
+This keeps v1 at call-offload (`entries` is discovery metadata, not generated
+per-package bindings; live-object proxying remains Issue #5), and makes the
+32-bit v86 tier a *swappable interim backend* rather than a permanent commitment
+— important because the Linux i686 wheels v86 needs are a shrinking set, while
+wasm builds of the same packages are a growing one.
+
 ## 5. Parallelism with girder — does it solve the GIL?
 
 **Short answer: girder does not remove the GIL; it makes the GIL stop mattering
@@ -195,6 +235,32 @@ parallelism** of CPU-bound Python that partitions cleanly (embarrassingly
 parallel maps, fan-out/fan-in). It is *not* a fit for fine-grained shared-memory
 threading; if you need that, the answer is free-threaded CPython (PEP 703), which
 is orthogonal to girder.
+
+### 5.1 The WASI gap — girder gives actors no `wasi:*` (integration blocker)
+Confirmed by reading girder (2026-05-24): it is deliberately WASI-free. The
+runtime links only `girder:actor/host` (plus an optional tvm memory substrate)
+into guests; guests target `wasm32-unknown-unknown` and run with no clock, stdio,
+files, or sockets — its determinism boundary (DESIGN.md §11), and there is no
+`wasi:*` in the linker (`girder-wasmtime/src/lib.rs`). CPython is built to
+**`wasm32-wasip2`** and *requires* WASI preview2 (clocks, random, stdio,
+filesystem) just to start, so a CPython component **cannot instantiate under
+girder's linker as-is** — its `wasi:*` imports go unsatisfied. This is the real
+gap behind "wrap CPython-WASM to export the `turn-actor` world"; the Python-level
+`actor.py` adapter is necessary but not sufficient.
+
+Closing it is a host-side decision:
+- **Provide WASI to "python-flavored" actors** — add a girder linker variant
+  that also runs `wasmtime_wasi`'s `add_to_linker` for these actors (a per-flavor
+  opt-out of strict determinism). Smallest change; girder-side.
+- **Compose an adapter component** that exports girder's `turn-actor` world and
+  imports the package's `offload`, with WASI satisfied by the host — the CPython
+  `py-package` component composed with a thin turn-actor shim (`wac`). girder
+  still must supply `wasi:*` to the composite.
+
+Either way girder must supply `wasi:*` to a Python actor. `turn-actor.handle(msg)`
+then decodes the message as an `offload.task` and calls the in-actor worker
+(exactly what `actor.py` does, one level up). Until this lands, Tier P runs as
+the proven multi-process pool (`pool.py`), not yet on real girder actors.
 
 ## 6. How it composes
 
@@ -277,9 +343,10 @@ itself.
 | ----- | ----- | ------------ |
 | CPython wasip2 | working (this repo) | — |
 | v86 native execution | emulator mature (364 tests) | richer WIT not wired; need a resident guest-side dispatcher + snapshot workflow; perf is emulation-bound |
-| girder parallel actors | mature (7.9× / 12 cores) | CPython must export the `turn-actor` world; need a CPython↔actor adapter |
-| `tegmentum:py-offload` WIT | **does not exist yet** | define + version the package; codecs; error mapping |
-| Python import-hook / proxy | does not exist | `meta_path` finder + proxy module; serialization rules |
+| girder parallel actors | mature (7.9× / 12 cores) | **girder links no `wasi:*` (§5.1)** — CPython-wasip2 can't instantiate until girder provides WASI (linker variant or composed adapter); then `turn-actor.handle`→`offload` dispatch |
+| `tegmentum:py-offload` WIT | defined: `offload` + `py-worker` (Phase 1 reference worker) | `arrow`/`pickle` codecs; error-mapping edge cases |
+| `registry` catalog + `router` WIT | defined: `wit/py-package.wit` (`tier`/`backend` model + swap router) | catalog + router component impls; populate manifests from resolved envs |
+| Python import-hook / proxy | implemented (`importhook.py`, stdlib stand-in) | numpy proof case; richer attribute/dotted handling (Issue #5) |
 
 ## 9. Recommended phased plan
 
@@ -334,6 +401,15 @@ Resolved 2026-05-23:
 
 ## 11. Open questions
 
-None outstanding — every design fork above is resolved as of 2026-05-23. Phase 2
-benchmarking (Issue #2) will characterize Tier-1 latency to tune API granularity,
-but it no longer gates the design.
+Design forks are resolved as of 2026-05-23. Two **implementation** decisions
+remain (not design forks):
+
+- **How girder supplies `wasi:*` to a Python actor (§5.1).** girder is WASI-free
+  by design; CPython-wasip2 can't instantiate without WASI. Pick: a
+  WASI-providing girder linker variant for "python-flavored" actors, vs. a
+  composed `turn-actor`+`offload` adapter component. Gates Tier P on real actors.
+- **Who owns the resident v86 lifetime for use #2 (§6.1)** — host process vs. a
+  girder `loop-actor`.
+
+Phase 2 benchmarking (Issue #2) characterizes Tier-1 latency to tune API
+granularity; it does not gate the design.

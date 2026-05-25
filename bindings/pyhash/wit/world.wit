@@ -1,0 +1,10 @@
+package tegmentum:hashpy@0.1.0;
+
+// Python binding that CONSUMES the hashing multiplexer capability over WIT.
+// Imports tegmentum:hashing-multiplexer/hashing-dispatcher (satisfied by
+// composing hashing_multiplexer.wasm via wac) and exposes a small entrypoint.
+// python-wasm's lane: Python is one consumer of a language-agnostic component.
+world hash-demo {
+    import tegmentum:hashing-multiplexer/hashing-dispatcher@0.1.0;
+    export run: func() -> string;
+}

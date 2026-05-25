@@ -1,0 +1,46 @@
+// Hashing Multiplexer WIT interface.
+//
+// A unified hashing dispatcher that routes to multiple non-cryptographic /
+// checksum algorithms at runtime, mirroring the compression multiplexer. Lets
+// consumers pick an algorithm by enum instead of importing one per interface.
+
+package tegmentum:hashing-multiplexer@0.1.0;
+
+interface hashing-dispatcher {
+    /// Hash algorithm selection. Integer hashes return canonical big-endian:
+    /// xxh32/crc32/crc32c/murmur3 -> 4 bytes, xxh64/xxh3 -> 8, xxh128/murmur128
+    /// -> 16, blake3 -> 32. (`xxh3`/`xxh128` are XXH3 64-/128-bit; `murmur3` is
+    /// MurmurHash3 x86_32, `murmur128` is x64_128.)
+    enum algorithm {
+        xxh32,
+        xxh64,
+        xxh3,
+        xxh128,
+        crc32,
+        crc32c,
+        murmur3,
+        murmur128,
+        blake3,
+    }
+
+    /// Streaming hasher. `seed` is honored by the seeded algorithms (xxhash,
+    /// murmur) and ignored by the CRCs and BLAKE3.
+    resource hasher {
+        constructor(algo: algorithm, seed: u64);
+        /// Feed more data.
+        update: func(input: list<u8>);
+        /// Current digest (canonical big-endian); may be called repeatedly.
+        finish: func() -> list<u8>;
+        /// Reset to the constructed state.
+        reset: func();
+    }
+
+    /// One-shot digest of a complete buffer.
+    digest: func(algo: algorithm, input: list<u8>, seed: u64) -> list<u8>;
+
+    /// Algorithms available in this multiplexer.
+    supported-algorithms: func() -> list<algorithm>;
+
+    /// Human-readable description of an algorithm.
+    algorithm-info: func(algo: algorithm) -> option<string>;
+}
