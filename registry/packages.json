@@ -1,0 +1,28 @@
+{
+  "schema": "tegmentum:py-offload/registry@0.1.0 (wit/py-package.wit)",
+  "note": "Materialized python-package catalog: package name -> serving backends (composectl content digests) + offload-able entries. The single python-facing source of truth a driver consults before building a composectl plan; composition/exec stay in composectl.",
+  "packages": [
+    {
+      "dist": {
+        "name": "zlib",
+        "version": "0.1.0",
+        "backends": [
+          { "tier": "in-wasm", "env": "728d09d3ceb6a926e3f476741c37efa05e80bfe4a6d7a5a9519512cb00332dc1" }
+        ]
+      },
+      "entries": [
+        { "entry": "zlib:compress",   "doc": "Compress bytes to zlib format (RFC 1950) via the DEFLATE codec.", "codecs": ["msgpack", "json"] },
+        { "entry": "zlib:decompress", "doc": "Decompress zlib (RFC 1950) or raw DEFLATE (negative wbits) bytes.", "codecs": ["msgpack", "json"] },
+        { "entry": "zlib:crc32",      "doc": "CRC-32 checksum.",   "codecs": ["msgpack", "json"] },
+        { "entry": "zlib:adler32",    "doc": "Adler-32 checksum.", "codecs": ["msgpack", "json"] }
+      ],
+      "source": {
+        "binding": "bindings/pyzlib",
+        "module": "pyzlib (installed as the stdlib-style `zlib`)",
+        "capability": "tegmentum:compression-multiplexer/compression-dispatcher@0.1.0",
+        "artifact": "bindings/pyzlib/composed.wasm",
+        "artifact_bytes": 21683278
+      }
+    }
+  ]
+}
