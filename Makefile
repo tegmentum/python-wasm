@@ -2,6 +2,7 @@ PROJECT_DIR := $(shell pwd)
 DEPS_DIR := $(PROJECT_DIR)/deps
 CPYTHON_DIR := $(DEPS_DIR)/cpython
 WASI_SDK_DIR := $(DEPS_DIR)/wasi-sdk-33.0-arm64-macos
+OPENSSL_PREFIX := $(DEPS_DIR)/openssl-prefix
 HOST_TRIPLE := wasm32-wasip2
 PYTHON_WASM := $(CPYTHON_DIR)/cross-build/$(HOST_TRIPLE)/python.wasm
 
@@ -16,9 +17,11 @@ fetch-deps:
 
 build: fetch-deps
 	bash scripts/build-zlib.sh
+	bash scripts/build-openssl.sh
 	cd $(CPYTHON_DIR) && python3 Tools/wasm/wasi build \
 		--host-triple $(HOST_TRIPLE) \
-		--wasi-sdk $(WASI_SDK_DIR)
+		--wasi-sdk $(WASI_SDK_DIR) \
+		-- --with-openssl=$(OPENSSL_PREFIX)
 
 run:
 	@bash scripts/run-python.sh $(ARGS)
