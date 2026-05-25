@@ -15,6 +15,7 @@ fetch-deps:
 	bash scripts/fetch-cpython.sh
 
 build: fetch-deps
+	bash scripts/build-zlib.sh
 	cd $(CPYTHON_DIR) && python3 Tools/wasm/wasi build \
 		--host-triple $(HOST_TRIPLE) \
 		--wasi-sdk $(WASI_SDK_DIR)
