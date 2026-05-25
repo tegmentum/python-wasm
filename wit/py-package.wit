@@ -1,36 +1,39 @@
 package tegmentum:py-offload@0.1.0;
 
-// Package catalog and transparent backend routing. The `offload` interface
-// (py-offload.wit) is the common call seam: every backend — an in-WASM build
-// (Tier 0), the v86 native worker (Tier 1), a girder actor, or a remote
-// endpoint — exports the SAME `offload`, so "swap in a wasm build for the v86
-// one" is just pointing the router at a different backend. This file adds the
-// availability catalog and the router that selects among backends per package.
+// Python-package catalog and backend SELECTION, reconciled with the
+// webassembly-component-orchestration framework (`composectl`).
 //
-// RECONCILE WITH THE EXISTING ECOSYSTEM (not a parallel orchestrator):
-//   - `registry` (the catalog) is the python-facing view of the per-family
-//     `<family>-components` indexes; populate it FROM those, don't re-curate.
-//   - `router` is a thin per-package backend *selector* over
-//     webassembly-component-orchestration (`composectl` plans do the actual
-//     composition/wiring); it must not duplicate composition.
+// Composition and execution are composectl's job: a worker is a content-addressed
+// component (a CPython binding + capability components wired by a composectl
+// `plan`), emitted and run via `composectl` (sys:compose `emit`/`exec` over the
+// CAS `blobs`). This file does NOT re-implement any of that. It contributes only
+// the python-facing pieces:
+//   - `registry`: a catalog mapping a Python package to the worker backends that
+//     can serve it, each identified by the composectl content digest of the
+//     composed worker artifact. Populated from resolved envs + the per-family
+//     `<family>-components` indexes — not re-curated here.
+//   - `registry.select`: the per-package backend DECISION (pure catalog logic).
+//     The chosen backend's digest is what a driver puts into a composectl plan;
+//     composectl emits/execs it and the worker answers via the `offload` contract
+//     (py-offload.wit). There is no parallel router/composer component.
 //
-// See docs/native-execution-and-parallelism.md (§4 the offload contract; the
-// 2026-05-25 status note for the ecosystem alignment).
+// See docs/native-execution-and-parallelism.md (§4 the offload contract).
 
 interface registry {
     use offload.{env-id, codec};
 
-    // Execution backends, in rough preference order.
+    // Execution tiers, in rough preference order.
     enum tier {
-        in-wasm,      // Tier 0: a wasm32-wasip2 build, run in-process or as a girder actor
-        native-v86,   // Tier 1: native (e.g. i686) code run in the v86 x86 guest
+        in-wasm,      // Tier 0: a wasm32-wasip2 build (in-process or a girder actor)
+        native-v86,   // Tier 1: native (e.g. i686) code in the v86 x86 guest
         remote,       // off-box endpoint running either of the above
     }
 
-    // One way to serve a package: a tier plus the content-addressed environment
-    // for that tier's build. A wasm build and a native build are different
-    // artifacts, hence different env-ids — which is exactly what lets them be
-    // swapped behind a single `offload` call.
+    // One way to serve a package. `env` is the content digest of the composectl
+    // composed-worker artifact for this tier (hex of sys:compose's CAS `digest`)
+    // — the same identity composectl uses in plans/blobs, and the `env` a caller
+    // passes to `offload.run`. A wasm build and a native build are different
+    // artifacts -> different digests -> swappable behind one `offload` call.
     record backend {
         tier: tier,
         env: env-id,
@@ -38,57 +41,39 @@ interface registry {
 
     // A callable the package advertises as offload-able.
     record entry-desc {
-        // "module:callable", resolvable inside the worker (matches an `offload`
-        // task.entry). The attribute after ':' may be dotted.
-        entry: string,
-        // Optional one-line summary.
+        entry: string,            // "module:callable" (matches an offload task.entry)
         doc: string,
-        // Codecs accepted for this entry's args/return (empty = any the worker
-        // implements).
-        codecs: list<codec>,
+        codecs: list<codec>,      // accepted codecs (empty = any the worker implements)
     }
 
     // A resolved Python distribution and how it can be served.
     record dist {
-        name: string,          // distribution name, e.g. "numpy"
-        version: string,       // resolved version, e.g. "2.1.0"
-        // Backends that can serve this package, in preference order. A router
-        // picks the first available — e.g. in-wasm before native-v86 — so when a
-        // wasm build of a previously native-only package is published, you
-        // prepend its backend and v86 drops off the hot path with no change to
-        // callers. A single native-v86 entry is the unported-package case.
+        name: string,             // e.g. "numpy"
+        version: string,          // e.g. "2.1.0"
+        // Serving backends in preference order (e.g. in-wasm before native-v86),
+        // so publishing a wasm build of a native-only package is a catalog edit.
         backends: list<backend>,
     }
 
     record manifest {
         dist: dist,
-        // Advertised entries. May be empty: a package accepts arbitrary
-        // "module:callable" entries within its environment (the call-offload
-        // default), in which case `entries` is advisory / for discovery only.
         entries: list<entry-desc>,
     }
 
-    // Catalog lookup: the manifest for a package, or none if unknown here.
+    // Catalog lookup.
     lookup: func(name: string) -> option<manifest>;
-    // The whole catalog.
     list-packages: func() -> list<manifest>;
+
+    // The routing DECISION (pure selection, no composition): the first backend
+    // whose tier appears in `prefer` (honoring `prefer` order), else the dist's
+    // first backend, else none. The caller hands the chosen backend's `env`
+    // digest to a composectl plan; composectl composes and execs it.
+    select: func(name: string, prefer: list<tier>) -> option<backend>;
 }
 
-// The availability catalog component: maps package name -> backends + entries.
-// Populated from resolved environments (the typed counterpart to v86's
-// packages/*.json), it is the single source of truth the router consults.
+// The catalog component: maps a package name -> serving backends + entries, in
+// composectl digest terms. The single python-facing source of truth a driver
+// consults before building a composectl plan. Composition/exec stay in composectl.
 world catalog {
     export registry;
-}
-
-// Transparent swap router. Exports the standard `offload` so callers are
-// unaffected; for each task it derives the package (from task.entry), consults
-// the catalog for the preferred available backend, and forwards the call to the
-// downstream env-id-keyed `offload` with that backend's env. Swapping a package
-// from v86 to a wasm build is a catalog edit — no caller, code, or recompile
-// change.
-world router {
-    export offload;     // callers see an ordinary offload worker
-    import registry;    // the availability catalog
-    import offload;     // downstream env-id-keyed dispatcher (the real backends)
 }

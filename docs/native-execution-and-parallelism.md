@@ -178,31 +178,34 @@ honest that only *call-with-serializable-args* is supported in v1.
   the host shim becomes a typed component-to-component call and the guest
   dispatcher can be packaged as a v86 `package`.
 
-### 4.3 The swap seam: catalog + router (`wit/py-package.wit`)
+### 4.3 The swap seam: catalog + selection, composed by composectl (`wit/py-package.wit`)
 `offload` is the common, backend-agnostic call seam — every backend (an in-WASM
 build, the v86 native worker, a girder actor, a remote endpoint) exports the
-*same* `offload`, so swapping one for another is just pointing at a different
-component. `wit/py-package.wit` makes that swap first-class with two pieces in
-the same `tegmentum:py-offload` package:
+*same* `offload`. Making a backend swap first-class needs three things:
+**catalog + selection** (python-side) and **composition + execution**
+(composectl). We do not re-implement the latter — that is the
+webassembly-component-orchestration framework's job. So `wit/py-package.wit`
+contributes only:
 
-- **`registry` (catalog).** `lookup(name)` / `list-packages()` return a
-  `manifest` whose `dist` carries `backends: list<backend>` — each `backend` a
-  `{ tier, env-id }` pair (`tier` ∈ `in-wasm` | `native-v86` | `remote`), in
-  preference order. A wasm build and a native build are different artifacts,
-  hence different env-ids; that is what makes them interchangeable behind
-  `offload`. (Typed counterpart to v86's `packages/*.json`.)
-- **`world router`.** Exports `offload` (callers are unaffected); for each task
-  it derives the package from `task.entry`, consults the catalog for the
-  preferred *available* backend, and forwards to a downstream env-id-keyed
-  `offload` with that backend's env. **Swapping v86 → wasm for a package is a
-  catalog edit** — prepend the `in-wasm` backend and v86 drops off its hot path,
-  with no caller/code/recompile change.
+- **`registry` (catalog).** `lookup` / `list-packages` return a `manifest` whose
+  `dist` carries `backends: list<backend>` — each `backend` a `{ tier, env }`
+  pair where `env` is the **composectl content digest** of the composed worker
+  artifact for that tier (the same identity composectl uses in plans/blobs, and
+  the `env` passed to `offload.run`). A wasm build and a native build are
+  different artifacts → different digests → interchangeable behind one `offload`
+  call. (Typed, composectl-aligned counterpart to v86's `packages/*.json`.)
+- **`registry.select(name, prefer)`.** The routing *decision* (pure selection):
+  the preferred available backend for a package. The caller hands the chosen
+  backend's `env` digest to a **composectl plan**; composectl emits (composes the
+  CPython binding + capability components) and execs it, and the worker answers
+  via `offload`. **There is no parallel router/composer** — composition and exec
+  are composectl's, swapping v86 → wasm for a package is a catalog edit.
 
 This keeps v1 at call-offload (`entries` is discovery metadata, not generated
 per-package bindings; live-object proxying remains Issue #5), and makes the
 32-bit v86 tier a *swappable interim backend* rather than a permanent commitment
-— important because the Linux i686 wheels v86 needs are a shrinking set, while
-wasm builds of the same packages are a growing one.
+— the Linux i686 wheels v86 needs are a shrinking set, while wasm builds of the
+same packages are a growing one.
 
 ## 5. Parallelism with girder — does it solve the GIL?
 
