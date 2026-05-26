@@ -1,5 +1,6 @@
 import {
   registerCorePlugins,
+  registerPlugin,
   Polyfill,
   createPolicy,
   type Policy,
@@ -15,6 +16,11 @@ import {
   getGlobalFilesystemInstance,
   type MemoryFileSystem,
 } from '@tegmentum/wasi-polyfill/plugins/filesystem'
+import { socketPlugins } from '@tegmentum/wasi-polyfill/plugins/sockets'
+import {
+  wsGatewayTcpPlugin,
+  wsGatewayTcpCreateSocketPlugin,
+} from '@tegmentum/wasi-polyfill/plugins/ws-gateway'
 import { CaptureOutputStream } from './output-capture.js'
 import { loadStdlib } from './stdlib-loader.js'
 
@@ -37,6 +43,17 @@ const WASI_INTERFACES = [
   'wasi:random/random@0.2.0',
   'wasi:filesystem/types@0.2.0',
   'wasi:filesystem/preopens@0.2.0',
+  // wasi:sockets — required by openssl-component/tls (Phase 3 of the
+  // componentize-python plan). Without a wss-gateway URL the polyfill
+  // provides virtual stubs that return NotSupported; with one, the
+  // ws-gateway plugin tunnels TCP through a WebSocket. See registerSockets().
+  'wasi:sockets/network@0.2.0',
+  'wasi:sockets/instance-network@0.2.0',
+  'wasi:sockets/ip-name-lookup@0.2.0',
+  'wasi:sockets/tcp@0.2.0',
+  'wasi:sockets/tcp-create-socket@0.2.0',
+  'wasi:sockets/udp@0.2.0',
+  'wasi:sockets/udp-create-socket@0.2.0',
 ]
 
 const PYTHONPATH = '/Lib:/cross-build/wasm32-wasip2/build/lib.wasi-wasm32-3.14'
@@ -55,11 +72,63 @@ export interface RunResult {
 /**
  * Initialize the Python runtime: register plugins, load stdlib, import transpiled module.
  */
+/**
+ * Configuration the host page can provide to enable network access through
+ * the polyfill. Phase 3 of the componentize-python plan ships TLS via the
+ * openssl-component capability, which imports wasi:sockets/tcp; that has no
+ * native browser implementation, so it tunnels over a WebSocket gateway.
+ *
+ *   tcpGatewayUrl: e.g. "wss://my-gateway.example/ws" — see
+ *                  wasi-polyfill/examples/tcp-proxy for a reference impl.
+ *
+ * If unset, the virtual sockets plugins are registered and any TLS call
+ * (or other socket op) returns NotSupported. This is fine for code that
+ * doesn't open network connections.
+ */
+export interface NetworkConfig {
+  tcpGatewayUrl?: string
+  authToken?: string
+}
+
+function getNetworkConfig(): NetworkConfig {
+  // Read from Vite env at build time, with safe fallbacks.
+  const env = (import.meta as { env?: Record<string, string> }).env ?? {}
+  return {
+    tcpGatewayUrl: env.VITE_TCP_GATEWAY_URL,
+    authToken: env.VITE_TCP_GATEWAY_TOKEN,
+  }
+}
+
+async function registerSocketsPlugins(
+  onProgress?: (message: string) => void,
+): Promise<void> {
+  // Always register the virtual sockets plugin set first: it covers network/
+  // instance-network/ip-name-lookup and provides a baseline TCP/UDP. The
+  // ws-gateway plugins below override TCP if a gateway URL is configured.
+  for (const plugin of socketPlugins) {
+    registerPlugin(plugin)
+  }
+
+  const net = getNetworkConfig()
+  if (net.tcpGatewayUrl) {
+    onProgress?.(`Registering ws-gateway TCP (${net.tcpGatewayUrl})...`)
+    // wsGatewayTcpPlugin / wsGatewayTcpCreateSocketPlugin are registered
+    // through the polyfill instance with their `options` payload in run().
+    // The globalRegistry registration here just claims the interface key
+    // so forInterfaces() finds the gateway implementation by default.
+    registerPlugin(wsGatewayTcpPlugin)
+    registerPlugin(wsGatewayTcpCreateSocketPlugin)
+  } else {
+    onProgress?.('TCP gateway not configured (set VITE_TCP_GATEWAY_URL to enable HTTPS)')
+  }
+}
+
 export async function initialize(
   onProgress?: (message: string) => void,
 ): Promise<void> {
   onProgress?.('Registering WASI plugins...')
   await registerCorePlugins()
+  await registerSocketsPlugins(onProgress)
 
   onProgress?.('Loading Python stdlib...')
   stdlibFiles = await loadStdlib('/stdlib.tar.gz')
@@ -79,21 +148,37 @@ export async function initialize(
 }
 
 function createPythonPolicy(userCode: string): Policy {
+  const net = getNetworkConfig()
+  const overrides: Array<{
+    interface: string
+    implementation?: string
+    options?: Record<string, unknown>
+  }> = [
+    {
+      interface: 'wasi:filesystem/preopens@0.2.0',
+      implementation: 'memory',
+      options: { preopens: [{ path: '/' }] },
+    },
+    {
+      interface: 'wasi:filesystem/types@0.2.0',
+      implementation: 'memory',
+    },
+  ]
+  if (net.tcpGatewayUrl) {
+    // Route TCP through the WebSocket gateway. The two interfaces share the
+    // 'tunneled' implementation registered by wsGateway{Tcp,TcpCreateSocket}Plugin.
+    const options: Record<string, unknown> = { gatewayUrl: net.tcpGatewayUrl }
+    if (net.authToken) options.authToken = net.authToken
+    overrides.push(
+      { interface: 'wasi:sockets/tcp@0.2.0', implementation: 'tunneled', options },
+      { interface: 'wasi:sockets/tcp-create-socket@0.2.0', implementation: 'tunneled', options },
+    )
+  }
   return createPolicy({
     defaultAllow: true,
     env: { PYTHONHOME: '/', PYTHONPATH, PYTHONUNBUFFERED: '1' },
     args: ['python', '-c', userCode],
-    overrides: [
-      {
-        interface: 'wasi:filesystem/preopens@0.2.0',
-        implementation: 'memory',
-        options: { preopens: [{ path: '/' }] },
-      },
-      {
-        interface: 'wasi:filesystem/types@0.2.0',
-        implementation: 'memory',
-      },
-    ],
+    overrides,
   })
 }
 
@@ -129,56 +214,6 @@ function populateFilesystem(fs: MemoryFileSystem): void {
 /**
  * Run Python code and return captured output.
  */
-// Stub classes/functions for sockets interfaces the jco component declares
-// but Python never uses in the browser.  Stubs follow jco resource conventions
-// (Symbol.for('cabiDispose') on classes) so the generated runtime is satisfied.
-const symbolCabiDispose = Symbol.for('cabiDispose')
-
-function stubResource(name: string) {
-  const cls = { [name]: class {} }[name]!
-  ;(cls as unknown as Record<symbol, () => void>)[symbolCabiDispose] = () => {}
-  return cls
-}
-
-function stubFunction(msg: string): (...args: unknown[]) => never {
-  return function () {
-    throw new Error(msg)
-  }
-}
-
-const socketStubs: Record<string, Record<string, unknown>> = {
-  'wasi:sockets/instance-network': {
-    instanceNetwork: stubFunction('sockets not available in browser'),
-  },
-  'wasi:sockets/ip-name-lookup': {
-    ResolveAddressStream: stubResource('ResolveAddressStream'),
-    resolveAddresses: stubFunction('sockets not available in browser'),
-  },
-  'wasi:sockets/network': {
-    Network: stubResource('Network'),
-  },
-  'wasi:sockets/tcp': {
-    TcpSocket: stubResource('TcpSocket'),
-  },
-  'wasi:sockets/tcp-create-socket': {
-    createTcpSocket: stubFunction('sockets not available in browser'),
-  },
-  'wasi:sockets/udp': {
-    IncomingDatagramStream: stubResource('IncomingDatagramStream'),
-    OutgoingDatagramStream: stubResource('OutgoingDatagramStream'),
-    UdpSocket: stubResource('UdpSocket'),
-  },
-  'wasi:sockets/udp-create-socket': {
-    createUdpSocket: stubFunction('sockets not available in browser'),
-  },
-}
-
-function addSocketsStubs(imports: Record<string, Record<string, unknown>>): void {
-  for (const [key, value] of Object.entries(socketStubs)) {
-    imports[key] ??= value
-  }
-}
-
 export async function runPython(code: string): Promise<RunResult> {
   if (!pythonModule || !stdlibFiles) {
     throw new Error('Python runtime not initialized. Call initialize() first.')
@@ -202,11 +237,6 @@ export async function runPython(code: string): Promise<RunResult> {
     const { imports } = await polyfill.forInterfaces(WASI_INTERFACES, {
       jcoCompat: true,
     })
-
-    // The jco-transpiled component unconditionally destructures all declared
-    // imports, including sockets.  The polyfill has no sockets plugins, so
-    // provide stubs.  Python in the browser won't call these.
-    addSocketsStubs(imports)
 
     // Populate filesystem on first run (singleton persists across runs)
     const fsInstance = getGlobalFilesystemInstance()

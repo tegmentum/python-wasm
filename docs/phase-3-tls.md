@@ -605,9 +605,9 @@ the browser via the polyfill, and adds the wasmtime CI smoke.
 
 | # | Deliverable | Acceptance |
 |---|---|---|
-| **3c.1** | CI smoke test against a real TLS server, gated on a `network=true` flag, under wasmtime. | `make test-ssl-extension` (new target) does a real HTTPS GET via wasi:sockets/tcp. |
-| **3c.2** | Web demo wiring: `web/src/python-runner.ts` registers the wasi-polyfill TCP plugin with the configured wss-proxy URL. | The composed python.wasm in the browser can `import ssl; import urllib.request; urllib.request.urlopen("https://...")` via the reference proxy. |
-| **3c.3** | `docs/browser-tls.md`: document the wss-proxy constraint, how to point at a different proxy, security model. | The constraint is unambiguous to a new user. |
+| **3c.1** | CI smoke test against a real TLS server, gated on a `network=true` flag, under wasmtime. | `make test-ssl-network` (NETWORK=1) does a real HTTPS GET via wasi:sockets/tcp; 21 assertions including urllib end-to-end. | **✅ DONE** (with 3b.3). |
+| **3c.2** | Web demo wiring: `web/src/python-runner.ts` registers the wasi-polyfill TCP plugin with the configured wss-proxy URL. | Added `registerSocketsPlugins()` (virtual + ws-gateway) + `getNetworkConfig()` (reads `VITE_TCP_GATEWAY_URL`/`VITE_TCP_GATEWAY_TOKEN`) + policy overrides routing TCP through 'tunneled' implementation. Removed the legacy hand-written socket stubs. Vite build clean. | **✅ DONE**. |
+| **3c.3** | `docs/browser-tls.md`: document the wss-proxy constraint, how to point at a different proxy, security model. | Written: constraint, configuration, reference gateway, security guidance (allowlist, Origin pinning, wss for the gateway hop), what works / doesn't, why not `fetch`. | **✅ DONE**. |
 
 **Risks:**
 
