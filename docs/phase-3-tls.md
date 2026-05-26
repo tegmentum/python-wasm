@@ -829,3 +829,15 @@ downstream straightforward; the wrong one costs days of rework. Once the WIT
 is reviewed and the openssl-wasm linkage is confirmed working in a tiny Rust
 hello-world component (~half a day on top of 3a.1), the rest follows the
 patterns we already proved in Phases 1+2.
+
+---
+
+## 11. Closing summary (Phase 3 COMPLETE)
+
+| | |
+|---|---|
+| **Status** | All sub-phases done: WIT review ✅, open questions ✅, 3a (pivot to openssl-wasm) ✅, 3b.1–3b.6 ✅, 3p (wasi-polyfill sockets) ✅, 3c.1–3c.3 ✅, 3d (retire static OpenSSL from default) ✅. |
+| **Effort** | Roughly **~2 days** of concentrated work (vs the 14–19 day estimate). Big saves: 3a pivot (~5d reclaimed by reusing openssl-wasm), 3p (already implemented in wasi-polyfill), 3d (~1d → 30 min via opt-in inversion). |
+| **What ships** | python.wasm 30 MB (was 34 MB); composed 37 MB (was 41 MB). `make test-ssl-network` runs 21 assertions including real TLS 1.3 to example.com:443, WebPKI cert validation, expired/self-signed rejection, urllib end-to-end. `_ssl_capability` (C extension) + `ssl_capability.py` (Python shim) + browser ws-gateway wiring + `docs/browser-tls.md`. |
+| **Known v1.1 work** | wrap_bio/asyncio (needs memory-BIO in openssl-component upstream); SSL session resumption; channel binding (needs `SSL_get_finished` in openssl-component); load_cert_chain accepting file paths (needs host-FS access). All documented in `docs/browser-tls.md`. |
+| **Commits** | `948f396` (WIT review), `56e4518` (3a), `7978b6f` (3b.1 scaffold), `e12189b` (3b.2 MemoryBIO), `ecce92d` (3b.3 SSLContext/SSLSocket), `e39af68` (3b.4 WebPKI + RAND), `d9b987d` (3b.6 ssl_capability.py), `9e9d268` (build hook), `031d329` (3c.2/3c.3 web wiring + docs), `d7dddee` (3d retire static). On the wasi-polyfill side: `9eb4ab3` (3p). |
