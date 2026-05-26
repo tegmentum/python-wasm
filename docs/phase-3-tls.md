@@ -355,54 +355,67 @@ the server side (`server-config`).
 
 ## 3. Phases
 
-### Phase 3a — `tls-wasm` capability component
+### Phase 3a — TLS engine (PIVOT: reuse `~/git/openssl-wasm` directly)
 
-**Repo:** new `~/git/tls-wasm`. The Rust template mirrors the existing
-`~/git/compression-multiplexer` shape (a `tegmentum:*` capability component
-built with `cargo component`).
+**Major finding (2026-05-26):** `~/git/openssl-wasm` already ships a built
+component (`build/openssl-component.wasm`, 3.8 MB) exporting
+`openssl:component/tls@0.1.0` — a complete TLS surface (mTLS, ALPN, 0-RTT,
+session tickets, server side, key logging). The world also exports
+error/random/bignum/digest/mac/cipher/kdf/pkey/x509, all from the same
+underlying OpenSSL.
 
-**Internals:** wrap `openssl-wasm`'s prebuilt `libssl.a` + `libcrypto.a` via
-Rust FFI. The Rust component code itself is small — most of the work is
-correctly driving OpenSSL's memory BIOs and translating its errors into the
-`tls-error` variant.
+**Pivot:** rather than build a *new* `~/git/tls-wasm` that duplicates the
+work, Phase 3a becomes "consume openssl-wasm's existing TLS interface
+directly." The drafted `tegmentum:tls` WIT becomes the *reference* for
+features Phase 3b's `_ssl.c` needs from `openssl:component/tls` (almost all
+covered already).
 
-**Sub-deliverables (in order):**
+**Trade-off:** openssl-wasm's TLS is **connection-managing**, not memory-BIO:
+`tls.client.connect(host, port, config)` opens a TCP socket internally via
+`wasi:sockets/tcp` and does the handshake. That's:
+
+- ✅ wasmtime — works as-is, sockets are first-class.
+- ❌ browser — no raw TCP. Phase 3c.2's wss-proxy work in `wasi-polyfill`
+  (originally scheduled later) now becomes a 3a-or-3c hard dependency for
+  the browser path. wasmtime path still ships independently.
+
+**What changes vs the original Phase 3a plan:**
+
+- 3a.1 → drop (no new repo).
+- 3a.2 – 3a.7 → drop (openssl-wasm did this).
+- New 3a.1: verify openssl-wasm's tls interface against `_ssl`'s needs (the
+  drafted tegmentum:tls WIT serves as the gap-analysis checklist).
+- New 3a.2: build openssl-wasm if not already built; pin a known-good
+  artifact.
+
+**Sub-deliverables (revised):**
 
 | # | Deliverable | Acceptance |
 |---|---|---|
-| **3a.1** | Repo scaffold (`Cargo.toml` with `crate-type = ["cdylib"]`, wit/world.wit imports tegmentum:tls, links libssl.a + libcrypto.a from a sibling `~/git/openssl-wasm` checkout) | `cargo component build --target wasm32-wasip2` produces a wasm. WIT introspection shows `export tegmentum:tls/context`. |
-| **3a.2** | Implement `context.client::constructor`: build SSL_CTX (TLS 1.2/1.3, peer-verify on), create SSL, set SNI, set ALPN, attach memory BIOs. No actual connection yet. | Native unit test: construct + verify SSL_get_servername returns the SNI. |
-| **3a.3** | Implement `push-tls-input` / `pull-tls-output` / `handshake-complete`. This is where the BIO pump lives. | Native unit test against an in-process libssl server (the openssl-wasm artifacts include `s_server` equivalent or we vendor a minimal one): both sides handshake, ALPN agrees. |
-| **3a.4** | Implement `write-plaintext` / `read-plaintext` / `close-notify` / `peer-cert-der` / `version` / `alpn-selected`. | Same self-loop test: send "ping", receive "ping", `peer-cert-der()` returns the server's DER, `version()` == "TLSv1.3". |
-| **3a.5** | Implement `server::handle` (same shape, server-side). Optional for v1 but cheap to add since we already have the BIO plumbing. | Self-loop test passes with our component on both sides. |
-| **3a.6** | Bundle Mozilla WebPKI roots (compile-time `include_bytes!` of a fetched bundle) and use them when `ca-roots` is empty. | A real handshake test against `tls13.akamai.com:443` or similar succeeds. (Needs a real TCP, so this test runs under wasmtime with `wasi:sockets/tcp`, not jco.) |
-| **3a.7** | jco-instantiation smoke: feed canned record bytes (recorded from a real handshake) into the component, verify it produces the expected output bytes. | Cross-checks that the component runs cleanly under jco even though we can't do real TCP there. |
+| **3a.1** | Walk every method the `tegmentum:tls` draft documents against `openssl:component/tls`. Identify which are: present-as-is, present-but-named-differently, present-with-different-shape, or missing. | Gap inventory in this doc. |
+| **3a.2** | Confirm `build/openssl-component.wasm` runs in jco (load-only smoke, since browser sockets aren't there yet). | Component instantiates without missing imports beyond `wasi:sockets/tcp` (acceptable, that's the documented browser gap). |
+| **3a.3** | Build `~/git/openssl-wasm` from source to confirm the build is reproducible (so we're not pinned to a stale prebuilt artifact). | `cargo build --release` succeeds; resulting wasm matches the existing one in WIT export shape. |
 
-**Estimated size of the component:** OpenSSL static libs are huge but already
-needed for current `_ssl` — the *additional* size for the component wrapping
-is ~200 KB of Rust glue + ~250 KB of CA roots = under 500 KB on top of what
-we already ship. Total tls-wasm should land around the size of the current
-static OpenSSL link (~3 MB).
+**Component artifact:** `~/git/openssl-wasm/build/openssl-component.wasm`
+(3.8 MB, already built). Imports `wasi:sockets/tcp@0.2.6` among other
+standard wasi imports.
 
-**Risks:**
+**Risks (revised):**
 
-- **R1: BIO pumping has gotchas.** `SSL_read`/`SSL_write` return
-  `SSL_ERROR_WANT_READ` even when there's nothing in the input BIO; the loop
-  has to handle every combination. Mitigation: follow rustls's API contract
-  closely (their state machine is well-tested) and lift their test corpus
-  where applicable.
-- **R2: OpenSSL randomness.** Handshake nonces come from `RAND_bytes`.
-  openssl-wasm's `_RAND` needs entropy; we wire it from
-  `wasi:random/random@0.2.x` via a custom `RAND_METHOD`. The crypto-hash +
-  compression caps already do similar.
-- **R3: openssl-wasm is no-threads.** OpenSSL has internal locks that no-op
-  in this build. That's fine for single-connection use; document it.
-- **R4: Cert chain validation in wasm.** OpenSSL does PKI itself; we don't
-  need rustls's webpki. But the time source for "is this cert expired" comes
-  from `wasi:clocks`. Confirm openssl-wasm's `time()` is wired to that and
-  not zero.
+- **R1 (deleted):** no BIO pumping in *our* code; openssl-wasm did that.
+- **R2: openssl-wasm's wasi:sockets dep is mandatory in v1.** Browser path
+  blocked on wasi-polyfill providing a wss-proxy-backed `wasi:sockets/tcp`
+  (Phase 3c.2). wasmtime path unaffected.
+- **R3: We don't control the openssl:component/tls WIT.** If a future need
+  surfaces a missing method (e.g. memory-BIO mode for browser-without-proxy),
+  it's an upstream PR to openssl-wasm.
+- **R4: Cipher / digest overlap.** openssl-wasm exports `cipher` / `digest` /
+  `mac` interfaces that overlap our existing Phase 2 `_crypto_hash`
+  (which uses `tegmentum:crypto-hash-multiplexer`). Out of scope here — we
+  keep _crypto_hash as the hashlib backend; we use openssl-wasm only for tls.
 
-**Effort:** **4–6 days** for an experienced dev once the WIT is reviewed.
+**Effort:** **0.5–1 day** (verify gap inventory + build reproducibility).
+Was 4–6 days; the pivot reclaims ~5 days from the overall Phase 3 budget.
 
 ---
 
@@ -452,53 +465,80 @@ the browser interpreter actually does.
 
 ---
 
-### Phase 3c — transport wiring (Browser & host)
+### Phase 3p — `wasi-polyfill` support for `wasi:sockets/tcp` (new, hard dep for browser)
 
-This is where we make the composed wasm actually do TLS in the browser.
+**Promoted to its own phase by the 3a pivot.** Originally 3c.2, now upgraded
+because openssl-wasm's TLS imports `wasi:sockets/tcp` directly — the
+browser path is *blocked* on this work, not enhanced by it. This phase ships
+the polyfill capability that makes the composed python.wasm work in the
+browser at all.
 
-Two halves:
+**Repo:** `~/git/wasi-polyfill` (sister repo to python-wasm, the
+`@tegmentum/wasi-polyfill` package the web demo already depends on).
 
-**3c.1 — wasmtime / CLI path.** Under wasmtime python.composed.wasm gets
-`wasi:sockets/tcp@0.2.x` for free. The `_ssl` extension uses the standard
-wasi-socket fd via Python's `socket` module, pumping bytes through the
-tls-wasm resource. Should work as-is after 3b.5. The CI build job adds a
-network-required smoke test (gated on a flag — CI runners can hit
-`tls13.akamai.com`).
+**Approach.** Implement `wasi:sockets/tcp@0.2.6` as a polyfill plugin
+(alongside the existing `cli`/`filesystem` plugins) backed by **WebSocket
+over a wss-proxy**. The browser can't open arbitrary TCP, but it can speak
+WebSocket to a relay that forwards bytes over real TCP to the destination.
 
-**3c.2 — browser path (jco + wasi-polyfill).** The browser has no raw TCP.
-We need a transport shim. Two viable options:
-
-- **Option A: wasi-polyfill implements `wasi:sockets/tcp` via WebTransport /
-  WebSocket.** Pro: looks like a normal wasi socket to the Python code;
-  nothing in `_ssl` changes. Con: browsers can't open arbitrary TCP —
-  limited to wss:// targets that proxy TCP. Real but constrained.
-- **Option B: A `tegmentum:transport/stream` capability** the browser
-  polyfill implements directly, that the `_ssl` extension uses *instead of*
-  wasi:sockets when wasi:sockets isn't available. Pro: explicit about
-  constraints; the polyfill maps it to WebSocket / WebTransport / fetch
-  streams as appropriate. Con: divergent code paths between wasmtime and
-  browser; `socket.socket()` in Python wouldn't work.
-
-Pick A. Reason: Option B makes `import socket` lie in the browser; that's
-worse than telling people "browser TCP goes through a wss:// proxy." Document
-the constraint clearly.
+**Why WebSocket-as-TCP-proxy:** browser fundamentals — no raw sockets, no
+WebTransport-to-arbitrary-host (server has to opt in), only WebSocket and
+fetch are general. WebSocket framing carries the byte stream transparently
+once the proxy is in place. Standard pattern (Bun's `bun:tls`-in-browser,
+the WebSSH ecosystem, etc.).
 
 **Sub-deliverables:**
 
 | # | Deliverable | Acceptance |
 |---|---|---|
-| **3c.1** | CI smoke test against a real TLS server, gated on a `network=true` flag, under wasmtime. | `make test-ssl-extension` (new target) does a real HTTPS GET. |
-| **3c.2.a** | wasi-polyfill ships a `wasi:sockets/tcp` implementation backed by WebSocket-over-wss-proxy. Companion change in `~/git/wasi-polyfill`. | Browser demo can call `socket.create_connection(('example.com', 443))` via the proxy. |
-| **3c.2.b** | Document the browser TLS constraint clearly in `docs/componentize-python.md` and a new `docs/browser-tls.md`. | The constraint is unambiguous to a new user. |
+| **3p.1** | Inventory the `wasi:sockets/tcp@0.2.6` interface (resources, methods) the polyfill must satisfy. Map each to a WebSocket operation. | A docs/note in wasi-polyfill listing every method + its WebSocket mapping. |
+| **3p.2** | Implement `wasi:sockets/instance-network` + `wasi:sockets/network` + `wasi:sockets/ip-name-lookup` minimal stubs (the trio the TLS path also imports). | `python.composed.wasm` instantiates in jco without "missing wasi:sockets/* import" errors. |
+| **3p.3** | Implement `wasi:sockets/tcp.tcp-socket` resource: constructor, `start-connect`/`finish-connect`, the input-stream / output-stream pair, `shutdown`, drop. Backed by a WebSocket to the configured wss-proxy. | A small test (no Python yet): direct JS code calls the polyfill TCP API; opens a TCP via the proxy; reads/writes a few bytes. |
+| **3p.4** | Configuration surface: where does the proxy URL come from? Recommended: `instantiateWithPolyfill({ tcpProxy: 'wss://my-proxy.example/tcp' })`. Document in wasi-polyfill README. | The web demo can override the proxy URL. |
+| **3p.5** | Ship a tiny reference wss-proxy as `wasi-polyfill/examples/tcp-proxy/` — a Node script using `ws` + `net` that accepts WebSocket with `?host=...&port=...` and bridges to TCP. ~50 LOC. | `node examples/tcp-proxy/proxy.js` starts on port 8443; the polyfill TCP test (3p.3) passes against it. |
+| **3p.6** | Bundle a tiny in-browser smoke: a single HTML page that opens `wss://example.org:443`, sends a minimal TLS hello via the polyfill TCP, reads bytes back. (No TLS state machine — just proves bytes flow.) | The smoke loads in any browser with the wss-proxy running. |
 
 **Risks:**
 
-- **R8: WebSocket-as-TCP-proxy.** Requires an actual proxy server. We don't
-  run one. Document it as user-deployable; ship a tiny reference proxy as
-  part of wasi-polyfill examples.
+- **R9: wasi:sockets/tcp@0.2.6 is a moving target.** It went through several
+  WIT revisions during wasi-preview2 stabilization. The polyfill must match
+  the exact version openssl-wasm imports. Pin once, verify on update.
+- **R10: WebSocket back-pressure.** WS doesn't natively expose per-message
+  back-pressure the way native TCP does (just `bufferedAmount`). For TLS
+  this is fine because reads/writes are application-paced; for high-throughput
+  use it could matter. Documented limitation; acceptable for v1.
+- **R11: Proxy is a security boundary.** A wss-proxy that anyone can use to
+  open arbitrary TCP is a serious tunneling primitive. The reference proxy
+  ships with **explicit allowlist** for destination host:port pairs by
+  default; production deployments configure their own allowed targets.
+- **R12: DNS.** `ip-name-lookup` over `fetch()`-based DoH or via the proxy
+  itself. Recommend: lookup goes through the proxy ("CONNECT host:port"
+  semantics) — keeps the security model in one place.
 
-**Effort:** **3–4 days for 3c.1**, **3c.2 is its own short project** (a
-couple of days in wasi-polyfill).
+**Effort:** **5–7 days.** Was originally budgeted 3–5 days as Phase 3c.2;
+elevated because the wasmtime path's success no longer fronts the work.
+
+---
+
+### Phase 3c — transport wiring (browser end-to-end)
+
+With 3p done, this phase makes the *composed python.wasm* actually work in
+the browser via the polyfill, and adds the wasmtime CI smoke.
+
+**Sub-deliverables:**
+
+| # | Deliverable | Acceptance |
+|---|---|---|
+| **3c.1** | CI smoke test against a real TLS server, gated on a `network=true` flag, under wasmtime. | `make test-ssl-extension` (new target) does a real HTTPS GET via wasi:sockets/tcp. |
+| **3c.2** | Web demo wiring: `web/src/python-runner.ts` registers the wasi-polyfill TCP plugin with the configured wss-proxy URL. | The composed python.wasm in the browser can `import ssl; import urllib.request; urllib.request.urlopen("https://...")` via the reference proxy. |
+| **3c.3** | `docs/browser-tls.md`: document the wss-proxy constraint, how to point at a different proxy, security model. | The constraint is unambiguous to a new user. |
+
+**Risks:**
+
+- (R8 from the original plan rolls up into R11 above.)
+
+**Effort:** **2–3 days** (was 3–4; smaller because the polyfill work is its
+own phase now).
 
 ---
 
@@ -517,20 +557,30 @@ Per the original plan's Phase 5 gating: don't delete until verified.
 
 ---
 
-## 4. Total estimate
+## 4. Total estimate (revised after 3a pivot)
 
 | Phase | Days |
 |---|---|
-| WIT review checkpoint | 1 |
-| 3a (tls-wasm component) | 4–6 |
-| 3b (_ssl extension) | 5–7 |
-| 3c.1 (wasmtime transport) | 2 |
-| 3c.2 (browser transport) | 3–5 (wasi-polyfill side) |
-| 3d (retire static) | 1 |
-| **Total** | **16–22 eng-days** |
+| WIT review checkpoint | 0.5 ✅ DONE |
+| Open-question settle | 0.5 ✅ DONE |
+| 3a (reuse openssl-wasm/tls — was 4–6 building from scratch) | 0.5–1 |
+| 3b (`_ssl` extension) | 5–7 |
+| 3p (wasi-polyfill `wasi:sockets/tcp` over wss-proxy) | 5–7 |
+| 3c.1 (wasmtime CI smoke) | 1 |
+| 3c.2 (browser e2e wiring) | 1 |
+| 3c.3 (docs/browser-tls.md) | 0.5 |
+| 3d (retire static OpenSSL) | 1 |
+| **Total** | **14–19 eng-days** |
 
-The variance is on tls-wasm correctness (R1 — BIO pumping has gotchas) and
-on `_ssl` Python-API breadth (R5 — sizing what `ssl.py` actually needs).
+The pivot reclaimed ~5 days from 3a; the polyfill work (3p) was always
+implied as "Phase 3c.2" but is now sized properly as its own phase. Net
+budget is similar to the original 16–22 estimate, but the work is rebalanced
+toward the polyfill (which delivers value beyond TLS — any future component
+needing wasi:sockets benefits).
+
+Decision-point #2 (was: "real handshake from tls-wasm under wasmtime") moves
+to the end of 3b (the new "first real HTTPS request from CPython through
+openssl-wasm under wasmtime").
 
 ---
 
@@ -636,19 +686,32 @@ If any of those becomes a goal, it's its own plan.
 
 ---
 
-## 9. Order of work for the first three days
+## 9. Order of work (revised after 3a pivot)
 
-If you say "go" tomorrow, this is the order:
+Two tracks that can run in parallel after 3a:
+
+**Track A — CPython side (wasmtime path first, browser eventually):**
 
 | Day | Phase | Output |
 |---|---|---|
-| 1 (morning) | WIT review | `~/git/tls-wasm/wit/tls.wit` with the design above, walked against `ssl.py` and rustls's API and OpenSSL's BIO contract. Any needed adjustments made here. |
-| 1 (afternoon) | 3a.1 | tls-wasm repo scaffold; `cargo component build` produces a wasm with the right exports. |
-| 2 | 3a.2 + 3a.3 | constructor + handshake plumbing. Native test: two of our own clients hit a libssl-server in the same process; handshake completes. |
-| 3 | 3a.4 | plaintext round-trip + cert metadata. Native: send/receive bytes, peer-cert-der returns valid DER. |
+| 1 (done) | WIT review | docs/phase-3-tls.md WIT instantiated as cpython-ext/_ssl/wit/. ✅ |
+| 1 (done) | Open questions settled | engine=openssl-wasm, ca=webpki-roots, client-cert in v1, OCSP out. ✅ |
+| 2 (morning) | 3a.1 | Gap inventory: tegmentum:tls (drafted) ↔ openssl:component/tls (existing). |
+| 2 (afternoon) | 3a.2 + 3a.3 | openssl-wasm component loads in jco; build is reproducible. |
+| 3–5 | 3b.1–3b.4 | `_ssl` extension scaffold + MemoryBIO + minimal _SSLContext/_SSLSocket + RAND/OPENSSL_VERSION constants. |
+| 6 | 3b.5 + 3c.1 | wasi:sockets-backed _SSLSocket + wasmtime CI smoke against tls13.akamai.com. |
+| 7 | 3b.6 | test_ssl.py subset green (no-network). |
 
-By end of day 3 we have a working tls-wasm component that loops back to
-itself. The hard core is built. Everything after is plumbing.
+**Track B — wasi-polyfill side (gates the browser path):**
+
+| Day | Phase | Output |
+|---|---|---|
+| 1–2 | 3p.1 + 3p.2 | Inventory + minimal network/instance-network/ip-name-lookup. |
+| 3–4 | 3p.3 + 3p.5 | wasi:sockets/tcp resource backed by WebSocket; reference wss-proxy. |
+| 5 | 3p.4 + 3p.6 | Configuration surface + in-browser smoke. |
+
+**Convergence:** once both tracks reach their endpoints, 3c.2 (browser e2e)
++ 3c.3 (docs) close the loop in ~1 day.
 
 ---
 
