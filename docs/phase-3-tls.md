@@ -529,38 +529,50 @@ the browser interpreter actually does.
 
 ---
 
-### Phase 3p — `wasi-polyfill` support for `wasi:sockets/tcp` (new, hard dep for browser)
+### Phase 3p — `wasi-polyfill` support for `wasi:sockets/tcp` ✅ DONE (mostly via pre-existing work)
 
-**Promoted to its own phase by the 3a pivot.** Originally 3c.2, now upgraded
-because openssl-wasm's TLS imports `wasi:sockets/tcp` directly — the
-browser path is *blocked* on this work, not enhanced by it. This phase ships
-the polyfill capability that makes the composed python.wasm work in the
-browser at all.
+**Surprise win:** wasi-polyfill already had the implementation. Phase 3p
+shipped in `~/git/wasi-polyfill` commit `9eb4ab3` with one cosmetic change
+(version pins) + one integration test (proves the surface).
 
-**Repo:** `~/git/wasi-polyfill` (sister repo to python-wasm, the
-`@tegmentum/wasi-polyfill` package the web demo already depends on).
+What was already in wasi-polyfill before this phase:
 
-**Approach.** Implement `wasi:sockets/tcp@0.2.6` as a polyfill plugin
-(alongside the existing `cli`/`filesystem` plugins) backed by **WebSocket
-over a wss-proxy**. The browser can't open arbitrary TCP, but it can speak
-WebSocket to a relay that forwards bytes over real TCP to the destination.
+- `src/wasip2/plugins/sockets/` — all 7 `wasi:sockets/*` interfaces
+  (network, instance-network, ip-name-lookup, tcp, tcp-create-socket, udp,
+  udp-create-socket) with virtual / NotSupported implementations for
+  browser-without-proxy.
+- `src/wasip2/plugins/ws-gateway/` — production TCP+UDP **over a
+  WebSocket-multiplexing gateway** (the "KSW1" protocol). Includes
+  TcpAdapter, UdpAdapter, DnsAdapter, ByteQueue, TunnelManager — every
+  piece the original plan called for. Much more sophisticated than the
+  single-WebSocket-per-TCP-connection design I'd drafted.
 
-**Why WebSocket-as-TCP-proxy:** browser fundamentals — no raw sockets, no
-WebTransport-to-arbitrary-host (server has to opt in), only WebSocket and
-fetch are general. WebSocket framing carries the byte stream transparently
-once the proxy is in place. Standard pattern (Bun's `bun:tls`-in-browser,
-the WebSSH ecosystem, etc.).
+What this phase added:
 
-**Sub-deliverables:**
+- Bumped 7 version pins from `0.2.0` → `0.2.6` in `plugins/sockets/plugin.ts`
+  (cosmetic — registry is version-agnostic via `interfaceKey()` — but matches
+  what openssl-component imports).
+- `test/integration/python-wasm-sockets-compose.mjs` — exercises both the
+  virtual sockets plugin set and the ws-gateway plugin set against the
+  full list of `wasi:sockets/*` imports python-wasm's composed wasm needs.
+  **14/14 imports satisfied** across both paths.
 
-| # | Deliverable | Acceptance |
+What remains (folded into Phase 3c):
+
+- Wire the gateway URL through python-wasm's web-runner (Phase 3c.2).
+- Real-network smoke against a TLS server through this stack (Phase 3c.1).
+- `docs/browser-tls.md` (Phase 3c.3).
+
+**Status of original 3p.1–3p.6 sub-deliverables:**
+
+| # | Deliverable | Status |
 |---|---|---|
-| **3p.1** | Inventory the `wasi:sockets/tcp@0.2.6` interface (resources, methods) the polyfill must satisfy. Map each to a WebSocket operation. | A docs/note in wasi-polyfill listing every method + its WebSocket mapping. |
-| **3p.2** | Implement `wasi:sockets/instance-network` + `wasi:sockets/network` + `wasi:sockets/ip-name-lookup` minimal stubs (the trio the TLS path also imports). | `python.composed.wasm` instantiates in jco without "missing wasi:sockets/* import" errors. |
-| **3p.3** | Implement `wasi:sockets/tcp.tcp-socket` resource: constructor, `start-connect`/`finish-connect`, the input-stream / output-stream pair, `shutdown`, drop. Backed by a WebSocket to the configured wss-proxy. | A small test (no Python yet): direct JS code calls the polyfill TCP API; opens a TCP via the proxy; reads/writes a few bytes. |
-| **3p.4** | Configuration surface: where does the proxy URL come from? Recommended: `instantiateWithPolyfill({ tcpProxy: 'wss://my-proxy.example/tcp' })`. Document in wasi-polyfill README. | The web demo can override the proxy URL. |
-| **3p.5** | Ship a tiny reference wss-proxy as `wasi-polyfill/examples/tcp-proxy/` — a Node script using `ws` + `net` that accepts WebSocket with `?host=...&port=...` and bridges to TCP. ~50 LOC. | `node examples/tcp-proxy/proxy.js` starts on port 8443; the polyfill TCP test (3p.3) passes against it. |
-| **3p.6** | Bundle a tiny in-browser smoke: a single HTML page that opens `wss://example.org:443`, sends a minimal TLS hello via the polyfill TCP, reads bytes back. (No TLS state machine — just proves bytes flow.) | The smoke loads in any browser with the wss-proxy running. |
+| **3p.1** | Inventory `wasi:sockets/*` surface, map to WebSocket ops. | ✅ Already in `wasi-polyfill/src/wasip2/plugins/sockets/` + `ws-gateway/` (both well-documented). |
+| **3p.2** | Implement network / instance-network / ip-name-lookup stubs. | ✅ Pre-existing in `plugins/sockets/`. |
+| **3p.3** | Implement `tcp-socket` resource backed by WebSocket. | ✅ Pre-existing as `plugins/ws-gateway/tcp-adapter.ts` (KSW1 multiplexing protocol — more sophisticated than the per-connection WebSocket I had drafted). |
+| **3p.4** | Configuration surface for the gateway URL. | ✅ `polyfill.registerPlugin(wsGatewayTcpPlugin, { options: { gatewayUrl: 'wss://...' } })`. |
+| **3p.5** | Reference gateway server. | ⏸ Not shipped here. The polyfill includes the KSW1 protocol spec; a reference Node server can ship as part of Phase 3c.1 if needed (the wasmtime CI smoke doesn't need it). |
+| **3p.6** | In-browser bytes-flow smoke. | ⏸ Folded into Phase 3c.2 (browser end-to-end against a real gateway). |
 
 **Risks:**
 
