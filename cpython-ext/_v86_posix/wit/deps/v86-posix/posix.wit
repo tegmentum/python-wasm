@@ -1,0 +1,190 @@
+// VENDORED from ~/git/v86/wit/posix.wit (v86 commit cbf77ae) — interface-only
+// copy. The `world v86-posix { ... }` block at the bottom of the upstream
+// file pulls in wasi:cli/command, which is the v86-side compile target.
+// This extension only consumes the `interface process` (its own world.wit
+// imports v86:posix/process), so we deliberately drop the world block here
+// to avoid vendoring the full wasi tree.
+//
+// v86 POSIX-extension WIT package.
+//
+// What this provides: the POSIX surface that wasm components like
+// python-wasm need but WASI doesn't supply — specifically, the ability
+// to spawn a real Linux process and talk to its stdio.
+//
+// Background. Per `compute.rs` doctrine ("Never route compute through
+// x86 unless required for compatibility"), v86 is the compatibility
+// escape hatch for the parts of POSIX that wasip2 doesn't model:
+// fork/exec, /proc, signals, dlopen of native .so's. The boundary the
+// caller sees is "spawn a process and talk to it"; the fact that the
+// process happens to run inside a v86-emulated Linux kernel is an
+// implementation detail of the component that exports this interface.
+//
+// What v0.1.0 deliberately does NOT cover. Per-component "cheap
+// syscalls against the caller itself" (signal-to-self, signalfd,
+// ptrace, raw fork without exec, in-component /proc reads). Those are
+// rare in pure-Python code, would expose a lot more surface, and
+// belong in a sibling interface (e.g. `v86:posix/signals`) if a
+// concrete need surfaces. v0.1.0 covers the "spawn a real Linux
+// process" path because that's what subprocess.Popen, multiprocessing,
+// and the "wrap an unported C extension as a native sidecar" pattern
+// all actually need.
+//
+// Status: contract specification only. The current v86-component crate
+// still exports a plain `wasi:cli/command` world (same as the sibling
+// `boot.wit`, `device.wit`, `v86-platform.wit` — none of those are yet
+// wired into the build either). An implementation that dispatches
+// `spawn` into the v86 guest's userspace and wires the resulting fds
+// back through `wasi:io/streams` is a separate Rust-side change.
+//
+// Consumers: a host that composes its application component (e.g.
+// python-wasm) against `v86:posix/process` gets, transitively, a real
+// Linux kernel inside the v86 guest as the spawn target. At the type
+// level the consumer sees something subprocess.Popen-shaped; the guest
+// is the implementation. Composition is composectl's job — see the
+// python-wasm repo's `docs/tier1-v86-integration.md`.
+//
+// Design sources:
+//   * python-wasm `docs/tier1-v86-integration.md` (architectural framing)
+//   * python-wasm `docs/native-execution-and-parallelism.md` §6.1
+//   * the rationale-of-removal commit `chore(tier1-v86): remove
+//     guest-resident-Python scaffolding (wrong model)` in python-wasm
+//
+// Versioning: 0.1.0 is the first cut of the contract. Additive changes
+// (new stdio variants, new error variants) are backward-compatible;
+// removing or renaming a field or variant requires a minor-version bump.
+
+package v86:posix@0.1.0;
+
+interface process {
+    use wasi:io/streams@0.2.0.{input-stream, output-stream};
+
+    // ----------------------------------------------------------------
+    // Spawn configuration
+    // ----------------------------------------------------------------
+
+    /// How a child's standard fd is wired.
+    variant stdio-spec {
+        /// Inherit the parent fd (the guest init-supplied console).
+        inherit,
+        /// Open a pipe; the parent end is reachable via the
+        /// corresponding `process.take-stdin/out/err` accessor.
+        piped,
+        /// Discard — child sees /dev/null on that fd.
+        null,
+    }
+
+    /// Spawn-time configuration. `program` is an absolute path inside
+    /// the guest's filesystem; the v86 component that exports this
+    /// interface is responsible for staging executables (e.g. via
+    /// virtiofs from host content) before `spawn` is called. The host
+    /// component does NOT get to spawn arbitrary bytes — the guest is
+    /// the trust boundary, not the component-model linker.
+    record spawn-options {
+        program: string,
+        args: list<string>,
+        /// `(name, value)` pairs. Empty list = inherit the guest
+        /// init-environment verbatim. Non-empty list = the child sees
+        /// *exactly* these vars, with no merge against the guest env.
+        env: list<tuple<string, string>>,
+        /// Optional cwd inside the guest. `none` = inherit.
+        cwd: option<string>,
+        stdin: stdio-spec,
+        stdout: stdio-spec,
+        stderr: stdio-spec,
+    }
+
+    // ----------------------------------------------------------------
+    // Outcomes
+    // ----------------------------------------------------------------
+
+    /// Exit status of a finished process.
+    variant exit-status {
+        /// `exit()` was called, or `main` returned. Payload is the
+        /// numeric status code.
+        exited(s32),
+        /// The process was terminated by a signal. Payload is the
+        /// POSIX signal number that killed it.
+        signaled(u32),
+    }
+
+    /// Errors returned by `spawn`.
+    variant spawn-error {
+        /// The executable doesn't exist inside the guest. Payload is
+        /// the requested program path.
+        program-not-found(string),
+        /// The guest kernel rejected the exec (permissions, missing
+        /// exec bit, ENOEXEC for a wrong-arch ELF, …). Payload is a
+        /// short human-readable explanation.
+        exec-failed(string),
+        /// The guest has hit its process-table limit.
+        too-many-processes,
+        /// An argument was malformed (NUL bytes, non-UTF-8, etc.).
+        invalid-argument(string),
+        /// The v86 guest has not yet reached userspace; no `spawn`
+        /// can be served until it does. Callers should treat this
+        /// as transient and retry.
+        guest-not-ready,
+    }
+
+    /// Errors returned by `process.signal`.
+    variant signal-error {
+        /// The process has already exited; no signal was delivered.
+        no-such-process,
+        /// The guest rejected the signal (e.g. `signum` out of range).
+        invalid-signal,
+    }
+
+    // ----------------------------------------------------------------
+    // Process resource
+    // ----------------------------------------------------------------
+
+    /// A handle to a live (or recently-exited) process inside the
+    /// guest.
+    ///
+    /// Lifecycle. Dropping the resource detaches the host from the
+    /// process; it does NOT terminate the process. Use
+    /// `signal(15) + wait()` (or `signal(9)`) for an orderly
+    /// shutdown.
+    ///
+    /// Identity. The `pid` is stable for the lifetime of the resource
+    /// handle, but the guest kernel may reuse the same PID for a
+    /// later process once this one exits — callers should treat the
+    /// resource handle, not the bare PID, as identity.
+    resource process {
+        /// PID inside the guest.
+        pid: func() -> u32;
+
+        /// Take ownership of the child's stdin stream. Returns
+        /// `none` if `spawn-options.stdin` was not `piped`, or if
+        /// a prior call already took the stream.
+        take-stdin: func() -> option<output-stream>;
+
+        /// Take ownership of the child's stdout stream. Returns
+        /// `none` if `spawn-options.stdout` was not `piped`, or if
+        /// a prior call already took the stream.
+        take-stdout: func() -> option<input-stream>;
+
+        /// Take ownership of the child's stderr stream. Returns
+        /// `none` if `spawn-options.stderr` was not `piped`, or if
+        /// a prior call already took the stream.
+        take-stderr: func() -> option<input-stream>;
+
+        /// Send a POSIX signal. `signum` is the wire number
+        /// (`1 = HUP`, `9 = KILL`, `15 = TERM`, …).
+        signal: func(signum: u32) -> result<_, signal-error>;
+
+        /// Block the caller until the process exits and return its
+        /// status. Idempotent: subsequent calls return the same
+        /// status without re-blocking.
+        wait: func() -> exit-status;
+
+        /// Non-blocking exit-status check. Returns `none` if the
+        /// process is still running.
+        try-wait: func() -> option<exit-status>;
+    }
+
+    /// Spawn a process inside the guest. The guest must have already
+    /// reached userspace — see `spawn-error.guest-not-ready`.
+    spawn: func(opts: spawn-options) -> result<process, spawn-error>;
+}
+

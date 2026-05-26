@@ -1,0 +1,15 @@
+package tegmentum:python-v86-posix@0.1.0;
+
+/// Companion WIT for CPython's `_v86_posix` static extension. The C extension
+/// imports `process` from the v86 POSIX-extension capability; composectl/wac
+/// wires the import to v86's wasm at compose time, giving the wasm Python a
+/// real Linux process surface (subprocess.Popen, multiprocessing.Process,
+/// native-package sidecars) without going through a guest-resident interpreter.
+///
+/// See:
+///   - v86 wit/posix.wit (the contract)
+///   - v86 docs/posix-extension-wit.md (design note)
+///   - docs/tier1-v86-integration.md (consumer-side architecture)
+world v86-posix-import {
+    import v86:posix/process@0.1.0;
+}

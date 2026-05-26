@@ -1,5 +1,9 @@
 # Dependencies and build artifacts
 deps/
+# …but DO track WIT deps under cpython-ext/, bindings/, etc. They're vendored
+# capability WITs, not the cpython submodule (which is what deps/ targets).
+!**/wit/deps/
+!**/wit/deps/**
 *.wasm
 *.log
 
