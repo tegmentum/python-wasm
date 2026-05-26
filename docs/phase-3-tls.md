@@ -94,17 +94,14 @@ package tegmentum:tls@0.1.0;
 interface context {
     /// A TLS connection, client-side. Memory-BIO based: the caller pumps bytes
     /// between this and the underlying transport. Drop = teardown (no
-    /// notify_close TLS alert; call `close-notify` first if you want one).
+    /// close_notify TLS alert; call `close-notify` first if you want one).
     resource client {
-        /// Construct a TLS client targeting `server-name` (used for SNI and
-        /// certificate verification). `alpn` is the offered ALPN list (may be
-        /// empty). `ca-roots` is PEM-encoded root certificates the client will
-        /// trust (empty = use the bundled WebPKI roots from the capability).
-        constructor(
-            server-name: string,
-            alpn: list<string>,
-            ca-roots: option<list<u8>>,
-        );
+        /// Construct a TLS client. `config` carries every per-connection knob
+        /// that CPython's _SSLContext exposes (cert validation, version pin,
+        /// mTLS keys, ALPN, etc.). One constructor instead of a separate
+        /// "context" resource keeps the WIT compact and avoids juggling two
+        /// resource lifetimes.
+        constructor(config: client-config);
 
         /// Push bytes received from the network into the TLS state machine.
         /// Returns the number of bytes consumed (may be < `bytes.len`).
@@ -121,6 +118,10 @@ interface context {
         /// Decrypt and return up to `max` bytes of received plaintext.
         read-plaintext: func(max: u64) -> result<list<u8>, tls-error>;
 
+        /// Number of decrypted plaintext bytes available without another
+        /// network read (maps to SSL_pending / ssl.SSLObject.pending()).
+        pending: func() -> u64;
+
         /// Where in the lifecycle the connection is.
         state: func() -> connection-state;
 
@@ -130,22 +131,90 @@ interface context {
         ///       if handshake-complete, break
         ///       feed socket bytes into push-tls-input
         ///   }
-        /// Returns true when handshake is complete (state == established).
         handshake-complete: func() -> bool;
 
         /// Send a `close_notify` TLS alert; subsequent pull-tls-output will
         /// emit it. Caller should then close the underlying transport.
         close-notify: func() -> result<_, tls-error>;
 
-        /// Peer certificate as DER bytes (after handshake). Empty if not yet
-        /// available or peer sent none (won't happen for a valid TLS server).
+        /// Peer leaf certificate as DER bytes (after handshake). None if not
+        /// yet available or peer sent none.
         peer-cert-der: func() -> option<list<u8>>;
+
+        /// Full peer certificate chain as the server sent it (DER bytes per
+        /// cert, leaf first). Backs ssl.SSLObject.get_unverified_chain().
+        get-unverified-chain: func() -> list<list<u8>>;
+
+        /// The verified chain built by OpenSSL during handshake (DER per
+        /// cert, leaf first). Backs ssl.SSLObject.get_verified_chain().
+        get-verified-chain: func() -> list<list<u8>>;
+
+        /// Negotiated cipher suite. None until handshake completes.
+        cipher: func() -> option<cipher-info>;
+
+        /// TLS channel binding bytes for `cb-type` ("tls-server-end-point" or
+        /// "tls-unique"); none if the type is unknown or not yet available.
+        /// Used by HTTP/2 client auth, SCRAM SASL, etc.
+        channel-binding: func(cb-type: string) -> option<list<u8>>;
 
         /// Negotiated ALPN protocol, "" if none.
         alpn-selected: func() -> string;
 
         /// Negotiated TLS version, e.g. "TLSv1.3".
         version: func() -> string;
+    }
+
+    /// Per-connection client configuration. All optional fields default to the
+    /// secure-by-default behavior described in their docstrings.
+    record client-config {
+        /// SNI server name; also used for hostname verification when
+        /// `check-hostname` is true.
+        server-name: string,
+
+        /// Offered ALPN protocol list (e.g. ["h2", "http/1.1"]). Empty = no
+        /// ALPN extension is sent.
+        alpn: list<string>,
+
+        /// PEM-encoded root CAs to trust. None = use bundled WebPKI roots
+        /// (Mozilla CA bundle via webpki-roots, embedded at compile time).
+        ca-roots: option<list<u8>>,
+
+        /// Optional client certificate (PEM) + private key (PEM) for mTLS.
+        /// Both must be provided to enable; otherwise mTLS is disabled.
+        client-cert: option<list<u8>>,
+        client-key:  option<list<u8>>,
+
+        /// How to handle peer certificate validation. Defaults to `required`.
+        verify-mode: verify-mode,
+
+        /// Whether to validate the server's certificate against `server-name`
+        /// (hostname checking). Independent of `verify-mode` so callers can
+        /// e.g. verify the chain without enforcing the hostname.
+        /// Defaults to true.
+        check-hostname: bool,
+
+        /// Minimum TLS protocol version accepted. Defaults to TLSv1.2.
+        min-version: tls-version,
+
+        /// Maximum TLS protocol version offered. Defaults to TLSv1.3.
+        max-version: tls-version,
+    }
+
+    record cipher-info {
+        name: string,        // e.g. "TLS_AES_256_GCM_SHA384"
+        version: string,     // e.g. "TLSv1.3"
+        secret-bits: u32,    // key bits (256 etc.)
+    }
+
+    enum verify-mode {
+        none,        // accept any cert (TEST USE ONLY)
+        optional,    // request cert; accept if absent or valid
+        required,    // demand a valid cert
+    }
+
+    enum tls-version {
+        tls-v1-2,
+        tls-v1-3,
     }
 
     enum connection-state {
@@ -161,31 +230,45 @@ interface context {
         handshake-failed(string),    // protocol-level handshake error
         protocol(string),            // mid-connection protocol error
         closed-by-peer,              // saw close_notify (graceful)
+        invalid-config(string),      // ctor config rejected (bad PEM etc.)
         io(string),                  // unexpected internal failure
     }
 }
 
 interface server {
-    /// Same shape, server side. Server identity comes from a PEM cert + key.
+    /// Server-side TLS. Listed for completeness; ships in v1.1 (the bring-up
+    /// plan focuses on the client). Reuses context's verify-mode / tls-version
+    /// / connection-state / tls-error.
+    use context.{verify-mode, tls-version, connection-state, tls-error, cipher-info};
+
     resource handle {
-        constructor(
-            cert-chain-pem: list<u8>,
-            private-key-pem: list<u8>,
-            alpn: list<string>,
-            require-client-cert: bool,
-        );
+        constructor(config: server-config);
         push-tls-input: func(bytes: list<u8>) -> result<u64, tls-error>;
         pull-tls-output: func(max: u64) -> list<u8>;
         write-plaintext: func(bytes: list<u8>) -> result<u64, tls-error>;
         read-plaintext: func(max: u64) -> result<list<u8>, tls-error>;
+        pending: func() -> u64;
         state: func() -> connection-state;
         handshake-complete: func() -> bool;
         close-notify: func() -> result<_, tls-error>;
         peer-cert-der: func() -> option<list<u8>>;
+        get-unverified-chain: func() -> list<list<u8>>;
+        get-verified-chain: func() -> list<list<u8>>;
+        cipher: func() -> option<cipher-info>;
+        channel-binding: func(cb-type: string) -> option<list<u8>>;
         alpn-selected: func() -> string;
         version: func() -> string;
     }
-    use context.{connection-state, tls-error};
+
+    record server-config {
+        cert-chain-pem: list<u8>,
+        private-key-pem: list<u8>,
+        alpn: list<string>,
+        client-verify: verify-mode,   // require-client-cert is verify-mode::required
+        client-ca-roots: option<list<u8>>,
+        min-version: tls-version,
+        max-version: tls-version,
+    }
 }
 
 world tls {
@@ -215,21 +298,58 @@ world tls {
 - **Server side is optional in v1.** Listed for completeness but the
   bring-up plan ships client first; `handle` can land in v1.1.
 
-### WIT review checkpoint
+### WIT review checkpoint — DONE (2026-05-26)
 
-Before any code is written, this WIT is reviewed against:
+Walked the WIT against `Lib/ssl.py`'s actual `_ssl` call surface (inventory
+via `grep -oE 'self\._sslobj\.\w+'` etc.) plus a mental walk of rustls's
+`ClientConnection` and the OpenSSL BIO + SSL_* contract. The WIT above is the
+post-review revision; this section records what changed and why.
 
-1. **Python's `ssl.SSLObject` API surface** — every method `ssl.py` calls into
-   `_ssl` must map to *something* in this WIT. Walk through `Lib/ssl.py`'s
-   `_SSLContext`, `_create_socket`, `wrap_socket`, `do_handshake`, `read`,
-   `write`, `shutdown` to verify.
-2. **rustls's public API** — sanity check that a rustls-based implementation
-   can sit behind this WIT without bending the interface.
-3. **OpenSSL's BIO + SSL_* function set** — sanity check the same for an
-   openssl-backed implementation.
+**Additions driven by `ssl.py` actually using them:**
 
-If any of those three reveals a needed method we forgot, the WIT changes
-*here*, before we start writing C or Rust.
+| Added | Why (which `ssl.py` call needs it) |
+|---|---|
+| `pending() -> u64` | `SSLObject.pending()` — non-blocking "is there decoded data ready?" |
+| `cipher() -> option<cipher-info>` | `SSLObject.cipher()` — returns (name, version, secret_bits) tuple |
+| `get-verified-chain` / `get-unverified-chain` | `SSLObject.get_{un,}verified_chain()` — full DER chains, not just leaf |
+| `channel-binding(cb-type)` | `SSLObject.get_channel_binding()` — required for HTTP/2 + SCRAM-SHA-PLUS |
+| `verify-mode` enum | `_SSLContext.verify_mode` ∈ {CERT_NONE, CERT_OPTIONAL, CERT_REQUIRED} |
+| `check-hostname: bool` | `_SSLContext.check_hostname` — independent of verify_mode in Python's model |
+| `min-version` / `max-version` | `_SSLContext.minimum_version` / `.maximum_version` |
+| `invalid-config(string)` error variant | Bad PEM / unparseable key on construction needs its own error |
+
+**Structural change:** the four ctor args (server-name, alpn, ca-roots,
+client-cert, client-key) grew to nine fields. Collapsed into a
+`record client-config { ... }` so the ctor stays a single argument. Same for
+the server side (`server-config`).
+
+**Deliberately deferred to v1.1 (documented limitations):**
+
+- `session` / `session_reused` — TLS session resumption. Latency hit on repeat
+  connects but doesn't break correctness.
+- `shared_ciphers()` — server-side; rarely used.
+- `compression()` — TLS compression is deprecated; current impls return None.
+- `verify_client_post_handshake()` — server-side mTLS escalation.
+- `set_servername_callback` / `sni_callback` — server-side SNI dispatch.
+- `_msg_callback` — debug only.
+
+**Sanity-checked against rustls + OpenSSL:**
+
+- rustls's `read_tls`/`write_tls`/`process_new_packets`/`writer()`/`reader()`
+  maps 1:1 onto our push-tls-input / pull-tls-output / (implicit) /
+  write-plaintext / read-plaintext.
+- OpenSSL's `BIO_write` / `BIO_read` / `SSL_read` / `SSL_write` /
+  `SSL_pending` / `SSL_get_current_cipher` / `SSL_get_peer_cert_chain` /
+  `SSL_get_finished` / `SSL_get_peer_finished` (for channel binding) all map
+  to methods we expose. The Rust component just FFI-wraps these.
+
+**Two known WIT-syntax checks deferred to wit-bindgen invocation:**
+
+- `cipher` (the method) returning `option<cipher-info>` — wit-bindgen will
+  generate a struct with `is_some` / `val` flat layout. Confirmed pattern
+  from compression / crypto-hash bindings.
+- `record server-config` shares `verify-mode` and `tls-version` from
+  `interface context` via `use`. Standard cross-interface type sharing.
 
 ---
 
@@ -489,26 +609,16 @@ Three places we deliberately reassess:
 
 ---
 
-## 7. Open questions to settle before starting
+## 7. Open questions — SETTLED
 
-A short list — answer once, then proceed:
+Decisions taken before WIT review (2026-05-26):
 
-- **TLS implementation engine:** OpenSSL (via openssl-wasm) or rustls?
-  OpenSSL pros: we already have the artifacts, ABI-compatible static libs,
-  comprehensive. rustls pros: pure Rust, cleaner integration with the Rust
-  component, smaller. Recommendation: **OpenSSL for v1** — we reuse the
-  existing artifact + we don't want to debug rustls's wasm32-wasip2 support
-  as the second new thing in this phase. Revisit after v1.
-- **WebPKI root bundle source:** Mozilla CA bundle via `webpki-roots` crate?
-  Or pin a specific bundle release? Recommendation: `webpki-roots` for now,
-  document the pin.
-- **Client cert auth in v1:** in or out? Recommendation: **out** — `ssl.py`
-  callers very rarely use it; add as a v1.1 method on the resource.
-- **OCSP stapling / SCT validation:** in or out? Recommendation: **out for
-  v1**; documented limitation.
-
-These are real choices but they're scoped — answering them is a half-hour
-design call, not a multi-day investigation.
+| Question | Decision |
+|---|---|
+| **TLS engine** | **OpenSSL** via `~/git/openssl-wasm` static libs. Reuses existing artifacts; same wasi-sdk 33 ABI as our CPython build. The Rust component does FFI + memory-BIO pumping. |
+| **WebPKI root source** | **`webpki-roots` crate** (the Rustls project's auto-updated Mozilla CA bundle). ~250 KB embedded; bumped via Cargo. |
+| **Client cert auth in v1** | **IN** — the client constructor takes optional `client-cert: option<list<u8>>` and `client-key: option<list<u8>>` (PEM). Enterprise users get it out of the gate; the WIT surface stays compact. |
+| **OCSP stapling / SCT validation** | **OUT for v1** — documented limitation. OpenSSL still validates the cert chain. |
 
 ---
 

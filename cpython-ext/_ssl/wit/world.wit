@@ -1,0 +1,8 @@
+package tegmentum:python-ssl@0.1.0;
+
+/// Companion WIT for CPython's `_ssl` extension. The C extension imports
+/// `context` (client side) from tegmentum:tls; composectl/wac wires it to
+/// tls-wasm at compose time. Server import will be added in v1.1.
+world ssl-import {
+    import tegmentum:tls/context@0.1.0;
+}
