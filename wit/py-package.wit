@@ -25,7 +25,9 @@ interface registry {
     // Execution tiers, in rough preference order.
     enum tier {
         in-wasm,      // Tier 0: a wasm32-wasip2 build (in-process or a girder actor)
-        native-v86,   // Tier 1: native (e.g. i686) code in the v86 x86 guest
+        native-v86,   // Tier 1: python-wasm composed with v86 via `v86:posix/process` — the
+                      // composed worker shells out to native Linux processes in the guest for
+                      // unported native paths. See ~/git/v86/wit/posix.wit + docs/tier1-v86-integration.md.
         remote,       // off-box endpoint running either of the above
     }
 
