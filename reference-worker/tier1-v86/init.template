@@ -1,0 +1,27 @@
+#!/bin/busybox sh
+# v86 guest init: stand up busybox, mount the pseudo-filesystems, then
+# background-launch the py_offload mailbox worker on the virtiofs-shared
+# /run/py-offload. The host writes req-N.bin / reads resp-N.bin under the same
+# directory to drive offloaded Python calls into this guest.
+
+/bin/busybox --install -s /bin 2>/dev/null
+/bin/busybox --install -s /sbin 2>/dev/null
+mount -t proc proc /proc 2>/dev/null
+mount -t sysfs sysfs /sys 2>/dev/null
+mount -t devtmpfs devtmpfs /dev 2>/dev/null
+mount -t tmpfs tmpfs /tmp 2>/dev/null
+
+# Self-contained musl CPython (python-build-standalone) + py_offload pure-Python.
+export PATH=/opt/python/bin:/bin:/sbin
+export PYTHONPATH=/opt/py_offload
+export HOME=/root
+export TERM=xterm
+export PS1='wm \w> '
+
+mkdir -p /run/py-offload
+echo "[init] python smoke test:" >/dev/ttyS0
+python3 -c 'import sys; print("python", sys.version.split()[0], "ok")' >/dev/ttyS0 2>&1
+echo "[init] launching py-offload mailbox worker on /run/py-offload" >/dev/ttyS0
+python3 -m py_offload.mailbox /run/py-offload >>/var/log/py-offload 2>&1 &
+echo "[init] worker pid=$!" >/dev/ttyS0
+exec sh </dev/ttyS0 >/dev/ttyS0 2>&1
