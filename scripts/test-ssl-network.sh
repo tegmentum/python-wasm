@@ -29,7 +29,7 @@ LIBDIR="$(basename "$(ls -d "$PROJECT_DIR"/deps/cpython/cross-build/wasm32-wasip
 wasmtime run --wasm max-wasm-stack=16777216 \
     -S inherit-network -S allow-ip-name-lookup \
     --dir "$PROJECT_DIR/deps/cpython::/" \
-    --env "PYTHONPATH=/cross-build/wasm32-wasip2/build/$LIBDIR" \
+    --env "PYTHONPATH=/cross-build/wasm32-wasip2/build/$LIBDIR:/Lib" \
     "$COMP" -c "
 import sys
 import _ssl_capability
@@ -113,6 +113,20 @@ try:
     s.shutdown()
 except _ssl_capability.SSLError as e:
     expect(False, f'CERT_NONE rejected: {e}')
+
+print('--- Phase 3b.6: urllib via ssl_capability monkey-patch ---')
+import ssl_capability as sslcap
+import ssl as _std_ssl
+_std_ssl._create_default_https_context = sslcap.create_default_context
+_std_ssl.SSLContext = sslcap.SSLContext
+
+import urllib.request
+r = urllib.request.urlopen('https://example.com', timeout=15)
+expect(r.status == 200, f'urllib.urlopen https://example.com -> {r.status}')
+expect('text/html' in (r.headers.get('Content-Type') or ''), 'Content-Type text/html')
+body = r.read(200)
+expect(b'Example Domain' in body, 'response body contains \"Example Domain\"')
+r.close()
 
 print('---')
 print('PASS' if failures == 0 else f'{failures} FAILURES')
