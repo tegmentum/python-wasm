@@ -178,13 +178,14 @@ assert codecs.decode(Codec.JSON, out.value) == 120
 
 This is Phase 1 (Issue #1). Later phases reuse this exact contract:
 
-- **Issue #2** — Tier 1 native exec via v86. The transport is in place and proven
-  locally: the resident dispatcher (`serve.py`), the framed protocol
-  (`protocol.py`), the host clients (`client.py`), and the **virtiofs file-mailbox
-  channel** (`mailbox.py`) that Tier 1 actually uses. Remaining (needs the v86
-  runtime): a self-contained x86_64 CPython in the guest running
-  `python -m py_offload.mailbox /run/py-offload`, wired via `workspace/init`, with
-  snapshot restore and a latency benchmark. See `../docs/tier1-v86-integration.md`.
+- **Issue #2** — Tier 1 native exec via v86. The original model (a resident
+  CPython inside the v86 guest serving `py_offload.mailbox` over virtiofs) is
+  **superseded** — see `../docs/tier1-v86-integration.md` for why. The
+  transport-agnostic pieces (`serve.py`, `protocol.py`, `client.py`,
+  `mailbox.py`) survive as building blocks; the v86 integration itself is
+  being redesigned around python-wasm + v86 composed as wasm components, with
+  v86 exporting a POSIX-extension WIT rather than hosting its own Python.
+  Replacement scaffolding TBD.
 - **Issue #3** — Tier P parallel via girder. The actor adapter (`actor.py`) and a
   parallel map over a worker pool (`pool.py`) are in place and proven across
   separate processes. Remaining (needs the girder runtime): componentize

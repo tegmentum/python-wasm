@@ -280,10 +280,12 @@ the proven multi-process pool (`pool.py`), not yet on real girder actors.
                                                                          ▼
                                               ┌────────────────────────────────┐
                                               │ v86 wasmmachine (component)     │
-                                              │  Linux guest + NATIVE CPython   │
-                                              │  + native .so wheels            │
-                                              │  resident dispatcher; snapshot- │
-                                              │  restored to skip boot          │
+                                              │  Linux POSIX surface — composed │
+                                              │  with the python-wasm component;│
+                                              │  serves syscalls + hosts real   │
+                                              │  Linux processes for unported   │
+                                              │  C extensions (no resident      │
+                                              │  Python of its own).            │
                                               └────────────────────────────────┘
 ```
 
@@ -293,37 +295,21 @@ the proven multi-process pool (`pool.py`), not yet on real girder actors.
 - One contract (`tegmentum:py-offload`) spans both fallbacks; girder's
   `wit/actor.wit` is the transport for the parallel case.
 
-### 6.1 The native-exec handoff (use #2) — separate v86 worker, mailbox, no per-call CLI
+### 6.1 The native-exec handoff (use #2) — **superseded** (see `tier1-v86-integration.md`)
 
-Two uses of v86:
-- **Use #1 (main) — the POSIX/WASI console runtime.** Python and any
-  wasip2-buildable packages run as wasmmachine **components** (registered as a
-  package, invoked via the executor). Proven; no x86 guest. See
-  `tier1-v86-integration.md`.
-- **Use #2 — genuinely unported native packages.** Run native code in the x86
-  guest.
+The model previously written here — a resident CPython inside a v86 guest
+serving `py_offload.mailbox` over a virtiofs file mailbox, with a girder actor
+owning the v86 lifetime — has been retired. See `tier1-v86-integration.md` for
+the two reasons (wrong execution boundary; PBS no longer ships i686 musl while
+v86 is x86-32 only) and the replacement direction.
 
-For use #2 the handoff is:
-- **A separate, girder-managed v86 instance per worker — never the interface
-  instance.** Each girder actor is its own isolated WASM instance, so a pool of
-  native-worker actors is a pool of isolated v86 guests (isolation,
-  responsiveness, independent lifecycle, per-actor budgets).
-- **Handoff is the shared-directory mailbox (filesystem), not v86's CLI.** A
-  resident v86 runs `python -m py_offload.mailbox <dir>`; the actor writes a
-  request file and reads a response file in that virtiofs-shared dir. The actor
-  imports **`wasi:filesystem`** (a granted capability to the mailbox dir) + girder
-  `host` — it does **not** import v86's `wasi:cli/command` for the per-call work.
-- **CLI is only the boot mechanism, not the work path.** v86's only entrypoint
-  today is `wasi:cli/command`'s `run()`, which is **run-to-completion** — so a
-  long-lived v86 cannot live inside a `turn-actor.handle`. The resident v86 must
-  be owned **outside** the per-call path (a host-managed instance, or a
-  `loop-actor` whose `run()` owns the v86 lifetime); the routing `turn-actor` just
-  does mailbox I/O against it. (Longer term, v86's typed-but-unwired
-  `boot.wit`/`device.wit` worlds replace `run()` for a cleaner resident control
-  surface.)
-
-Open question: **who owns the resident v86 lifetime** (host process vs. a girder
-`loop-actor`) — this, not any CLI concern, is the real use-#2 design point.
+The short version of the replacement: **python-wasm is now a wasm component**,
+and the v86 integration becomes **component composition** — python-wasm imports
+a POSIX-extension WIT, v86 exports it. v86 serves cheap syscall-style calls
+inline and spawns real Linux processes inside the guest when something needs
+its own address space (subprocess, dlopen of an unported `.so`). There is no
+guest-resident Python in this design; v86 is the POSIX surface, not a second
+runtime. The full replacement doc is TBD.
 
 ## 7. Deployment contexts (important caveat)
 

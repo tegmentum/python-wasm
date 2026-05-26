@@ -1,255 +1,60 @@
-# Tier 1 (v86) integration plan
+# Tier 1 (v86) integration — **superseded**
 
-Status: **investigation result / plan for Issue #2.** Based on a read-only study
-of `~/git/v86`. Goal: run a native x86 CPython executing `py_offload.serve` inside
-a v86 guest, driven from the host over a byte channel — binding the
-`tegmentum:py-offload` contract to real native package code.
+The model previously documented in this file — *"run a native x86 CPython
+executing `py_offload.serve` inside a v86 guest, driven from the host over a
+virtiofs file mailbox"* — has been retired. The reference scaffolding it
+described (`reference-worker/tier1-v86/setup.sh`, `init.template`, `README.md`)
+is removed in the same commit as this note.
 
-## The guest as it exists today
+## Why it was wrong
 
-- **Userspace is busybox-only — no glibc or musl.** `workspace/init` installs
-  busybox symlinks and `exec sh </dev/ttyS0 >/dev/ttyS0`. There is no general ELF
-  loader / C library present.
-- **Rootfs** is either an initramfs (a cpio built at runtime from `workspace/`) or,
-  with `V86_VIRTIOFS_ROOT=1`, the host's `workspace/` directory mounted at `/`
-  over **virtiofs** (`root=workspace rootfstype=virtiofs rw`).
-- **One UART, `ttyS0`, is the console/shell.** There is no second serial port.
-- Packages (`packages/*.json`) are **WASM components**, run by a *host-side*
-  executor via `wasmtime run` on the guest's behalf (`agent-component/ipc-executor.sh`)
-  — the opposite direction from what Tier 1 needs, but proof that a virtiofs
-  request/response file mailbox works.
-- Snapshot/restore exists and is env-driven (`V86_SNAPSHOT_DIR`,
-  `V86_SNAPSHOT_AFTER=<console trigger>`, `V86_RESTORE_SNAPSHOT`,
-  `scripts/pack-snapshot.py`).
+Two reasons converged:
 
-## Two hard constraints
+1. **It targeted the wrong execution boundary.** v86's role is to be the thin
+   POSIX surface python-wasm calls into for things WASI can't express
+   (fork/exec, `/proc`, signals, ptrace, …) and to host real Linux processes
+   when something genuinely needs its own address space (subprocess.Popen, an
+   unported C extension dlopen'd into a hosted process). Putting a *second*
+   resident CPython inside the guest to re-serve `py_offload` requests inverted
+   that — the guest-resident Python wasn't running user code, it was a relay,
+   and the relay had to exist because the boundary was placed at "RPC into v86"
+   instead of "POSIX-extension WIT into v86."
 
-1. **No libc in the guest.** A normal dynamically-linked `python3` will not run.
-   Tier 1 needs a **self-contained x86_64-linux CPython** — a static musl build, or
-   a relocatable build (e.g. python-build-standalone) shipped *with* its loader and
-   libs. Whether such a build runs cleanly under this busybox guest is the single
-   biggest unknown and must be validated first.
-2. **No spare host↔guest stream channel.** `ttyS0` is the console. Two options:
-   - **virtiofs file mailbox (recommended).** virtiofs *is* a shared host
-     directory, so the host can read/write files the guest sees **while it runs —
-     with no v86 Rust changes.** Frame requests/responses as files
-     (`request.bin` / `response.bin`) with atomic temp+rename and ready/done flags.
-   - **Add a second serial port (COM2).** A clean byte stream, but ~hundreds of
-     lines of Rust UART + IRQ work *inside the v86 repo* (`v86-devices/src/uart.rs`,
-     `v86-component/src/main.rs`).
+2. **The mechanics didn't work anyway.** v86 emulates **x86-32 only** (upstream
+   README: "64-bit kernels are not supported"). python-build-standalone dropped
+   i686 musl builds long ago — they ship only `x86_64`, `x86_64_v2..v4`, and
+   `aarch64`. The PBS python the recipe staged in `opt/python/` never executed
+   in the guest: the kernel returned ENOEXEC on the 64-bit ELF and busybox sh
+   fell back to shell-interpreting the binary (`/opt/python/bin/python3: line 1: …`
+   in `/var/log/py-offload`). The `py-offload-ready` signal was a false positive
+   from `kill -0` succeeding against the post-exec-failure zombie. Even with a
+   32-bit Python in place, the model would still have been wrong.
 
-## Recommended path (minimal / no v86 Rust changes)
+## The replacement direction (placeholder — full doc TBD)
 
-1. Place a self-contained CPython tree **and** `py_offload` into `workspace/`
-   (plain host content).
-2. Tweak `workspace/init` to background-launch a resident worker that speaks the
-   framed protocol over a **virtiofs mailbox** instead of stdio (guest-side, host
-   content — no Rust).
-3. On the host, give `StreamClient` a `MailboxChannel` (a reader/writer over the
-   shared dir). The Python side is already transport-agnostic: `serve.py` /
-   `protocol.py` / `client.py` work against any reader/writer pair, so only the
-   channel is new.
-4. Boot with `V86_VIRTIOFS_ROOT=1`; snapshot once the worker prints a ready
-   trigger; restore per session so calls skip Linux boot.
+python-wasm is now built as a wasm component. The correct shape is component
+composition rather than guest-resident relaying:
 
-This keeps all changes in **host content + Python**; the only v86-repo edit is
-`workspace/init` (data, not Rust). COM2 is the fallback if the mailbox's latency
-or torn-read handling proves inadequate (it should not for request/response).
+- **python-wasm (component)** — *the* Python. Runs in wasmtime. Imports a
+  POSIX-extension WIT for anything WASI can't give it.
+- **v86 (component)** — the thin POSIX surface. Exports that WIT, backed by a
+  real Linux kernel inside the guest. Two modes of use:
+  - **Cheap syscall-style calls** for things python-wasm can express inline
+    (fork/exec, signals, `/proc` reads, …).
+  - **Hosted-process spawning** for things that need their own address space
+    (subprocesses, dlopen of native `.so`s).
+- They **compose**; v86 doesn't host its own Python.
 
-## Already in place (python-wasm side)
+A new design doc will replace this file once the WIT surface and the
+component-composition wiring are pinned down.
 
-`reference-worker/py_offload/{serve,protocol,client}.py` — the resident dispatcher,
-the length-prefixed framing, and a host client. `StreamClient` abstracts the byte
-streams, so the mailbox channel is the only missing transport. The contract and
-codecs are proven (Issue #1 + the transport tests).
+## What survives from the old model
 
-## Blockers & open decisions
+The transport pieces in `reference-worker/py_offload/{protocol,worker,mailbox,types,codecs,...}.py`
+and their tests are **not** v86-specific and are unaffected. The file-mailbox in
+`mailbox.py` is a generic transport that can be used wherever a directory-as-channel
+makes sense; it just isn't the v86 boundary anymore.
 
-- **B1 — self-contained CPython:** produce and validate an x86_64-linux CPython
-  that runs in the busybox guest (static musl vs. relocatable-with-libs). *Main risk.*
-- **B2 — channel:** **decided — virtiofs mailbox** (built:
-  `reference-worker/py_offload/mailbox.py`). COM2 serial was the fallback; not needed.
-- **B3 — cross-repo:** the guest wiring (`workspace/init`) lives in `~/git/v86`.
-- **B4 — file-mailbox robustness:** atomic temp+rename + ready/done flags to avoid
-  torn reads; one outstanding request at a time (matches the resident loop).
-- **B5 — girder-actor ⇄ v86 wrapper:** v86 is **not** a girder actor (it exports
-  `wasi:cli/command`; girder hosts only `turn-actor`/`loop-actor`, which import
-  `host`). Need a wrapper component — composed via WAC/jco — that exports the actor
-  world, imports `wasi:filesystem` for the mailbox, and runs the handoff. The actor
-  does *not* call v86's CLI per request.
-- **B6 — resident-v86 lifetime owner:** a host-managed instance vs. a girder
-  `loop-actor` whose `run()` owns the v86 (since `wasi:cli/command run()` is
-  run-to-completion, the resident v86 cannot live inside a `turn-actor.handle`).
-
-## Scope: use #1 vs use #2
-
-- **Use #1 (main) — the POSIX/WASI console runtime** is done *without* the x86
-  guest: Python runs as a wasmmachine **component** (`v86/packages/python.json` +
-  `agent-component/python-executor.sh`, which mounts the stdlib payload). This
-  document is specifically about **use #2** — running genuinely unported native
-  packages in the x86 guest.
-
-## Orchestration & handoff (corrected)
-
-- **A separate, girder-managed v86 instance per worker — never the interface
-  instance.** A girder actor is its own isolated WASM instance, so a pool of
-  native-worker actors is a pool of isolated v86 guests (isolation,
-  responsiveness, independent lifecycle, per-actor budgets).
-- **Handoff = the shared-directory mailbox, not v86's CLI.** A resident v86 runs
-  `python -m py_offload.mailbox <dir>`; the actor writes a request file and reads a
-  response file in the virtiofs-shared dir. The actor imports `wasi:filesystem`
-  (granted to that dir) + girder `host`; it does **not** import `wasi:cli/command`
-  for per-call work.
-- **CLI is only the boot mechanism.** `wasi:cli/command run()` is
-  run-to-completion, so the resident v86 is owned **outside** the per-call path
-  (host-managed, or a `loop-actor` whose `run()` owns its lifetime); the routing
-  `turn-actor` only does mailbox I/O against it.
-
-## Status & next steps
-
-- **Done:** the offload contract + codecs, both byte-stream transports, and the
-  **virtiofs file-mailbox** (`reference-worker/py_offload/mailbox.py`) — the handoff
-  substrate, proven locally; plus Python-as-component (use #1).
-- **Next (use #2, needs the v86 runtime):**
-  1. **B1** — a self-contained x86_64 CPython that runs in the busybox guest.
-  2. The **girder-actor ⇄ v86 wrapper** (B5) doing the mailbox handoff.
-  3. Decide the **resident-v86 lifetime owner** (B6).
-  4. Wire `workspace/init` to launch the resident mailbox worker; snapshot; bench.
-
-## B1 experiment result (2026-05-24)
-
-Attempted to actually run a native CPython in the guest:
-
-- **Artifact:** python-build-standalone
-  `cpython-3.14.5 … x86_64-unknown-linux-musl-install_only` (27 MB, 84 MB
-  extracted). Its `python3` is **dynamically linked** (`interp
-  /lib/ld-musl-x86_64.so.1`), so we also supplied `ld-musl-x86_64.so.1` (musl
-  1.2.5, from the Alpine `musl` apk) at the guest `/lib`.
-- **Default kernel (`p04`) panics** under `rootfstype=virtiofs` — no virtiofs driver.
-- **The repo's virtiofs kernel** (`artifacts/kernels/virtiofs/6.8.12/.../bzImage`,
-  selected via `V86_BZIMAGE`) **mounts the virtiofs root** (FUSE INIT + root
-  lookup), but the guest then **hangs** — it spins at a single kernel EIP for
-  ~1.4B instructions and never reaches `/init` (no shell, no python). Likely
-  timer-IRQ/scheduling or virtio-fs completion under `noapic/nolapic` — a v86
-  emulator issue, **not** CPython.
-
-| boot path | result |
-| --- | --- |
-| virtiofs-root + virtiofs kernel | mounts, then **hangs** before `/init` |
-| virtiofs-root + default kernel | panic (no virtiofs driver) |
-| initramfs + default kernel (proven cold-boot path) | works, but 64 MB guest RAM < 84 MB python |
-
-**Realistic paths forward (all further v86-runtime work):**
-1. **Disk-image (IDE) rootfs + the storage kernel** (`assets/s13-storage-bzimage.bin`
-   / `artifacts/kernels/storage`) — not RAM-limited, sidesteps the virtiofs hang.
-2. **Prune python** (drop tcl/tk, tests, pip, ensurepip, idle → ~30–40 MB) **and
-   raise guest RAM** (hardcoded 64 MB in `main.rs`) for initramfs.
-3. **Fix the v86 virtiofs-root cold-boot hang** (timer/IRQ) — deep emulator work.
-4. Snapshot-based boot doesn't help yet — the cold boot must succeed once to
-   capture a snapshot.
-
-(The native CPython tree + `ld-musl` are cached under `/tmp` for a next attempt.)
-
-### Root-cause diagnosis of the hang (2026-05-24)
-
-Reproduced **minimally** — plain busybox workspace, no python (so payload/size is
-not involved): boot the virtiofs kernel with `V86_VIRTIOFS_ROOT=1` and the guest
-mounts the virtiofs root (FUSE INIT + root lookup = 2 requests) then **idles
-forever** at the kernel `sti; hlt` loop (decoded from `vmlinux` at `0xc11d6cd2`).
-The timer (IRQ0, master PIC) keeps waking it each tick — so the CPU is not dead;
-**init (PID 1) is blocked waiting for the next virtio-fs completion that never
-arrives**, and the CPU idles.
-
-Ruled out:
-- **Not CPython** — the minimal repro hangs identically with no python.
-- **Not MSI-X** — `virtio/config_io.rs` advertises none; the driver uses legacy INTx.
-- **Not the PIC cascade logic** — `pic::set_irq(12)` sets the slave IRR and
-  `check_irqs_slave` asserts master IR2; `pic_acknowledge_irq` handles the cascade
-  ack (upstream v86 `cpu/pic.rs`, which boots real Linux).
-- **Not a missing service call** — the cold-boot loop calls `tick_virtio(mem)`
-  every iteration (`main.rs` ~3514), which runs `fs.process_requests` and, when
-  `irq_pending`, calls `pic::set_irq(12)`. So IRQ12 is re-asserted continuously.
-- **`fs.rs` sets `irq_pending`** after `push_used` (line 365), same as the working
-  net device.
-
-Open question (needs instrumentation): why the continuously-asserted IRQ12 is never
-**taken** by the guest while IRQ0 is. Most likely either the slave/cascade isn't
-*unmasked* at hang time (the guest's virtio-fs `request_irq` didn't take effect), or
-the CPU's wake-from-`hlt` / interrupt acceptance doesn't pick up the cascaded slave
-IRQ on this path.
-
-### PIC-dump result (2026-05-24): it is NOT an interrupt bug
-
-Instrumented the cold-boot loop to dump the PIC state during the hang
-(`V86_PICDUMP=1`, rebuilt `v86-component`). Steady state, every sample:
-
-```
-m_irr=00 m_en=15 m_isr=00   s_irr=00 s_en=10 s_isr=00
-```
-
-(`m_en`/`s_en` are the *enabled* masks in v86's convention: master bits 0,2,4 =
-timer, cascade, UART; slave bit 4 = IRQ12.)
-
-This reframes the bug:
-- **IRQ12 is unmasked** (`s_en` bit4, `m_en` cascade bit2) — *not* a masking issue.
-- **The PIC is quiescent** (`s_irr=0`, nothing pending or in-service) — so the FS
-  device is **not asserting any completion**, and the timer/IRQ path is healthy.
-- The guest got the INIT + GETATTR completions (their IRQs were delivered and the
-  ISR read), then **stops issuing FUSE requests entirely** and idles.
-
-So this is **not** a PIC / interrupt-delivery bug. Also ruled out: `skip_ticks`
-(always 0, vestigial), FUSE opcode coverage (LOOKUP/OPEN/READ/READDIR all present),
-and the virtqueue avail-index logic (looks correct).
-
-**Reframed root cause:** the virtiofs-root **mount → exec-init handoff**. After
-GETATTR on the root inode, the kernel never issues the LOOKUP/OPEN/READ for
-`/init` (or `/sbin/init`) — it goes idle. The most likely culprit is the *content*
-of v86's FUSE responses (e.g. the root GETATTR attributes or the INIT feature
-negotiation) leaving the kernel unable to traverse the root, rather than anything
-in the interrupt path.
-
-**Next step to pin it:** resolve the idle/wait via a kallsyms backtrace, or
-instrument `handle_fuse_request` to log the GETATTR/INIT response bytes and compare
-against what the FUSE kernel client expects. This is deep v86 device-protocol work.
-
-**Pragmatic alternative:** the **disk-image (IDE) rootfs** path sidesteps virtiofs
-entirely and is likely the faster route to a working use-#2 guest.
-
-### Localized to the kernel mount-completion (2026-05-24, cont.)
-
-Booted with `rcu_cpu_stall_timeout=7` (suppression removed) + `initcall_debug
-ignore_loglevel`:
-
-- **No RCU stall** fired over minutes of guest time → not an RCU grace-period hang.
-- **All initcalls complete** (last: `initcall 0xc11a0714 returned 0 after 253
-  usecs`); the two FUSE ops (INIT, GETATTR) happen *after* that, in the
-  post-initcall `mount_root` / `prepare_namespace` path.
-- The device serves both requests correctly (INIT 80 B; GETATTR 120 B with valid
-  `S_IFDIR|0755` root attrs, nlink=2), and their completion IRQs are taken (the PIC
-  is quiescent afterward). Then the kernel **stops** — no third FUSE request, no
-  "Mounted root", no "Freeing unused kernel memory", no init exec.
-
-So the wedge is in the **kernel's virtiofs root-mount completion**, *after* both
-requests are answered — not the device serving requests, not the PIC, not RCU, not
-the FUSE response content, not queue count (mount uses the serviced request queue;
-the unserviced hiprio queue 0 isn't on the mount path).
-
-**Remaining step (bigger lift):** a backtrace of the blocked mount thread —
-- rebuild the *guest kernel* with `CONFIG_DETECT_HUNG_TASK` (auto-dumps the stuck
-  task's stack), which needs the kernel build env (heavier than a v86 rebuild); or
-- emulator-side guest-stack walking of the wedged task.
-
-This is a v86/kernel mount-path interaction best **escalated to the v86 maintainer**
-with the above localization, or sidestepped via the **disk-image rootfs** path.
-Net: ruled out CPython, MSI-X, IRQ masking, PIC cascade, `tick_virtio`,
-`skip_ticks`, FUSE opcode coverage, virtqueue index logic, RCU, and the FUSE
-response content — the hang lives in the kernel's virtiofs mount completion.
-
-## Key references in `~/git/v86`
-
-- `workspace/init` — guest init/console.
-- `crates/v86-component/src/main.rs` — virtiofs-as-root + boot wiring; snapshot triggers.
-- `crates/v86-devices/src/uart.rs` — UART (where COM2 would be added).
-- `agent-component/ipc-executor.sh` — existing virtiofs JSON file-IPC (proof of pattern).
-- `scripts/demo-build.sh`, `scripts/pack-snapshot.py`, `demo/linux-shell/server.py` —
-  build, snapshot, and restore commands.
+The v86-component fix to preserve a user-supplied `workspace/init`
+(`~/git/v86` commit `b62afbc`) remains valid as a general bug-fix — silently
+overwriting user files is wrong under any architecture.

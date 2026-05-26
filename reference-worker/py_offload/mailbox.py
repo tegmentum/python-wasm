@@ -1,11 +1,12 @@
 """File-mailbox transport for py-offload over a shared directory.
 
-This is the Tier-1 (v86) channel: the host and a guest-resident worker exchange
-request/response frames as files in a directory the guest sees over virtiofs.
-virtiofs is just a host directory mounted into the guest, so this needs **no
-changes inside the v86 emulator**. See docs/tier1-v86-integration.md.
+A generic directory-as-channel transport: two parties exchange request/response
+frames as files in a directory both can see. Originally written as the v86
+guest⇄host channel over virtiofs (see docs/tier1-v86-integration.md for the
+history of that — now-superseded — model); kept as a transport because it works
+anywhere a shared filesystem is the cheapest IPC available, not only v86.
 
-Protocol (one outstanding request at a time — the resident worker is serial):
+Protocol (one outstanding request at a time — the worker is serial):
 
     host   writes  req-<seq>.bin    (atomic: temp file + os.replace)
     guest  removes req-<seq>.bin, runs it, writes resp-<seq>.bin (atomic)
