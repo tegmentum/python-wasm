@@ -8,7 +8,8 @@ PYTHON_WASM := $(CPYTHON_DIR)/cross-build/$(HOST_TRIPLE)/python.wasm
 
 .PHONY: all fetch-deps build run test clean distclean \
        web-deps web-stdlib web-transpile web-dev web-build web-clean \
-       python-component-verify python-composed test-compression-extension test-hash-extensions \
+       python-component-verify python-composed install-python-shims \
+       test-compression-extension test-hash-extensions \
        test-ssl-capability test-ssl-network composectl-plan
 
 all: fetch-deps build
@@ -73,8 +74,19 @@ python-component-verify: build
 
 # Componentize-python plan, Phase 1: compose python.wasm with the
 # compression-multiplexer capability component. Produces build/python.composed.wasm.
-python-composed: build
+# Also installs Python-side shims (ssl_capability, etc.) so the composed wasm
+# can pick them up from /Lib at run time.
+python-composed: build install-python-shims
 	@bash scripts/compose-python-component.sh
+
+# Componentize-python plan, Phase 3b.6: install Python-side shim modules into
+# deps/cpython/Lib/ so the composed wasm can `import ssl_capability` at runtime.
+# Idempotent — re-copies on every invocation so iteration on the shim is
+# pick-up-on-next-run.
+install-python-shims:
+	@cp $(PROJECT_DIR)/cpython-ext/_ssl/ssl_capability.py \
+	    $(PROJECT_DIR)/deps/cpython/Lib/ssl_capability.py
+	@echo "installed: deps/cpython/Lib/ssl_capability.py"
 
 # Componentize-python plan, Phase 1: end-to-end smoke test of the composed
 # component + _compression extension + multiplexer.
