@@ -195,9 +195,16 @@ component is ready.
 **To pick this up later:** the workflow is identical to Phase 1/2 once 3a
 exists. The Setup.local entry, the wit-bindgen-c invocation, the
 compose-python-component.sh plug, and the per-extension test all follow the
-same template. The repo's docs/componentize-python.md is the entry point.
+same template.
 
-**Effort:** ~7 days (most of which is 3a).
+> **The full Phase 3 plan is in [phase-3-tls.md](phase-3-tls.md)** — WIT
+> design, sub-phases (3a tls-wasm capability / 3b `_ssl` extension /
+> 3c transport wiring / 3d static-link retirement), per-step acceptance
+> criteria, risks, and a day-by-day order-of-work for the first three days.
+
+**Effort:** **16–22 eng-days total** (revised estimate from the detailed
+plan; ~7 was the initial Phase-0 sketch). The variance is on tls-wasm BIO
+correctness and the breadth of `_ssl` Python-API surface to replicate.
 
 ### Phase 4 — composectl + Makefile + CI automation
 
