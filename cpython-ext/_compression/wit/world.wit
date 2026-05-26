@@ -1,0 +1,8 @@
+package tegmentum:python-compression@0.1.0;
+
+/// Companion WIT for CPython's `_compression` static extension. The C extension
+/// imports `compression-dispatcher` from the compression-multiplexer capability;
+/// composectl/wac wires the import to the multiplexer wasm at compose time.
+world compression-import {
+    import tegmentum:compression-multiplexer/compression-dispatcher@0.1.0;
+}

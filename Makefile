@@ -8,7 +8,7 @@ PYTHON_WASM := $(CPYTHON_DIR)/cross-build/$(HOST_TRIPLE)/python.wasm
 
 .PHONY: all fetch-deps build run test clean distclean \
        web-deps web-stdlib web-transpile web-dev web-build web-clean \
-       python-component-verify
+       python-component-verify python-composed test-compression-extension
 
 all: fetch-deps build
 
@@ -66,3 +66,13 @@ web-clean:
 # this gate fails and we'll know.
 python-component-verify: build
 	@bash scripts/verify-python-component.sh
+
+# Componentize-python plan, Phase 1: compose python.wasm with the
+# compression-multiplexer capability component. Produces build/python.composed.wasm.
+python-composed: build
+	@bash scripts/compose-python-component.sh
+
+# Componentize-python plan, Phase 1: end-to-end smoke test of the composed
+# component + _compression extension + multiplexer.
+test-compression-extension: python-composed
+	@bash scripts/test-compression-extension.sh
