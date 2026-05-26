@@ -6,6 +6,14 @@
 # wasi-sdk ships no zlib, so without this the WASI CPython build reports
 # "stdlib extension module zlib... missing" and `import zlib` fails. Run before
 # `make build` (the build target does this automatically).
+#
+# TRANSITIONAL (componentize-python plan, Phase 5):
+#   The static zlib here is superseded by the _compression CPython extension +
+#   compression-multiplexer capability component (see Phase 1, cpython-ext/
+#   _compression/). This script stays for parity / A-B comparison with the
+#   capability-based path; Lib/zlib.py shimming and full retirement happens
+#   once the capability path has shipped a release. See
+#   docs/componentize-python.md for the retirement plan.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

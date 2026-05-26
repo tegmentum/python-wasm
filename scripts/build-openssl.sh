@@ -7,6 +7,14 @@
 # openssl-wasm builds real OpenSSL 3.x with wasi-sdk 33 (the same SDK as this
 # project), so the static libs are ABI-compatible. Building OpenSSL for wasip2
 # from scratch is a heavy, patch-heavy port; this reuses the working artifacts.
+#
+# TRANSITIONAL (componentize-python plan, Phase 5):
+#   - _hashlib: superseded by _crypto_hash (Phase 2, cpython-ext/_crypto_hash/);
+#     once Lib/_hashlib.py shim is in place this script can drop OpenSSL crypto.
+#   - _ssl:     Phase 3 (TLS capability component) is deferred — until a
+#     tegmentum:tls/context component exists, this is the only TLS story for
+#     the browser interpreter and must stay.
+#   See docs/componentize-python.md for retirement gating.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
