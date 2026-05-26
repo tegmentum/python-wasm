@@ -251,7 +251,28 @@ Subset to start: records, lists, options, results, enums. Resources later.
 
 **Effort:** 8–10 days for a usable v1.
 
-**Explicitly optional.** The plan must not depend on it.
+**Decision (deferred).** Reviewing the three extensions shipped through
+Phases 1 and 2 (`_compression` 172 LOC, `_crypto_hash` 345 LOC, `_xxhash`
+123 LOC, total 640 LOC):
+
+- The **mechanical** parts (name→algo table, list<u8> ↔ bytes marshaling, the
+  `bytes_to_list`/`list_to_bytes` helpers) are ~40 lines per file. A
+  generator could emit these.
+- The **substantive** parts vary materially per capability:
+  - `_compression` needs result<T,E> handling with the `bool` convention I
+    documented (and got wrong first time — a generator would have inherited
+    whichever convention its author chose).
+  - `_crypto_hash` needed the idempotency-via-buffering design decision —
+    the WIT resource's `finish` consumes state and has no clone, so
+    `h.digest() == h.digest()` (a hard hashlib contract) requires Python-side
+    buffering. A generator wouldn't have made that call; it would have
+    emitted a subtly wrong wrapper that we'd debug the same way.
+  - `_xxhash` is the simplest case and the closest to "would benefit from
+    generation," but it's also the smallest file.
+
+The conclusion: substantive design dominates the boilerplate. Phase 6 stays
+deferred. Revisit if a future extension feels like the fourth copy of a
+truly-identical shape. The plan does not depend on it (explicit design).
 
 ## What gets retired
 
