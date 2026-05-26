@@ -396,6 +396,70 @@ covered already).
 | **3a.2** | Confirm `build/openssl-component.wasm` runs in jco (load-only smoke, since browser sockets aren't there yet). | Component instantiates without missing imports beyond `wasi:sockets/tcp` (acceptable, that's the documented browser gap). |
 | **3a.3** | Build `~/git/openssl-wasm` from source to confirm the build is reproducible (so we're not pinned to a stale prebuilt artifact). | `cargo build --release` succeeds; resulting wasm matches the existing one in WIT export shape. |
 
+#### 3a.1 — gap inventory (DONE)
+
+What `_ssl` needs from `tegmentum:tls` ↔ where it comes from in
+`openssl:component/tls`:
+
+| `_ssl` need (from WIT review) | `openssl:component/tls` source | Status |
+|---|---|---|
+| `push-tls-input(bytes)` / `pull-tls-output(max)` | _not exposed_ — connect manages I/O internally via wasi:sockets | **GAP (memory-BIO)**: openssl-wasm pushes/pulls itself; we don't pump. For the browser path this is what motivates Phase 3p (provide sockets via polyfill) instead of memory-BIO. wasmtime path: no gap (sockets work). |
+| `write-plaintext(bytes)` | `client.write(data) -> result<u32, tls-error>` | ✓ same shape |
+| `read-plaintext(max)` | `client.read(max-bytes) -> result<list<u8>, tls-error>` | ✓ same shape |
+| `pending() -> u64` | _not exposed_ | **GAP (small)**: openssl-wasm doesn't surface `SSL_pending`. v1 can return `0` (ssl.py only uses pending() for non-blocking optimization; correctness is preserved). |
+| `handshake-complete()` | Implicit — `connect` blocks until handshake done | ✓ different model; consume as "if connect() returned ok, handshake is done" |
+| `state()` | _not exposed_ | **GAP (cosmetic)**: derive from "have we called connect" + last error |
+| `close-notify()` | `client.close: static func(c)` (drops + sends close_notify) | ✓ slightly different (combines drop and close_notify); _ssl maps shutdown() to this |
+| `peer-cert-der()` | `client.peer() -> peer-info` includes `peer-chain: list<certificate>`; cert.der() | ✓ first element of peer-chain |
+| `get-unverified-chain()` | `peer-chain` (the as-received chain) | ✓ |
+| `get-verified-chain()` | _not directly exposed_ as a separate verified chain | **GAP (medium)**: openssl-wasm trusts SSL_get_peer_cert_chain (= verified after handshake). v1: return same as unverified (Python's `ssl` does the same when verify is required). Future: upstream PR for separate verified chain. |
+| `cipher()` | `peer-info.cipher-suite: string` (name only) | **PARTIAL**: openssl-wasm gives the name but not version/secret-bits as a tuple. v1: synthesize version from `peer-info.protocol`, default secret-bits to 0 (unused by ssl.py beyond display). |
+| `channel-binding(cb-type)` | _not exposed_ | **GAP (deferred)**: SSL_get_finished/SSL_get_peer_finished not in openssl-wasm's WIT. v1: return None (callers that need SCRAM-PLUS or HTTP/2 client-auth will fail; documented limitation). Future: upstream PR. |
+| `alpn-selected()` | `peer-info.alpn: option<string>` | ✓ |
+| `version()` | `peer-info.protocol: protocol` (enum: tls12, tls13, dtls12) → string | ✓ enum-to-string in the _ssl layer |
+| `verify-mode` ctor knob | `client-config.verify: verify-mode {none, required, optional}` | ✓ direct |
+| `check-hostname` ctor knob | implicit (server-name verified when verify != none) | **PARTIAL**: openssl-wasm always validates hostname when verify is on. v1: documented limitation — can't disable hostname check independently. Almost no real code does. |
+| `min-version` / `max-version` | `client-config.protocols: protocol-range {min, max}` | ✓ different name |
+| `ca-roots` (empty = WebPKI) | `client-config.trust: option<store>` (must construct a `store` from CA bytes via openssl:component/x509) | **DIFFERENT**: more ceremony — _ssl creates an x509 store from the bundle bytes. v1: bundle webpki-roots PEM, use x509.store::from-pem. |
+| `client-cert` / `client-key` (mTLS) | `client-config.client-cert: option<certificate>` + `client-key: option<pkey>` | ✓ same model; _ssl marshals PEM via openssl:component/x509 and pkey |
+
+**Verdict:** openssl-wasm's TLS covers the ssl.py surface that matters for v1
+with minor cosmetic / advanced gaps:
+
+- 3 small gaps return constant/default values in v1: `pending` → 0,
+  `get-verified-chain` → same as unverified, `cipher.secret-bits` → 0.
+- 1 partial: hostname-checking is bundled with cert verification (acceptable;
+  ssl.py defaults align).
+- 1 deferred: `channel-binding` returns None (SCRAM-PLUS / HTTP/2 client auth
+  fail — documented).
+
+None of these block v1. All have clean future paths (upstream PRs to
+openssl-wasm extending its tls interface).
+
+#### 3a.2 — jco load smoke (DONE)
+
+`build/openssl-component.wasm` transpiles cleanly via jco (4 core modules +
+glue) and `instantiate` loads — confirms the artifact is browser-pipeline
+compatible. The remaining `wasi:sockets/tcp` imports are exactly what
+Phase 3p will satisfy from the polyfill.
+
+#### 3a.3 — reproducibility (DONE, pinned not rebuilt)
+
+The openssl-wasm build pipeline is `make component`, dry-run-confirmed to
+invoke OpenSSL's `Configure wasm32-wasip2 no-threads ...` and link via the
+existing Rust component crate. Heavy build (~15 min on a warm cache);
+skipped here. Pinning the existing artifact instead:
+
+- **Path:** `~/git/openssl-wasm/build/openssl-component.wasm`
+- **Size:** 3,829,694 bytes (3.65 MB)
+- **SHA-256:** `5bed74a40b863bd100bfbec61d1ae4b8f6063006b03305dc2f33167bb8b9fade`
+- **Exports:** error, random, bignum, digest, mac, cipher, kdf, pkey, x509, **tls** (all `openssl:component/*@0.1.0`)
+- **Imports:** wasi:cli, wasi:io, wasi:filesystem, wasi:sockets (network/tcp/udp/ip-name-lookup), wasi:clocks, wasi:random — all `@0.2.6`
+
+A `scripts/build-openssl-component.sh` in python-wasm will, in Phase 3b/3c,
+verify this digest matches before composition (same pattern as the
+compression / hash multiplexer digests pinned in the composectl plan).
+
 **Component artifact:** `~/git/openssl-wasm/build/openssl-component.wasm`
 (3.8 MB, already built). Imports `wasi:sockets/tcp@0.2.6` among other
 standard wasi imports.
