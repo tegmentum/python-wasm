@@ -195,3 +195,21 @@ This is Phase 1 (Issue #1). Later phases reuse this exact contract:
   a stdlib stand-in: a proxied import routes calls through an offload backend and
   re-raises remote exceptions. Remaining: the numpy proof case (numpy in a backend
   env) and richer attribute/dotted handling.
+
+## End-to-end in the real wasip2 interpreter
+
+The tests above run on host CPython. `run-wasip2-offload.sh` proves the same
+contract inside the **actual `python.wasm`**: it starts a host mailbox worker and
+runs `examples/offload_guest.py` under wasmtime. The guest imports
+`examples/nativelib.py` — a package that is *not* built for wasip2 — through the
+import hook, and its call is offloaded over the file mailbox to the host worker:
+
+```
+$ reference-worker/run-wasip2-offload.sh
+offloaded nativelib.crunch(7) = {'squared': 49, 'ran_on': 'darwin', 'py': '3.13.0'}
+caller interpreter: wasi  (the call ran on darwin)
+```
+
+So a package with no wasip2 build is usable from the wasip2 interpreter by
+offloading its calls — the Tier-1 host/native-worker shape running against the
+real target, using only `py_offload` (pure Python) + the file mailbox.
