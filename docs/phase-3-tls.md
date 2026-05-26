@@ -499,14 +499,14 @@ introspection.
 
 **Sub-deliverables:**
 
-| # | Deliverable | Acceptance |
-|---|---|---|
-| **3b.1** | Scaffold `cpython-ext/_ssl/` (WIT vendored from tls-wasm artifact, `wit-bindgen c` output, Setup.local entry — pattern identical to _compression). | Stub module builds. `import _ssl` works. python.wasm declares `import tegmentum:tls/context`. |
-| **3b.2** | Implement `_ssl.MemoryBIO` (CPython's BIO wrapper class). Phase 3a's resource gives us exactly this; just expose it. | A test creating two MemoryBIOs and pumping between them works. |
-| **3b.3** | Implement the minimal `_ssl._SSLContext` + `_SSLSocket` surface: `wrap_bio`, `do_handshake`, `read`, `write`, `pending`, `shutdown`. Backed by tls-wasm's `context.client`. | Pure-Python test using `ssl.SSLObject` (BIO-based — no socket) does an end-to-end handshake against our `tls-wasm` server resource. |
-| **3b.4** | Add `_ssl.RAND_bytes`, `_ssl.OPENSSL_VERSION` (string from `version()`), and a small set of constants `ssl.py` references at import time. | `import ssl` in the composed wasm doesn't AttributeError. |
-| **3b.5** | Wire the socket-backed path: `_ssl._SSLSocket` over a real fd. Under wasmtime this uses `wasi:sockets/tcp`; the C extension pumps bytes between the tls resource and `recv()/send()` on the socket. | `python -c "import ssl, socket; ctx = ssl.create_default_context(); s = ctx.wrap_socket(socket.create_connection(('tls13.akamai.com', 443)), server_hostname='tls13.akamai.com'); s.send(b'GET / ...'); print(s.read(80))"` under wasmtime returns an HTTPS response. |
-| **3b.6** | Re-route or proxy CPython's existing `_ssl` symbols so `import ssl` keeps working. Two-mode build: the old static `_ssl` (from build-openssl.sh) and our new `_ssl_capability` coexist; `_ssl` re-exports the latter. Phase 5 removes the static path. | `Lib/test/test_ssl.py` subset that doesn't need a real network (`test_constructor`, `test_wrap_bio_handshake`, `test_pending`, `test_shutdown`) passes. |
+| # | Deliverable | Acceptance | Status |
+|---|---|---|---|
+| **3b.1** | Scaffold `cpython-ext/_ssl/` (WIT vendored, `wit-bindgen c` output, Setup.local entry, parallel naming `_ssl_capability` so the static `_ssl` keeps working during bring-up). | Stub module builds; `import _ssl_capability` works; python.wasm declares `import openssl:component/x509`; composed wasm runs the scaffold smoke. | **✅ DONE** (commit `7978b6f`). |
+| **3b.2** | Implement `_ssl_capability.MemoryBIO` (CPython's BIO wrapper class). | A test creating two MemoryBIOs and pumping between them works. | pending |
+| **3b.3** | Implement the minimal `_ssl_capability._SSLContext` + `_SSLSocket` surface: `wrap_bio`, `do_handshake`, `read`, `write`, `pending`, `shutdown`. Backed by `openssl:component/tls`'s `client` resource. | Pure-Python test against an in-component TLS server roundtrips bytes. | pending |
+| **3b.4** | Add `_ssl_capability.RAND_bytes`, `OPENSSL_VERSION`, and a small set of constants `ssl.py` references at import time. | `import ssl` (after re-routing in 3b.6) doesn't AttributeError. | pending |
+| **3b.5** | Wire the socket-backed path: `_SSLSocket` over a real fd. Under wasmtime this is automatic — `openssl:component/tls.client.connect(host, port, config)` handles the socket itself via wasi:sockets/tcp. | `python -c "import ssl, urllib.request; print(urllib.request.urlopen('https://tls13.akamai.com').read(80))"` under wasmtime returns content. | pending |
+| **3b.6** | Re-route CPython's `_ssl` symbols so `import ssl` keeps working. Two-mode build: static `_ssl` + capability `_ssl_capability` coexist; `_ssl` re-exports the latter. Phase 5 removes the static path. | `Lib/test/test_ssl.py` subset (`test_constructor`, `test_wrap_bio_handshake`, `test_pending`, `test_shutdown`) passes. | pending |
 
 **Risks:**
 
