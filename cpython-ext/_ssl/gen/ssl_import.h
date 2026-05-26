@@ -949,6 +949,26 @@ typedef struct {
   } val;
 } openssl_component_tls_result_own_server_tls_error_t;
 
+typedef openssl_component_error_code_t openssl_component_random_code_t;
+
+typedef struct openssl_component_random_random_error_t {
+  uint8_t tag;
+  union {
+    openssl_component_random_code_t     drbg_failure;
+  } val;
+} openssl_component_random_random_error_t;
+
+#define OPENSSL_COMPONENT_RANDOM_RANDOM_ERROR_DRBG_FAILURE 0
+#define OPENSSL_COMPONENT_RANDOM_RANDOM_ERROR_OUT_OF_MEMORY 1
+
+typedef struct {
+  bool is_err;
+  union {
+    ssl_import_list_u8_t ok;
+    openssl_component_random_random_error_t err;
+  } val;
+} openssl_component_random_result_list_u8_random_error_t;
+
 // Imported Functions from `openssl:component/error@0.1.0`
 // Pop the oldest error from the thread-local error queue, or
 // return `none` if empty.
@@ -1103,6 +1123,15 @@ extern void openssl_component_tls_method_server_peer(openssl_component_tls_borro
 // `keylog` was set in the listener's server-config.
 extern void openssl_component_tls_method_server_drain_keylog(openssl_component_tls_borrow_server_t self, ssl_import_list_string_t *ret);
 extern void openssl_component_tls_static_server_close(openssl_component_tls_own_server_t s);
+
+// Imported Functions from `openssl:component/random@0.1.0`
+// Public (non-sensitive) random bytes.
+extern bool openssl_component_random_bytes(uint32_t n, ssl_import_list_u8_t *ret, openssl_component_random_random_error_t *err);
+// Private random bytes — drawn from the private DRBG instance.
+// Use for key material.
+extern bool openssl_component_random_private_bytes(uint32_t n, ssl_import_list_u8_t *ret, openssl_component_random_random_error_t *err);
+// Add caller-supplied entropy to the DRBG pool.
+extern void openssl_component_random_add_seed(ssl_import_list_u8_t *material, double entropy_bits);
 
 // Helper Functions
 
@@ -1325,6 +1354,10 @@ void openssl_component_tls_result_list_u8_tls_error_free(openssl_component_tls_r
 void openssl_component_tls_result_own_server_listener_tls_error_free(openssl_component_tls_result_own_server_listener_tls_error_t *ptr);
 
 void openssl_component_tls_result_own_server_tls_error_free(openssl_component_tls_result_own_server_tls_error_t *ptr);
+
+void openssl_component_random_random_error_free(openssl_component_random_random_error_t *ptr);
+
+void openssl_component_random_result_list_u8_random_error_free(openssl_component_random_result_list_u8_random_error_t *ptr);
 
 // Sets the string `ret` to reference the input string `s` without copying it
 void ssl_import_string_set(ssl_import_string_t *ret, const char*s);

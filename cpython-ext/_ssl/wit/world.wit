@@ -13,4 +13,5 @@ world ssl-import {
     import openssl:component/x509@0.1.0;
     import openssl:component/pkey@0.1.0;
     import openssl:component/error@0.1.0;
+    import openssl:component/random@0.1.0;  // RAND_bytes / RAND_priv_bytes (Phase 3b.4)
 }

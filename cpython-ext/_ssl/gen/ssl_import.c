@@ -268,6 +268,17 @@ extern void __wasm_import_openssl_component_tls_method_server_drain_keylog(int32
 __attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[static]server.close")))
 extern void __wasm_import_openssl_component_tls_static_server_close(int32_t);
 
+// Imported Functions from `openssl:component/random@0.1.0`
+
+__attribute__((__import_module__("openssl:component/random@0.1.0"), __import_name__("bytes")))
+extern void __wasm_import_openssl_component_random_bytes(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/random@0.1.0"), __import_name__("private-bytes")))
+extern void __wasm_import_openssl_component_random_private_bytes(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/random@0.1.0"), __import_name__("add-seed")))
+extern void __wasm_import_openssl_component_random_add_seed(uint8_t *, size_t, double);
+
 // Canonical ABI intrinsics
 
 __attribute__((__weak__, __export_name__("cabi_realloc")))
@@ -1050,6 +1061,22 @@ void openssl_component_tls_result_own_server_tls_error_free(openssl_component_tl
   if (!ptr->is_err) {
   } else {
     openssl_component_tls_tls_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_random_random_error_free(openssl_component_random_random_error_t *ptr) {
+  switch ((int32_t) ptr->tag) {
+    case 0: {
+      break;
+    }
+  }
+}
+
+void openssl_component_random_result_list_u8_random_error_free(openssl_component_random_result_list_u8_random_error_t *ptr) {
+  if (!ptr->is_err) {
+    ssl_import_list_u8_free(&ptr->val.ok);
+  } else {
+    openssl_component_random_random_error_free(&ptr->val.err);
   }
 }
 
@@ -6363,6 +6390,88 @@ void openssl_component_tls_method_server_drain_keylog(openssl_component_tls_borr
 
 void openssl_component_tls_static_server_close(openssl_component_tls_own_server_t s) {
   __wasm_import_openssl_component_tls_static_server_close((s).__handle);
+}
+
+bool openssl_component_random_bytes(uint32_t n, ssl_import_list_u8_t *ret, openssl_component_random_random_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_random_bytes((int32_t) (n), ptr);
+  openssl_component_random_result_list_u8_random_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_random_random_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          variant.val.drbg_failure = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+        case 1: {
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_random_private_bytes(uint32_t n, ssl_import_list_u8_t *ret, openssl_component_random_random_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_random_private_bytes((int32_t) (n), ptr);
+  openssl_component_random_result_list_u8_random_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_random_random_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          variant.val.drbg_failure = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+        case 1: {
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+void openssl_component_random_add_seed(ssl_import_list_u8_t *material, double entropy_bits) {
+  __wasm_import_openssl_component_random_add_seed((uint8_t *) (*material).ptr, (*material).len, entropy_bits);
 }
 
 // Ensure that the *_component_type.o object is linked in

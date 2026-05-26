@@ -34,6 +34,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include "gen/ssl_import.h"
+#include "ca-bundle/ca_bundle.h"
 
 /* -------------------------------------------------------------------------
  * MemoryBIO type — Phase 3b.2
@@ -245,6 +246,10 @@ typedef struct {
     PyObject *client_key_bytes;   /* bytes — client key PEM */
     /* ALPN list as Python list-of-bytes (each item is ASCII proto name). */
     PyObject *alpn_protocols;     /* list[bytes] */
+    /* Lazy-built trust store from ca_pem_bytes; owned by this context.
+     * has_trust_store == 0 means none built yet (or no ca_pem_bytes set). */
+    openssl_component_x509_own_store_t trust_store;
+    int       has_trust_store;
 } SSLContextObject;
 
 static PyTypeObject SSLContext_Type;
@@ -265,11 +270,21 @@ static int SSLContext_init(SSLContextObject *self, PyObject *args, PyObject *kwd
     self->client_cert_bytes = NULL;
     self->client_key_bytes = NULL;
     self->alpn_protocols = NULL;
+    self->has_trust_store = 0;
     return 0;
+}
+
+static void SSLContext_drop_trust(SSLContextObject *self)
+{
+    if (self->has_trust_store) {
+        openssl_component_x509_store_drop_own(self->trust_store);
+        self->has_trust_store = 0;
+    }
 }
 
 static void SSLContext_dealloc(SSLContextObject *self)
 {
+    SSLContext_drop_trust(self);
     Py_XDECREF(self->ca_pem_bytes);
     Py_XDECREF(self->client_cert_bytes);
     Py_XDECREF(self->client_key_bytes);
@@ -277,13 +292,88 @@ static void SSLContext_dealloc(SSLContextObject *self)
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
-/* set_ca_certs(cadata: bytes) — inline alternative to load_verify_locations. */
+/* Build (or rebuild) the trust store from self->ca_pem_bytes.
+ * Returns 0 on success, -1 on error (with PyErr set). */
+static int SSLContext_build_trust_store(SSLContextObject *self)
+{
+    SSLContext_drop_trust(self);
+    if (!self->ca_pem_bytes) {
+        return 0;  /* no trust store wanted; wrap_socket leaves trust=None */
+    }
+    Py_ssize_t pem_len = PyBytes_GET_SIZE(self->ca_pem_bytes);
+    if (pem_len == 0) return 0;
+
+    /* Parse the PEM bundle into a list of certificates (owned by us). */
+    ssl_import_list_u8_t pem_in;
+    pem_in.ptr = (uint8_t *) malloc((size_t) pem_len);
+    if (!pem_in.ptr) { PyErr_NoMemory(); return -1; }
+    memcpy(pem_in.ptr, PyBytes_AS_STRING(self->ca_pem_bytes), (size_t) pem_len);
+    pem_in.len = (size_t) pem_len;
+
+    openssl_component_x509_list_own_certificate_t certs;
+    openssl_component_x509_x509_error_t parse_err;
+    bool ok = openssl_component_x509_static_certificate_parse_chain(
+        &pem_in, &certs, &parse_err);
+    if (!ok) {
+        openssl_component_x509_x509_error_free(&parse_err);
+        PyErr_SetString(SSLError, "failed to parse CA bundle PEM");
+        return -1;
+    }
+
+    openssl_component_x509_own_store_t store =
+        openssl_component_x509_constructor_store();
+
+    /* Add each parsed cert to the store as a trust anchor. add_trusted takes
+     * a borrowed store + borrowed cert; both are converted from `own` handles. */
+    openssl_component_x509_borrow_store_t bstore =
+        openssl_component_x509_borrow_store(store);
+    for (size_t i = 0; i < certs.len; i++) {
+        openssl_component_x509_borrow_certificate_t bcert =
+            openssl_component_x509_borrow_certificate(certs.ptr[i]);
+        openssl_component_x509_x509_error_t add_err;
+        bool added = openssl_component_x509_method_store_add_trusted(
+            bstore, bcert, &add_err);
+        if (!added) {
+            /* Skip this cert; don't fail the whole bundle for one bad anchor. */
+            openssl_component_x509_x509_error_free(&add_err);
+        }
+    }
+    /* Drop the owned certs — the store now holds its own references. */
+    for (size_t i = 0; i < certs.len; i++) {
+        openssl_component_x509_certificate_drop_own(certs.ptr[i]);
+    }
+    if (certs.ptr) free(certs.ptr);
+
+    self->trust_store = store;
+    self->has_trust_store = 1;
+    return 0;
+}
+
+/* set_ca_certs(cadata: bytes) — inline alternative to load_verify_locations.
+ * Invalidates any previously-built trust store; it'll be rebuilt lazily on
+ * the next wrap_socket(). */
 static PyObject *SSLContext_set_ca_certs(SSLContextObject *self, PyObject *args)
 {
     PyObject *pem;
     if (!PyArg_ParseTuple(args, "S:set_ca_certs", &pem)) return NULL;
     Py_INCREF(pem);
     Py_XSETREF(self->ca_pem_bytes, pem);
+    SSLContext_drop_trust(self);
+    Py_RETURN_NONE;
+}
+
+/* load_default_certs() — installs the embedded Mozilla CA bundle as the
+ * trust store. After this, CERT_REQUIRED can validate normal HTTPS servers.
+ * The PEM is committed to the repo at cpython-ext/_ssl/ca-bundle/cacert.pem
+ * (SHA256-pinned via SSL_CAPABILITY_CA_BUNDLE_SHA256). */
+static PyObject *SSLContext_load_default_certs(SSLContextObject *self, PyObject *Py_UNUSED(args))
+{
+    PyObject *pem = PyBytes_FromStringAndSize(
+        (const char *) SSL_CAPABILITY_CA_BUNDLE_PEM,
+        (Py_ssize_t) SSL_CAPABILITY_CA_BUNDLE_PEM_LEN);
+    if (!pem) return NULL;
+    Py_XSETREF(self->ca_pem_bytes, pem);
+    SSLContext_drop_trust(self);
     Py_RETURN_NONE;
 }
 
@@ -380,6 +470,10 @@ static PyObject *SSLContext_wrap_socket(SSLContextObject *self, PyObject *args, 
 static PyMethodDef SSLContext_methods[] = {
     {"set_ca_certs",        (PyCFunction) SSLContext_set_ca_certs,        METH_VARARGS,
      "set_ca_certs(pem: bytes)\n\nInline trust roots (alternative to load_verify_locations)."},
+    {"load_default_certs",  (PyCFunction) SSLContext_load_default_certs,  METH_NOARGS,
+     "load_default_certs() -> None\n\nLoad the bundled Mozilla WebPKI roots\n"
+     "(see _ssl_capability.CA_BUNDLE_CERT_COUNT for the cert count).\n"
+     "After this, CERT_REQUIRED can validate normal HTTPS servers."},
     {"set_client_cert",     (PyCFunction) SSLContext_set_client_cert,     METH_VARARGS,
      "set_client_cert(cert_pem: bytes, key_pem: bytes)\n\nClient certificate + key for mTLS."},
     {"set_alpn_protocols",  (PyCFunction) SSLContext_set_alpn_protocols,  METH_VARARGS,
@@ -498,11 +592,29 @@ static PyObject *SSLSocket_new_for_context(SSLContextObject *ctx,
      * default until set_ca_certs supplies a PEM blob — TODO Phase 3b.4 will
      * build a store from ca_pem_bytes); verify-options=None; client cert
      * mTLS only when both PEMs are present; ALPN from list_string. */
+    /* Lazily build the trust store from ca_pem_bytes (set via set_ca_certs
+     * or load_default_certs). Failure here propagates up as SSLError. */
+    if (!ctx->has_trust_store && ctx->ca_pem_bytes != NULL) {
+        if (SSLContext_build_trust_store(ctx) < 0) {
+            Py_DECREF(self);
+            return NULL;
+        }
+    }
+
     openssl_component_tls_client_config_t config = {0};
     config.protocols.min = (uint8_t) ctx->min_protocol;
     config.protocols.max = (uint8_t) ctx->max_protocol;
     config.verify = (uint8_t) ctx->verify_mode;
     config.trust.is_some = false;
+    if (ctx->has_trust_store) {
+        /* openssl-component takes ownership of the store handle we hand it
+         * (a one-shot consume — matches how `own` resources flow in WIT).
+         * Move it: clear our cached handle to avoid a double-free; the next
+         * wrap_socket() will rebuild from ca_pem_bytes. */
+        config.trust.is_some = true;
+        config.trust.val = ctx->trust_store;
+        ctx->has_trust_store = 0;
+    }
     config.verify_options.is_some = false;
     config.server_name.is_some = true;
     {
@@ -743,7 +855,59 @@ static PyTypeObject SSLSocket_Type = {
  * Module plumbing
  * ------------------------------------------------------------------------- */
 
+/* RAND_bytes(n: int) -> bytes — public random bytes from openssl-component's
+ * DRBG. Mirrors ssl.RAND_bytes (and hashlib.RAND_bytes); for high-entropy
+ * needs (key material) prefer RAND_priv_bytes which uses the private DRBG. */
+static PyObject *mod_RAND_bytes(PyObject *self, PyObject *args)
+{
+    int n;
+    if (!PyArg_ParseTuple(args, "i:RAND_bytes", &n)) return NULL;
+    if (n < 0) {
+        PyErr_SetString(PyExc_ValueError, "RAND_bytes: n must be >= 0");
+        return NULL;
+    }
+    ssl_import_list_u8_t out;
+    openssl_component_random_random_error_t err;
+    bool ok = openssl_component_random_bytes((uint32_t) n, &out, &err);
+    if (!ok) {
+        openssl_component_random_random_error_free(&err);
+        PyErr_SetString(SSLError, "RAND_bytes failed (DRBG error)");
+        return NULL;
+    }
+    PyObject *r = PyBytes_FromStringAndSize((const char *) out.ptr,
+                                            (Py_ssize_t) out.len);
+    ssl_import_list_u8_free(&out);
+    return r;
+}
+
+/* RAND_priv_bytes(n) — same but draws from the private DRBG (for key material). */
+static PyObject *mod_RAND_priv_bytes(PyObject *self, PyObject *args)
+{
+    int n;
+    if (!PyArg_ParseTuple(args, "i:RAND_priv_bytes", &n)) return NULL;
+    if (n < 0) {
+        PyErr_SetString(PyExc_ValueError, "RAND_priv_bytes: n must be >= 0");
+        return NULL;
+    }
+    ssl_import_list_u8_t out;
+    openssl_component_random_random_error_t err;
+    bool ok = openssl_component_random_private_bytes((uint32_t) n, &out, &err);
+    if (!ok) {
+        openssl_component_random_random_error_free(&err);
+        PyErr_SetString(SSLError, "RAND_priv_bytes failed (DRBG error)");
+        return NULL;
+    }
+    PyObject *r = PyBytes_FromStringAndSize((const char *) out.ptr,
+                                            (Py_ssize_t) out.len);
+    ssl_import_list_u8_free(&out);
+    return r;
+}
+
 static PyMethodDef module_methods[] = {
+    {"RAND_bytes",      mod_RAND_bytes,      METH_VARARGS,
+     "RAND_bytes(n) -> bytes  — public cryptographic random bytes."},
+    {"RAND_priv_bytes", mod_RAND_priv_bytes, METH_VARARGS,
+     "RAND_priv_bytes(n) -> bytes  — private-DRBG random bytes (key material)."},
     {NULL, NULL, 0, NULL}
 };
 
@@ -786,6 +950,21 @@ PyMODINIT_FUNC PyInit__ssl_capability(void)
     PyModule_AddIntConstant(m, "CERT_REQUIRED", 2);
     /* ssl.PROTOCOL_* values we accept in SSLContext(protocol=...). */
     PyModule_AddIntConstant(m, "PROTOCOL_TLS_CLIENT", 16);  /* matches stdlib */
+
+    /* OpenSSL identity strings. openssl-component doesn't expose the live
+     * OpenSSL version in its WIT, so we report what its README pins
+     * ("OpenSSL 3.x via openssl-wasm wasi-sdk 33") — exact bump bumps here
+     * if/when openssl-wasm publishes a query interface. */
+    PyModule_AddStringConstant(m, "OPENSSL_VERSION",
+        "OpenSSL 3.x (via openssl-wasm component)");
+    PyModule_AddIntConstant(m, "OPENSSL_VERSION_NUMBER", 0x30000000);
+    PyModule_AddStringConstant(m, "OPENSSL_VERSION_INFO",
+        "(3, 0, 0, 0, 0)  # openssl-component-bridged");
+
+    /* WebPKI bundle metadata — for callers that want to assert provenance. */
+    PyModule_AddStringConstant(m, "CA_BUNDLE_SHA256", SSL_CAPABILITY_CA_BUNDLE_SHA256);
+    PyModule_AddStringConstant(m, "CA_BUNDLE_DATE",   SSL_CAPABILITY_CA_BUNDLE_DATE);
+    PyModule_AddIntConstant(m,    "CA_BUNDLE_CERT_COUNT", SSL_CAPABILITY_CA_BUNDLE_CERT_COUNT);
 
     return m;
 

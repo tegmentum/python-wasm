@@ -42,9 +42,17 @@ def expect(cond, msg):
 
 # Phase 3b.4 will load WebPKI roots so CERT_REQUIRED works. For now, the
 # v1 smoke runs verify_mode=NONE because the bundled trust store is empty.
-print('--- TLS 1.3 handshake to example.com:443 ---')
+print('--- Module-level surface (Phase 3b.4) ---')
+expect(_ssl_capability.OPENSSL_VERSION.startswith('OpenSSL'), 'OPENSSL_VERSION set')
+expect(_ssl_capability.CA_BUNDLE_CERT_COUNT >= 100, f'WebPKI bundle has {_ssl_capability.CA_BUNDLE_CERT_COUNT} certs')
+expect(len(_ssl_capability.RAND_bytes(32)) == 32, 'RAND_bytes(32) returns 32 bytes')
+expect(_ssl_capability.RAND_bytes(32) != _ssl_capability.RAND_bytes(32), 'consecutive RAND_bytes differ')
+expect(len(_ssl_capability.RAND_priv_bytes(16)) == 16, 'RAND_priv_bytes(16) returns 16 bytes')
+
+print('--- TLS 1.3 handshake to example.com:443 (CERT_REQUIRED + WebPKI) ---')
 ctx = _ssl_capability._SSLContext()
-ctx.verify_mode = _ssl_capability.CERT_NONE  # TODO 3b.4: ship WebPKI roots
+ctx.verify_mode = _ssl_capability.CERT_REQUIRED
+ctx.load_default_certs()                     # bundled Mozilla CAs
 sock = ctx.wrap_socket('example.com', 443, server_hostname='example.com')
 expect(sock.version() in ('TLSv1.2', 'TLSv1.3'), f'version (got {sock.version()})')
 cipher = sock.cipher()
@@ -77,6 +85,34 @@ try:
     expect(False, 'write-after-shutdown raises')
 except _ssl_capability.SSLError:
     expect(True, 'write-after-shutdown raises SSLError')
+
+print('--- Cert verification: real negative tests (Phase 3b.4) ---')
+ctx_req = _ssl_capability._SSLContext()
+ctx_req.verify_mode = _ssl_capability.CERT_REQUIRED
+ctx_req.load_default_certs()
+try:
+    s = ctx_req.wrap_socket('expired.badssl.com', 443, server_hostname='expired.badssl.com')
+    expect(False, 'expired.badssl.com accepted (should have been rejected)')
+    s.shutdown()
+except _ssl_capability.SSLError:
+    expect(True, 'CERT_REQUIRED rejects expired.badssl.com')
+try:
+    s = ctx_req.wrap_socket('self-signed.badssl.com', 443, server_hostname='self-signed.badssl.com')
+    expect(False, 'self-signed.badssl.com accepted')
+    s.shutdown()
+except _ssl_capability.SSLError:
+    expect(True, 'CERT_REQUIRED rejects self-signed.badssl.com')
+
+# Same bad cert under CERT_NONE should succeed — proves CERT_REQUIRED is the
+# actual gate, not e.g. a network failure mis-categorized as cert failure.
+ctx_none = _ssl_capability._SSLContext()
+ctx_none.verify_mode = _ssl_capability.CERT_NONE
+try:
+    s = ctx_none.wrap_socket('expired.badssl.com', 443, server_hostname='expired.badssl.com')
+    expect(True, 'CERT_NONE accepts the same expired cert (gate is real)')
+    s.shutdown()
+except _ssl_capability.SSLError as e:
+    expect(False, f'CERT_NONE rejected: {e}')
 
 print('---')
 print('PASS' if failures == 0 else f'{failures} FAILURES')
