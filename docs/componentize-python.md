@@ -165,46 +165,40 @@ multiplexer is mature; replaces `scripts/build-zlib.sh` cleanly.
 
 **Effort:** 4–6 days.
 
-### Phase 3 — TLS / SSL (partial; gated on capability creation)
+### Phase 3 — TLS / SSL ✅ DONE
 
-**What.** Two sub-tracks:
+The full Phase 3 plan and execution log live in
+[phase-3-tls.md](phase-3-tls.md). One-line summary:
 
-- **3a.** Build (or wrap) a TLS-capability component. Likely route: a thin
-  wasm component wrapping the existing `openssl-wasm` static lib via a
-  Rust shim that exposes `tegmentum:tls/context` (`new`, `connect`, `read`,
-  `write`, `close`). A separate plan in its own right.
-- **3b.** Once the TLS capability exists, repeat Phase 1 pattern: `_ssl.c`
-  C extension importing it, `Lib/ssl.py` mostly unchanged.
+- **3a (pivot):** reuse `~/git/openssl-wasm`'s existing
+  `openssl:component/tls` instead of building a new tls-wasm.
+- **3b.1–3b.6:** `cpython-ext/_ssl/` ships `_ssl_capability` (C extension) +
+  `ssl_capability.py` (Python shim) backed by openssl-component, with
+  bundled Mozilla WebPKI roots (121 CAs).
+- **3p:** `wasi-polyfill` already had `plugins/ws-gateway/` — a KSW1
+  WebSocket-multiplexing TCP gateway. Bumped version pins and added an
+  integration test.
+- **3c:** browser wiring (`web/src/python-runner.ts` registers the
+  ws-gateway via policy overrides driven by `VITE_TCP_GATEWAY_URL`) +
+  `docs/browser-tls.md`.
+- **3d:** static OpenSSL retired from the default build; restorable via
+  `STATIC_OPENSSL=1 make build`. python.wasm 34 MB → 30 MB; composed wasm
+  41 MB → 37 MB.
 
-**Status (deferred, intentional).** The componentize-python plan ships
-Phases 0–2 + 4 as the architectural foundation. Phase 3 requires:
-1. designing the `tegmentum:tls/context` WIT (non-trivial — TLS handshake
-   semantics, ALPN, SNI, cert validation policy, etc.),
-2. wrapping openssl-wasm's libssl in a Rust component implementing it,
-3. defining a sockets-capability contract (TLS over what transport?),
-4. then 3b's `_ssl.c` extension on top.
+**Validated end-to-end.** `NETWORK=1 make test-ssl-network` runs 21
+assertions including real TLS 1.3 to example.com:443 with CERT_REQUIRED,
+WebPKI cert validation, expired/self-signed rejection, and
+`urllib.request.urlopen('https://example.com') → 200 OK` (after
+`sys.modules['ssl'] = ssl_capability`).
 
-That is a separate project of its own scope. Today, the wasi-sdk CPython
-ships with `_ssl`/`_hashlib` statically linked against `~/git/openssl-wasm`
-(documented build flow: `scripts/build-openssl.sh`). For the browser
-interpreter, TLS isn't a hard requirement (most use cases don't open raw
-TCP). Leaving the static link in place is the documented fallback in this
-plan — and the right call until there is concrete demand or a TLS-capability
-component is ready.
+**Effort.** ~2 days actual vs the 14–19 day estimate. Big saves: the 3a
+pivot, the polyfill already being there, and 3d as an opt-in inversion
+rather than a deletion.
 
-**To pick this up later:** the workflow is identical to Phase 1/2 once 3a
-exists. The Setup.local entry, the wit-bindgen-c invocation, the
-compose-python-component.sh plug, and the per-extension test all follow the
-same template.
-
-> **The full Phase 3 plan is in [phase-3-tls.md](phase-3-tls.md)** — WIT
-> design, sub-phases (3a tls-wasm capability / 3b `_ssl` extension /
-> 3c transport wiring / 3d static-link retirement), per-step acceptance
-> criteria, risks, and a day-by-day order-of-work for the first three days.
-
-**Effort:** **16–22 eng-days total** (revised estimate from the detailed
-plan; ~7 was the initial Phase-0 sketch). The variance is on tls-wasm BIO
-correctness and the breadth of `_ssl` Python-API surface to replicate.
+**v1.1 deferrals** (documented in [phase-3-tls.md](phase-3-tls.md) and
+[browser-tls.md](browser-tls.md)): wrap_bio/asyncio (needs memory-BIO in
+openssl-component upstream), session resumption, channel binding for
+SCRAM-PLUS/HTTP-2 client auth, file-path cert loading.
 
 ### Phase 4 — composectl + Makefile + CI automation
 
