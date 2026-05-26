@@ -37,8 +37,10 @@ def expect(cond, msg):
         failures += 1
 
 print('--- Phase 3b.1: scaffold + openssl-component imports ---')
-_ssl_capability.probe_imports()
-expect(True, 'probe_imports() round-trips through openssl-component/x509')
+# probe_imports() was removed in 3b.3; the import is now kept alive by real
+# consumers (_SSLContext/_SSLSocket -> openssl:component/tls). The module
+# loading at all + the type checks below cover the scaffold gate.
+expect(_ssl_capability.MemoryBIO is not None, 'module + types load (3b.1 + 3b.2 wired)')
 
 print('--- Phase 3b.2: MemoryBIO semantics ---')
 bio = _ssl_capability.MemoryBIO()
@@ -110,9 +112,33 @@ try:
 except ImportError:
     print('SKIP : stdlib ssl unavailable in this build')
 
+print('--- Phase 3b.3: _SSLContext + _SSLSocket (no network) ---')
+# Type wiring + config shape. The actual TLS handshake requires real network
+# (gated separately, see test-ssl-network).
+expect(_ssl_capability._SSLContext is not None, '_SSLContext registered')
+expect(_ssl_capability._SSLSocket is not None, '_SSLSocket registered')
+expect(_ssl_capability.SSLError is not None, 'SSLError registered')
+expect(_ssl_capability.CERT_REQUIRED == 2, 'CERT_REQUIRED == 2')
+expect(_ssl_capability.CERT_NONE == 0, 'CERT_NONE == 0')
+
+ctx = _ssl_capability._SSLContext()
+expect(ctx.verify_mode == _ssl_capability.CERT_REQUIRED, 'default verify_mode is CERT_REQUIRED')
+ctx.verify_mode = _ssl_capability.CERT_NONE
+expect(ctx.verify_mode == _ssl_capability.CERT_NONE, 'verify_mode setter works')
+
+# ALPN list accepts both str and bytes; coerced to bytes internally
+ctx.set_alpn_protocols(['h2', 'http/1.1'])
+ctx.set_alpn_protocols([b'h2', b'http/1.1'])
+expect(True, 'set_alpn_protocols(str + bytes) accepted')
+
+# CA / client-cert setters take bytes (not paths) in v1
+ctx.set_ca_certs(b'(pretend PEM blob)')
+ctx.set_client_cert(b'(cert pem)', b'(key pem)')
+expect(True, 'set_ca_certs / set_client_cert accepted (bytes-only v1)')
+
 print('---')
 print('PASS' if failures == 0 else f'{failures} FAILURES')
 sys.exit(failures)
 " \
-    && echo "OK: _ssl_capability Phase 3b.2 end-to-end through python.composed.wasm." \
+    && echo "OK: _ssl_capability Phase 3b.2 + 3b.3 (no-network) end-to-end." \
     || { echo "FAIL: _ssl_capability test broke." >&2; exit 1; }

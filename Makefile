@@ -9,7 +9,7 @@ PYTHON_WASM := $(CPYTHON_DIR)/cross-build/$(HOST_TRIPLE)/python.wasm
 .PHONY: all fetch-deps build run test clean distclean \
        web-deps web-stdlib web-transpile web-dev web-build web-clean \
        python-component-verify python-composed test-compression-extension test-hash-extensions \
-       test-ssl-capability composectl-plan
+       test-ssl-capability test-ssl-network composectl-plan
 
 all: fetch-deps build
 
@@ -87,12 +87,18 @@ test-compression-extension: python-composed
 test-hash-extensions: python-composed
 	@bash scripts/test-hash-extensions.sh
 
-# Componentize-python plan, Phase 3b: end-to-end smoke of _ssl_capability —
-# currently exercises 3b.1 (scaffold + openssl-component imports) and 3b.2
-# (MemoryBIO semantics, including byte-for-byte parity against the static
-# ssl.MemoryBIO). Future 3b.3+ adds _SSLContext / _SSLSocket / real handshake.
+# Componentize-python plan, Phase 3b: end-to-end smoke of _ssl_capability.
+# Exercises 3b.1 (scaffold), 3b.2 (MemoryBIO with stdlib parity), and 3b.3
+# (_SSLContext + _SSLSocket type wiring + config knobs, no network).
 test-ssl-capability: python-composed
 	@bash scripts/test-ssl-capability.sh
+
+# Componentize-python plan, Phase 3c.1: NETWORK-GATED end-to-end TLS smoke.
+# Does a real HTTPS request through _SSLSocket -> openssl-component ->
+# wasi:sockets/tcp. Default-OFF; opt-in with NETWORK=1. This is the gating
+# decision-point #2 from docs/phase-3-tls.md ("real handshake works?").
+test-ssl-network: python-composed
+	@NETWORK=1 bash scripts/test-ssl-network.sh
 
 # Componentize-python plan, Phase 4: generate the composectl plan that pins
 # python.wasm + capability multiplexers by CAS digest. Reproducibility target;
