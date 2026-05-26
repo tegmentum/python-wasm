@@ -139,3 +139,12 @@ test-ssl-network: python-composed
 # is fixed upstream.
 composectl-plan: build
 	@bash scripts/build-composectl-plan.sh
+
+# Componentize-python plan, Tier-1 v86 variant: same shape as the python-
+# browser plan plus the v86 component that exports v86:posix/process@0.1.0
+# (see docs/tier1-v86-integration.md). Fails if the v86 component isn't
+# present at $V86_COMPONENT_WASM — see the script's error message for what
+# needs to land on the v86 side before this can produce a workable artifact.
+.PHONY: composectl-plan-v86
+composectl-plan-v86: build
+	@bash scripts/build-python-v86-composectl-plan.sh

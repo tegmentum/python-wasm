@@ -1,0 +1,43 @@
+{
+  "version": "1",
+  "root": "python",
+  "components": [
+    { "id": "python",          "digest": [220,142,232,108,202,197,101,39,126,243,6,209,39,55,169,150,157,50,87,119,203,86,201,72,148,14,197,33,83,213,152,110] },
+    { "id": "compression",     "digest": [218,93,70,19,133,115,193,243,174,112,149,1,252,16,213,76,134,56,194,244,6,207,253,117,227,114,210,98,232,12,197,39] },
+    { "id": "crypto-hash",     "digest": [198,62,178,35,73,166,22,108,109,32,71,25,182,242,103,27,209,15,247,57,213,93,228,82,255,85,52,245,205,99,121,132] },
+    { "id": "hashing",         "digest": [198,101,203,217,201,194,254,159,248,227,248,85,101,66,80,109,74,255,33,252,122,160,40,2,137,255,131,250,162,50,75,222] },
+    { "id": "v86",             "digest": [145,162,247,172,43,87,252,30,44,155,29,58,143,239,166,255,27,169,110,232,139,64,23,177,120,41,255,154,23,5,104,69] }
+  ],
+  "bindings": [
+    {
+      "consumer_id": "python",
+      "import_name": "tegmentum:compression-multiplexer/compression-dispatcher@0.1.0",
+      "provider_id": "compression",
+      "export_name": "tegmentum:compression-multiplexer/compression-dispatcher@0.1.0"
+    },
+    {
+      "consumer_id": "python",
+      "import_name": "tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0",
+      "provider_id": "crypto-hash",
+      "export_name": "tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0"
+    },
+    {
+      "consumer_id": "python",
+      "import_name": "tegmentum:hashing-multiplexer/hashing-dispatcher@0.1.0",
+      "provider_id": "hashing",
+      "export_name": "tegmentum:hashing-multiplexer/hashing-dispatcher@0.1.0"
+    },
+    {
+      "consumer_id": "python",
+      "import_name": "v86:posix/process@0.1.0",
+      "provider_id": "v86",
+      "export_name": "v86:posix/process@0.1.0"
+    }
+  ],
+  "secrets": [],
+  "policy": {
+    "determinism": "relaxed",
+    "capabilities": [],
+    "limits": {}
+  }
+}
