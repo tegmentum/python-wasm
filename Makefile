@@ -7,7 +7,8 @@ HOST_TRIPLE := wasm32-wasip2
 PYTHON_WASM := $(CPYTHON_DIR)/cross-build/$(HOST_TRIPLE)/python.wasm
 
 .PHONY: all fetch-deps build run test clean distclean \
-       web-deps web-stdlib web-transpile web-dev web-build web-clean
+       web-deps web-stdlib web-transpile web-dev web-build web-clean \
+       python-component-verify
 
 all: fetch-deps build
 
@@ -57,3 +58,11 @@ web-clean:
 	rm -f $(PROJECT_DIR)/web/public/stdlib.tar.gz
 	rm -rf $(PROJECT_DIR)/web/dist
 	rm -rf $(PROJECT_DIR)/web/node_modules
+
+# Componentize-python plan, Phase 0: verify python.wasm is a valid wasi-p2
+# component (exports wasi:cli/run, imports only wasi:*). The wasi-sdk build
+# already produces a component natively, so this is a regression guard rather
+# than a transform — if a future toolchain change drops back to a core module
+# this gate fails and we'll know.
+python-component-verify: build
+	@bash scripts/verify-python-component.sh
