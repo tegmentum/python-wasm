@@ -1,6 +1,9 @@
-// Vendored to match the PREBUILT compression_multiplexer.wasm exactly (its enum
-// omits lz4, unlike the current source). pyzlib only uses DEFLATE, so this is the
-// interface identity wac must match when plugging the prebuilt component.
+// Vendored to match the freshly-rebuilt compression-multiplexer (wasi-sdk 33,
+// wit-bindgen 0.44). The enum now includes lz4 alongside the original six;
+// wac matches by structural interface identity (enum variant count is part
+// of that), so this vendored copy MUST match the mux's actual enum or
+// plugging fails with "compressor: instance export has the wrong type".
+// pyzlib + _compression only use DEFLATE; lz4 is included for shape only.
 package tegmentum:compression-multiplexer@0.1.0;
 
 interface compression-dispatcher {
@@ -10,6 +13,7 @@ interface compression-dispatcher {
         bzip2,
         lzma,
         zstd,
+        lz4,
         openzl,
     }
 
