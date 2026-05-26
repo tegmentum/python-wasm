@@ -176,8 +176,26 @@ multiplexer is mature; replaces `scripts/build-zlib.sh` cleanly.
 - **3b.** Once the TLS capability exists, repeat Phase 1 pattern: `_ssl.c`
   C extension importing it, `Lib/ssl.py` mostly unchanged.
 
-**Fallback.** Leave OpenSSL static-linked until 3a is ready. Browser
-interpreter doesn't *strictly need* TLS today; this can lag.
+**Status (deferred, intentional).** The componentize-python plan ships
+Phases 0–2 + 4 as the architectural foundation. Phase 3 requires:
+1. designing the `tegmentum:tls/context` WIT (non-trivial — TLS handshake
+   semantics, ALPN, SNI, cert validation policy, etc.),
+2. wrapping openssl-wasm's libssl in a Rust component implementing it,
+3. defining a sockets-capability contract (TLS over what transport?),
+4. then 3b's `_ssl.c` extension on top.
+
+That is a separate project of its own scope. Today, the wasi-sdk CPython
+ships with `_ssl`/`_hashlib` statically linked against `~/git/openssl-wasm`
+(documented build flow: `scripts/build-openssl.sh`). For the browser
+interpreter, TLS isn't a hard requirement (most use cases don't open raw
+TCP). Leaving the static link in place is the documented fallback in this
+plan — and the right call until there is concrete demand or a TLS-capability
+component is ready.
+
+**To pick this up later:** the workflow is identical to Phase 1/2 once 3a
+exists. The Setup.local entry, the wit-bindgen-c invocation, the
+compose-python-component.sh plug, and the per-extension test all follow the
+same template. The repo's docs/componentize-python.md is the entry point.
 
 **Effort:** ~7 days (most of which is 3a).
 

@@ -1,0 +1,36 @@
+{
+  "version": "1",
+  "root": "python",
+  "components": [
+    { "id": "python",          "digest": [93,217,198,8,91,251,72,61,142,249,85,76,7,52,212,85,180,131,131,14,163,246,143,24,131,244,32,154,247,132,106,118] },
+    { "id": "compression",     "digest": [222,138,71,35,7,145,74,72,84,239,4,169,18,4,188,56,251,109,86,233,114,76,210,158,78,247,19,68,177,80,200,52] },
+    { "id": "crypto-hash",     "digest": [198,62,178,35,73,166,22,108,109,32,71,25,182,242,103,27,209,15,247,57,213,93,228,82,255,85,52,245,205,99,121,132] },
+    { "id": "hashing",         "digest": [198,101,203,217,201,194,254,159,248,227,248,85,101,66,80,109,74,255,33,252,122,160,40,2,137,255,131,250,162,50,75,222] }
+  ],
+  "bindings": [
+    {
+      "consumer_id": "python",
+      "import_name": "tegmentum:compression-multiplexer/compression-dispatcher@0.1.0",
+      "provider_id": "compression",
+      "export_name": "tegmentum:compression-multiplexer/compression-dispatcher@0.1.0"
+    },
+    {
+      "consumer_id": "python",
+      "import_name": "tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0",
+      "provider_id": "crypto-hash",
+      "export_name": "tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0"
+    },
+    {
+      "consumer_id": "python",
+      "import_name": "tegmentum:hashing-multiplexer/hashing-dispatcher@0.1.0",
+      "provider_id": "hashing",
+      "export_name": "tegmentum:hashing-multiplexer/hashing-dispatcher@0.1.0"
+    }
+  ],
+  "secrets": [],
+  "policy": {
+    "determinism": "relaxed",
+    "capabilities": [],
+    "limits": {}
+  }
+}

@@ -83,3 +83,45 @@ jobs:
 
       - name: Smoke tests
         run: make test
+
+      # Componentize-python plan (docs/componentize-python.md) — Phase 0/1/2 gates.
+      # Each step verifies one of the plan's architectural invariants on every
+      # PR / dispatch so regressions to the component build are caught early.
+      - name: Phase 0 — python.wasm is a wasi-p2 component
+        run: make python-component-verify
+
+      - name: Install wac + wit-bindgen (compose + binding generation)
+        run: |
+          cargo install --quiet --locked wac-cli || true
+          cargo install --quiet --locked wit-bindgen-cli || true
+
+      - name: Clone sibling capability components
+        run: |
+          # The compose step needs the prebuilt multiplexer wasms. They live in
+          # sibling repos under ~/git/ in the dev environment; CI clones them
+          # alongside the workspace.
+          mkdir -p "$GITHUB_WORKSPACE/../"
+          for r in compression-multiplexer crypto-hash-multiplexer hashing-multiplexer; do
+              if [ ! -d "$GITHUB_WORKSPACE/../$r" ]; then
+                  git clone --depth 1 "https://github.com/tegmentum/$r.git" \
+                      "$GITHUB_WORKSPACE/../$r"
+              fi
+              # Build the multiplexer (cargo component build, release).
+              if [ ! -f "$GITHUB_WORKSPACE/../$r/target/wasm32-wasip2/release/$(echo "$r" | tr - _).wasm" ]; then
+                  (cd "$GITHUB_WORKSPACE/../$r" && cargo component build --target wasm32-wasip2 --release)
+              fi
+          done
+
+      - name: Phase 1 — compose + _compression extension end-to-end
+        env:
+          COMPRESSION_MULTIPLEXER_WASM: ${{ github.workspace }}/../compression-multiplexer/target/wasm32-wasip2/release/compression_multiplexer.wasm
+          CRYPTO_HASH_MULTIPLEXER_WASM: ${{ github.workspace }}/../crypto-hash-multiplexer/target/wasm32-wasip2/release/crypto_hash_multiplexer.wasm
+          HASHING_MULTIPLEXER_WASM:     ${{ github.workspace }}/../hashing-multiplexer/target/wasm32-wasip2/release/hashing_multiplexer.wasm
+        run: make test-compression-extension
+
+      - name: Phase 2 — _crypto_hash + _xxhash end-to-end (9 + 5 vectors)
+        env:
+          COMPRESSION_MULTIPLEXER_WASM: ${{ github.workspace }}/../compression-multiplexer/target/wasm32-wasip2/release/compression_multiplexer.wasm
+          CRYPTO_HASH_MULTIPLEXER_WASM: ${{ github.workspace }}/../crypto-hash-multiplexer/target/wasm32-wasip2/release/crypto_hash_multiplexer.wasm
+          HASHING_MULTIPLEXER_WASM:     ${{ github.workspace }}/../hashing-multiplexer/target/wasm32-wasip2/release/hashing_multiplexer.wasm
+        run: make test-hash-extensions

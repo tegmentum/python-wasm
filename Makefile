@@ -8,7 +8,8 @@ PYTHON_WASM := $(CPYTHON_DIR)/cross-build/$(HOST_TRIPLE)/python.wasm
 
 .PHONY: all fetch-deps build run test clean distclean \
        web-deps web-stdlib web-transpile web-dev web-build web-clean \
-       python-component-verify python-composed test-compression-extension test-hash-extensions
+       python-component-verify python-composed test-compression-extension test-hash-extensions \
+       composectl-plan
 
 all: fetch-deps build
 
@@ -44,7 +45,10 @@ web-deps:
 web-stdlib: build
 	bash scripts/bundle-stdlib.sh
 
-web-transpile: build web-deps
+# Phase 4: web-transpile now consumes the COMPOSED python component (capabilities
+# wired in), not the raw python.wasm. The composed wasm has zero non-wasi:*
+# imports, so jco/wasi-polyfill can instantiate it as-is in the browser.
+web-transpile: python-composed web-deps
 	bash scripts/transpile-component.sh
 
 web-dev: web-deps web-stdlib web-transpile
@@ -82,3 +86,10 @@ test-compression-extension: python-composed
 # all 9 crypto + 5 verifiable non-crypto algorithms.
 test-hash-extensions: python-composed
 	@bash scripts/test-hash-extensions.sh
+
+# Componentize-python plan, Phase 4: generate the composectl plan that pins
+# python.wasm + capability multiplexers by CAS digest. Reproducibility target;
+# wac (python-composed) is the dev fast-path until composectl's emit dep-wiring
+# is fixed upstream.
+composectl-plan: build
+	@bash scripts/build-composectl-plan.sh
