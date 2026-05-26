@@ -1,0 +1,11 @@
+package tegmentum:py-runner@0.1.0;
+
+// A general script runner: a CPython component (componentize-py) that exports
+// wasi:cli/run (so it's invokable like any wasi:cli/command) AND imports the
+// compression dispatcher capability. The runner installs `pyzlib` as the
+// stdlib-style `zlib` and then runs the user's Python script (argv[1]), so any
+// `import zlib` in that script routes IN-PROCESS through the wasm multiplexer.
+world runner {
+    import tegmentum:compression-multiplexer/compression-dispatcher@0.1.0;
+    export wasi:cli/run@0.2.0;
+}

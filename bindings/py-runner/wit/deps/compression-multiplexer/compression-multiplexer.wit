@@ -1,0 +1,28 @@
+// Vendored to match the PREBUILT compression_multiplexer.wasm exactly (its enum
+// omits lz4, unlike the current source). pyzlib only uses DEFLATE, so this is the
+// interface identity wac must match when plugging the prebuilt component.
+package tegmentum:compression-multiplexer@0.1.0;
+
+interface compression-dispatcher {
+    enum algorithm {
+        store,
+        deflate,
+        bzip2,
+        lzma,
+        zstd,
+        openzl,
+    }
+
+    resource compressor {
+        constructor(algo: algorithm, level: u8);
+        compress: func(input: list<u8>) -> result<list<u8>, string>;
+    }
+
+    resource decompressor {
+        constructor(algo: algorithm);
+        decompress: func(input: list<u8>) -> result<list<u8>, string>;
+    }
+
+    supported-algorithms: func() -> list<algorithm>;
+    algorithm-info: func(algo: algorithm) -> option<string>;
+}
