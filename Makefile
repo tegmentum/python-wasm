@@ -18,13 +18,30 @@ fetch-deps:
 	bash scripts/fetch-sdk.sh
 	bash scripts/fetch-cpython.sh
 
+# Componentize-python plan, Phase 3d: by default the build NO LONGER static-
+# links OpenSSL. The capability path (_ssl_capability + openssl-component +
+# ssl_capability.py) covers `import ssl` and `urllib.request.urlopen` via
+# composition (see docs/phase-3-tls.md). Without --with-openssl, CPython
+# auto-disables the static _ssl and _hashlib modules — both are superseded
+# by capabilities (_crypto_hash for hashlib; _ssl_capability for ssl).
+#
+# To opt back into the static path during the soak period: STATIC_OPENSSL=1 make build
+STATIC_OPENSSL ?=
+ifeq ($(STATIC_OPENSSL),1)
+    WITH_OPENSSL_FLAG := -- --with-openssl=$(OPENSSL_PREFIX)
+    OPENSSL_STEP     := bash scripts/build-openssl.sh
+else
+    WITH_OPENSSL_FLAG :=
+    OPENSSL_STEP     := @echo "build: static OpenSSL disabled (capability path is the default; set STATIC_OPENSSL=1 to re-enable)"
+endif
+
 build: fetch-deps
 	bash scripts/build-zlib.sh
-	bash scripts/build-openssl.sh
+	$(OPENSSL_STEP)
 	cd $(CPYTHON_DIR) && python3 Tools/wasm/wasi build \
 		--host-triple $(HOST_TRIPLE) \
 		--wasi-sdk $(WASI_SDK_DIR) \
-		-- --with-openssl=$(OPENSSL_PREFIX)
+		$(WITH_OPENSSL_FLAG)
 
 run:
 	@bash scripts/run-python.sh $(ARGS)

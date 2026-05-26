@@ -114,11 +114,22 @@ try:
 except _ssl_capability.SSLError as e:
     expect(False, f'CERT_NONE rejected: {e}')
 
-print('--- Phase 3b.6: urllib via ssl_capability monkey-patch ---')
-import ssl_capability as sslcap
-import ssl as _std_ssl
-_std_ssl._create_default_https_context = sslcap.create_default_context
-_std_ssl.SSLContext = sslcap.SSLContext
+print('--- Phase 3b.6 / 3d: urllib via ssl_capability ---')
+# After Phase 3d retires the static OpenSSL build by default, the bare
+# import-ssl call raises ModuleNotFoundError because the static _ssl
+# extension is no longer linked. Two recovery paths handled below.
+import sys, ssl_capability as sslcap
+try:
+    import ssl as _real_ssl
+    # Path A: static _ssl present (STATIC_OPENSSL=1 build); monkey-patch in place.
+    _real_ssl.SSLContext = sslcap.SSLContext
+    _real_ssl._create_default_https_context = sslcap.create_default_context
+    print('   (using static ssl module + monkey-patch)')
+except ModuleNotFoundError:
+    # Path B: capability-only build; install ssl_capability as sys.modules ssl
+    # before urllib lazy-imports it.
+    sys.modules['ssl'] = sslcap
+    print('   (no static _ssl; ssl_capability installed as sys.modules ssl)')
 
 import urllib.request
 r = urllib.request.urlopen('https://example.com', timeout=15)

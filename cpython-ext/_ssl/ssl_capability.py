@@ -294,6 +294,16 @@ def _create_unverified_context(*args, **kwargs) -> SSLContext:
     return ctx
 
 
+# Stdlib has an `ssl._create_default_https_context` that http.client invokes
+# directly (not via create_default_context). Mirror it.
+_create_default_https_context = create_default_context
+
+# Stdlib http.client also accepts `_create_https_context = lambda http_version: ...`
+# patched in. Provide a sensible default that ignores the version arg.
+def _create_https_context(*args, **kwargs):
+    return create_default_context()
+
+
 # Bytes-level helpers re-exported from the C module.
 RAND_bytes      = _ssl_capability.RAND_bytes
 RAND_priv_bytes = _ssl_capability.RAND_priv_bytes

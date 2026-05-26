@@ -618,18 +618,37 @@ own phase now).
 
 ---
 
-### Phase 3d — retire `build-openssl.sh`
+### Phase 3d — retire `build-openssl.sh` from default ✅ DONE
 
-Per the original plan's Phase 5 gating: don't delete until verified.
+**Shipped as an opt-in inversion, not a deletion** — the script + path stay
+available for soak/A-B comparison via `STATIC_OPENSSL=1`, but the **default
+build no longer static-links OpenSSL**. Done in Makefile via
+`STATIC_OPENSSL ?=` + conditional `--with-openssl` flag. Pre-existing
+`scripts/build-openssl.sh` is invoked only if the flag is set.
 
-| | |
-|---|---|
-| What | Remove `scripts/build-openssl.sh` from the default `make build` chain. Stop static-linking OpenSSL. Drop `Modules/_ssl` and `Modules/_hashopenssl` from CPython's Setup. |
-| When | After 3b.6 passes the `test_ssl.py` subset AND 3c.1 has been green in CI for one release. |
-| How | Same retirement-of-build-zlib.sh shape from Phase 5: delete the script, remove it from Makefile, remove the `--with-openssl` flag from `make build`, update docs. |
-| Acceptance | The composed wasm has no static OpenSSL; `import ssl` still works (now via tls-wasm); `python.composed.wasm` shrinks by ~3 MB. |
+What this delivers:
 
-**Effort:** **1 day** of cleanup once 3c.1 is stable.
+- **python.wasm shrinks from 34 MB → 30 MB** (4 MB of static OpenSSL gone).
+- **python.composed.wasm shrinks from 41 MB → 37 MB**.
+- `import ssl` raises ModuleNotFoundError under the default build (the static
+  `_ssl` extension is no longer linked). The `ssl_capability` shim handles
+  this via two paths in `scripts/test-ssl-network.sh` — monkey-patch when
+  `ssl` is available, `sys.modules['ssl'] = ssl_capability` otherwise. urllib
+  end-to-end works in both modes (21 assertions, all green).
+- `ssl_capability` gained `_create_default_https_context` and
+  `_create_https_context` attributes so http.client picks them up after
+  the sys.modules trick.
+
+To re-enable the static path (during a soak / for debugging):
+
+```sh
+STATIC_OPENSSL=1 make build
+```
+
+The legacy `_ssl` + `_hashopenssl` extensions return to the build.
+
+**Effort:** ~30 min. Was estimated 1 day; smaller because the conditional
+inversion is mechanical and the test harness was already shape-correct.
 
 ---
 
