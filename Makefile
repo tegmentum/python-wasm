@@ -8,7 +8,7 @@ PYTHON_WASM := $(CPYTHON_DIR)/cross-build/$(HOST_TRIPLE)/python.wasm
 
 .PHONY: all fetch-deps build run test clean distclean \
        web-deps web-stdlib web-transpile web-dev web-build web-clean \
-       python-component-verify python-composed test-compression-extension
+       python-component-verify python-composed test-compression-extension test-hash-extensions
 
 all: fetch-deps build
 
@@ -76,3 +76,9 @@ python-composed: build
 # component + _compression extension + multiplexer.
 test-compression-extension: python-composed
 	@bash scripts/test-compression-extension.sh
+
+# Componentize-python plan, Phase 2: end-to-end smoke test of the composed
+# component + _crypto_hash + _xxhash extensions against canonical vectors for
+# all 9 crypto + 5 verifiable non-crypto algorithms.
+test-hash-extensions: python-composed
+	@bash scripts/test-hash-extensions.sh

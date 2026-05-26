@@ -1,0 +1,29 @@
+// Vendored to match the PREBUILT hashing_multiplexer.wasm.
+package tegmentum:hashing-multiplexer@0.1.0;
+
+interface hashing-dispatcher {
+    enum algorithm {
+        xxh32,
+        xxh64,
+        xxh3,
+        xxh128,
+        crc32,
+        crc32c,
+        murmur3,
+        murmur128,
+        blake3,
+    }
+
+    resource hasher {
+        constructor(algo: algorithm, seed: u64);
+        update: func(input: list<u8>);
+        finish: func() -> list<u8>;
+        reset: func();
+    }
+
+    digest: func(algo: algorithm, input: list<u8>, seed: u64) -> list<u8>;
+
+    supported-algorithms: func() -> list<algorithm>;
+
+    algorithm-info: func(algo: algorithm) -> option<string>;
+}

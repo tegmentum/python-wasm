@@ -11,15 +11,27 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PYW="$PROJECT_DIR/deps/cpython/cross-build/wasm32-wasip2/python.wasm"
-MUX="${COMPRESSION_MULTIPLEXER_WASM:-$HOME/git/compression-multiplexer/target/wasm32-wasip2/release/compression_multiplexer.wasm}"
 OUT="$PROJECT_DIR/build/python.composed.wasm"
 
+# Capability artifacts — overridable via env vars. As capability components are
+# added to CPython's set of WIT imports (Phase 1, Phase 2, ...) they get plugged
+# in here so the composed component has zero unsatisfied non-wasi:* imports.
+MUX_COMPRESSION="${COMPRESSION_MULTIPLEXER_WASM:-$HOME/git/compression-multiplexer/target/wasm32-wasip2/release/compression_multiplexer.wasm}"
+MUX_CRYPTO_HASH="${CRYPTO_HASH_MULTIPLEXER_WASM:-$HOME/git/crypto-hash-multiplexer/target/wasm32-wasip2/release/crypto_hash_multiplexer.wasm}"
+MUX_HASHING="${HASHING_MULTIPLEXER_WASM:-$HOME/git/hashing-multiplexer/target/wasm32-wasip2/release/hashing_multiplexer.wasm}"
+
 [ -f "$PYW" ] || { echo "compose-python-component: $PYW not found — run 'make build' first." >&2; exit 1; }
-[ -f "$MUX" ] || { echo "compose-python-component: compression_multiplexer.wasm not found ($MUX)." >&2; exit 1; }
+for f in "$MUX_COMPRESSION" "$MUX_CRYPTO_HASH" "$MUX_HASHING"; do
+    [ -f "$f" ] || { echo "compose-python-component: capability not found: $f" >&2; exit 1; }
+done
 command -v wac >/dev/null 2>&1 || { echo "compose-python-component: 'wac' (wac-cli) is required on PATH." >&2; exit 1; }
 
 mkdir -p "$PROJECT_DIR/build"
-wac plug "$PYW" --plug "$MUX" -o "$OUT"
+wac plug "$PYW" \
+    --plug "$MUX_COMPRESSION" \
+    --plug "$MUX_CRYPTO_HASH" \
+    --plug "$MUX_HASHING" \
+    -o "$OUT"
 echo "==> $(du -h "$OUT" | cut -f1) $OUT"
 
 # Sanity: the compression-dispatcher import is satisfied.

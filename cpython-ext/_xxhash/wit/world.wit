@@ -1,0 +1,5 @@
+package tegmentum:python-xxhash@0.1.0;
+
+world xxhash-import {
+    import tegmentum:hashing-multiplexer/hashing-dispatcher@0.1.0;
+}

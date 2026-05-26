@@ -1,0 +1,8 @@
+package tegmentum:python-crypto-hash@0.1.0;
+
+/// Companion WIT for CPython's `_crypto_hash` static extension. The C extension
+/// imports `hash-dispatcher` from the crypto-hash-multiplexer capability;
+/// composectl/wac wires the import to the multiplexer wasm at compose time.
+world crypto-hash-import {
+    import tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0;
+}
