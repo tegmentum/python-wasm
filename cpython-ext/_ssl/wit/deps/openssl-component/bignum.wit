@@ -1,0 +1,67 @@
+package openssl:component@0.1.0;
+
+// Arbitrary precision integers (BIGNUM). Most callers will not need this
+// interface — it exists for callers that manipulate raw big integers
+// directly (e.g. building custom curve points, RSA blinding).
+
+interface bignum {
+    use error.{code};
+
+    variant bn-error {
+        parse-failed,
+        div-by-zero,
+        not-invertible,
+        out-of-range,
+        internal(code),
+    }
+
+    resource bn {
+        /// Construct a BIGNUM equal to zero.
+        zero: static func() -> bn;
+        /// Construct from an unsigned 64-bit value.
+        from-u64: static func(v: u64) -> bn;
+        /// Parse decimal string representation.
+        from-dec: static func(s: string) -> result<bn, bn-error>;
+        /// Parse hex string representation (no `0x` prefix).
+        from-hex: static func(s: string) -> result<bn, bn-error>;
+        /// Big-endian unsigned bytes.
+        from-be-bytes: static func(bytes: list<u8>) -> bn;
+
+        clone: func() -> bn;
+
+        to-dec: func() -> string;
+        to-hex: func() -> string;
+        to-be-bytes: func(pad-to: option<u32>) -> list<u8>;
+
+        bits: func() -> u32;
+        is-zero: func() -> bool;
+        is-one: func() -> bool;
+        is-odd: func() -> bool;
+        is-negative: func() -> bool;
+
+        /// Constant-time equality.
+        equals: func(other: borrow<bn>) -> bool;
+        /// -1, 0, 1
+        compare: func(other: borrow<bn>) -> s8;
+
+        add: func(other: borrow<bn>) -> bn;
+        sub: func(other: borrow<bn>) -> bn;
+        mul: func(other: borrow<bn>) -> bn;
+        div: func(other: borrow<bn>) -> result<tuple<bn, bn>, bn-error>;
+        modulo: func(m: borrow<bn>) -> result<bn, bn-error>;
+
+        /// (self ^ exp) mod m
+        mod-exp: func(exp: borrow<bn>, m: borrow<bn>) -> result<bn, bn-error>;
+        /// Modular multiplicative inverse of self mod m.
+        mod-inverse: func(m: borrow<bn>) -> result<bn, bn-error>;
+        /// Greatest common divisor.
+        gcd: func(other: borrow<bn>) -> bn;
+
+        /// Random in [0, self).
+        random-below: func() -> result<bn, bn-error>;
+        /// Is probably prime? (Miller-Rabin with default rounds.)
+        is-prime: func() -> bool;
+        /// Generate a probable prime of `bits` length.
+        generate-prime: static func(bits: u32, safe: bool) -> result<bn, bn-error>;
+    }
+}

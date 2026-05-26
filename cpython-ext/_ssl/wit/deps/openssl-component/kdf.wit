@@ -1,0 +1,127 @@
+package openssl:component@0.1.0;
+
+// Key derivation (EVP_KDF) and password hashing.
+
+interface kdf {
+    use error.{code};
+    use digest.{algorithm as hash};
+
+    variant kdf-error {
+        unsupported-algorithm,
+        invalid-parameter,
+        output-too-large,
+        internal(code),
+    }
+
+    record pbkdf2-params {
+        hash: hash,
+        iterations: u32,
+        salt: list<u8>,
+    }
+
+    /// HKDF-Extract then HKDF-Expand in one call.
+    record hkdf-params {
+        hash: hash,
+        salt: option<list<u8>>,
+        info: list<u8>,
+    }
+
+    record hkdf-extract-params {
+        hash: hash,
+        salt: option<list<u8>>,
+    }
+
+    record hkdf-expand-params {
+        hash: hash,
+        info: list<u8>,
+    }
+
+    record scrypt-params {
+        salt: list<u8>,
+        n: u64,        // CPU/memory cost (power of 2)
+        r: u32,        // block size
+        p: u32,        // parallelism
+        /// Optional bound on memory; 0 = OpenSSL default.
+        max-mem: u64,
+    }
+
+    enum argon2-variant { d, i, id }
+
+    record argon2-params {
+        kind: argon2-variant,
+        /// Password-derivation salt.
+        salt: list<u8>,
+        /// Optional secret key (pepper).
+        secret: option<list<u8>>,
+        /// Optional associated data.
+        ad: option<list<u8>>,
+        /// Iterations.
+        t-cost: u32,
+        /// Memory cost in KiB.
+        m-cost: u32,
+        /// Parallelism (lanes).
+        lanes: u32,
+    }
+
+    /// NIST SP 800-108 counter-mode KDF with an HMAC PRF.
+    record kbkdf-params {
+        hash: hash,
+        /// Label (distinguisher).
+        label: list<u8>,
+        /// Context (transcript / binding).
+        context: list<u8>,
+    }
+
+    /// NIST SP 800-56A single-step concatenation KDF.
+    record ss-kdf-params {
+        hash: hash,
+        /// Optional info bits (FixedInfo).
+        info: list<u8>,
+        /// Optional salt.
+        salt: option<list<u8>>,
+    }
+
+    /// ANSI X9.63 KDF (used by ECIES).
+    record x963-kdf-params {
+        hash: hash,
+        info: list<u8>,
+    }
+
+    /// TLS 1.3 HKDF-Expand-Label.
+    record tls13-expand-label-params {
+        hash: hash,
+        label: string,
+        context: list<u8>,
+        secret: list<u8>,
+    }
+
+    pbkdf2: func(password: list<u8>, params: pbkdf2-params, out-len: u32)
+        -> result<list<u8>, kdf-error>;
+
+    hkdf: func(ikm: list<u8>, params: hkdf-params, out-len: u32)
+        -> result<list<u8>, kdf-error>;
+
+    hkdf-extract: func(ikm: list<u8>, params: hkdf-extract-params)
+        -> result<list<u8>, kdf-error>;
+
+    hkdf-expand: func(prk: list<u8>, params: hkdf-expand-params, out-len: u32)
+        -> result<list<u8>, kdf-error>;
+
+    scrypt: func(password: list<u8>, params: scrypt-params, out-len: u32)
+        -> result<list<u8>, kdf-error>;
+
+    argon2: func(password: list<u8>, params: argon2-params, out-len: u32)
+        -> result<list<u8>, kdf-error>;
+
+    kbkdf: func(key: list<u8>, params: kbkdf-params, out-len: u32)
+        -> result<list<u8>, kdf-error>;
+
+    ss-kdf: func(shared-secret: list<u8>, params: ss-kdf-params, out-len: u32)
+        -> result<list<u8>, kdf-error>;
+
+    x963-kdf: func(shared-secret: list<u8>, params: x963-kdf-params, out-len: u32)
+        -> result<list<u8>, kdf-error>;
+
+    tls13-expand-label: func(params: tls13-expand-label-params, out-len: u32)
+        -> result<list<u8>, kdf-error>;
+}

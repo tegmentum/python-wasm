@@ -14,35 +14,88 @@ typedef struct ssl_import_string_t {
   size_t len;
 } ssl_import_string_t;
 
-typedef struct tegmentum_tls_context_own_client_t {
-  int32_t __handle;
-} tegmentum_tls_context_own_client_t;
-
-typedef struct tegmentum_tls_context_borrow_client_t {
-  int32_t __handle;
-} tegmentum_tls_context_borrow_client_t;
-
-typedef struct tegmentum_tls_context_cipher_info_t {
-  ssl_import_string_t   name;
-  ssl_import_string_t   version;
-  uint32_t   secret_bits;
-} tegmentum_tls_context_cipher_info_t;
-
-typedef uint8_t tegmentum_tls_context_verify_mode_t;
-
-#define TEGMENTUM_TLS_CONTEXT_VERIFY_MODE_NONE 0
-#define TEGMENTUM_TLS_CONTEXT_VERIFY_MODE_OPTIONAL 1
-#define TEGMENTUM_TLS_CONTEXT_VERIFY_MODE_REQUIRED 2
-
-typedef uint8_t tegmentum_tls_context_tls_version_t;
-
-#define TEGMENTUM_TLS_CONTEXT_TLS_VERSION_TLS_V1_2 0
-#define TEGMENTUM_TLS_CONTEXT_TLS_VERSION_TLS_V1_3 1
+// A packed OpenSSL error code. Zero means no error.
+typedef uint64_t openssl_component_error_code_t;
 
 typedef struct {
-  ssl_import_string_t *ptr;
+  bool is_some;
+  ssl_import_string_t val;
+} ssl_import_option_string_t;
+
+typedef struct {
+  bool is_some;
+  uint32_t val;
+} ssl_import_option_u32_t;
+
+typedef struct openssl_component_error_error_info_t {
+  openssl_component_error_code_t   code;
+  // e.g. "SSL routines", "asn1 encoding routines"
+  ssl_import_string_t   library;
+  // e.g. "bad certificate", "no shared cipher"
+  ssl_import_string_t   reason;
+  // Source file, if tracked.
+  ssl_import_option_string_t   file;
+  ssl_import_option_u32_t   line;
+  // Extra data OpenSSL attached to the error.
+  ssl_import_option_string_t   data;
+} openssl_component_error_error_info_t;
+
+typedef struct {
+  bool is_some;
+  openssl_component_error_error_info_t val;
+} openssl_component_error_option_error_info_t;
+
+typedef struct {
+  openssl_component_error_error_info_t *ptr;
   size_t len;
-} ssl_import_list_string_t;
+} openssl_component_error_list_error_info_t;
+
+typedef openssl_component_error_code_t openssl_component_digest_code_t;
+
+// Algorithm identifiers use single-word kebab-case. The SHA-512/t
+// truncations and SHA-3 family use NIST's single-word notation
+// (e.g. `sha512t224` = SHA-512/224) because wac rejects enum tags
+// whose final segment is all digits (e.g. `sha512-224`).
+typedef uint8_t openssl_component_digest_algorithm_t;
+
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_MD5 0
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_SHA1 1
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_SHA224 2
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_SHA256 3
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_SHA384 4
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_SHA512 5
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_SHA512T224 6
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_SHA512T256 7
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_SHA3T224 8
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_SHA3T256 9
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_SHA3T384 10
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_SHA3T512 11
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_SHAKE128 12
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_SHAKE256 13
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_BLAKE2S256 14
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_BLAKE2B512 15
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_RIPEMD160 16
+#define OPENSSL_COMPONENT_DIGEST_ALGORITHM_SM3 17
+
+typedef struct openssl_component_digest_digest_error_t {
+  uint8_t tag;
+  union {
+    openssl_component_digest_code_t     internal;
+  } val;
+} openssl_component_digest_digest_error_t;
+
+#define OPENSSL_COMPONENT_DIGEST_DIGEST_ERROR_UNSUPPORTED_ALGORITHM 0
+#define OPENSSL_COMPONENT_DIGEST_DIGEST_ERROR_XOF_REQUIRED 1
+// SHAKE* needs an explicit output length
+#define OPENSSL_COMPONENT_DIGEST_DIGEST_ERROR_INTERNAL 2
+
+typedef struct openssl_component_digest_own_context_t {
+  int32_t __handle;
+} openssl_component_digest_own_context_t;
+
+typedef struct openssl_component_digest_borrow_context_t {
+  int32_t __handle;
+} openssl_component_digest_borrow_context_t;
 
 typedef struct {
   uint8_t *ptr;
@@ -50,128 +103,1228 @@ typedef struct {
 } ssl_import_list_u8_t;
 
 typedef struct {
-  bool is_some;
-  ssl_import_list_u8_t val;
-} ssl_import_option_list_u8_t;
-
-typedef struct tegmentum_tls_context_client_config_t {
-  ssl_import_string_t   server_name;
-  ssl_import_list_string_t   alpn;
-  ssl_import_option_list_u8_t   ca_roots;
-  ssl_import_option_list_u8_t   client_cert;
-  ssl_import_option_list_u8_t   client_key;
-  tegmentum_tls_context_verify_mode_t   verify_mode;
-  bool   check_hostname;
-  tegmentum_tls_context_tls_version_t   min_version;
-  tegmentum_tls_context_tls_version_t   max_version;
-} tegmentum_tls_context_client_config_t;
-
-typedef uint8_t tegmentum_tls_context_connection_state_t;
-
-#define TEGMENTUM_TLS_CONTEXT_CONNECTION_STATE_HANDSHAKING 0
-#define TEGMENTUM_TLS_CONTEXT_CONNECTION_STATE_ESTABLISHED 1
-#define TEGMENTUM_TLS_CONTEXT_CONNECTION_STATE_CLOSING 2
-#define TEGMENTUM_TLS_CONTEXT_CONNECTION_STATE_CLOSED 3
-
-typedef struct tegmentum_tls_context_tls_error_t {
-  uint8_t tag;
+  bool is_err;
   union {
-    ssl_import_string_t     cert_verify_failed;
-    ssl_import_string_t     handshake_failed;
-    ssl_import_string_t     protocol;
-    ssl_import_string_t     invalid_config;
-    ssl_import_string_t     io;
+    ssl_import_list_u8_t ok;
+    openssl_component_digest_digest_error_t err;
   } val;
-} tegmentum_tls_context_tls_error_t;
-
-#define TEGMENTUM_TLS_CONTEXT_TLS_ERROR_WOULD_BLOCK 0
-#define TEGMENTUM_TLS_CONTEXT_TLS_ERROR_CERT_VERIFY_FAILED 1
-#define TEGMENTUM_TLS_CONTEXT_TLS_ERROR_HANDSHAKE_FAILED 2
-#define TEGMENTUM_TLS_CONTEXT_TLS_ERROR_PROTOCOL 3
-#define TEGMENTUM_TLS_CONTEXT_TLS_ERROR_CLOSED_BY_PEER 4
-#define TEGMENTUM_TLS_CONTEXT_TLS_ERROR_INVALID_CONFIG 5
-#define TEGMENTUM_TLS_CONTEXT_TLS_ERROR_IO 6
+} openssl_component_digest_result_list_u8_digest_error_t;
 
 typedef struct {
   bool is_err;
   union {
-    uint64_t ok;
-    tegmentum_tls_context_tls_error_t err;
+    uint32_t ok;
+    openssl_component_digest_digest_error_t err;
   } val;
-} tegmentum_tls_context_result_u64_tls_error_t;
+} openssl_component_digest_result_u32_digest_error_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    openssl_component_digest_digest_error_t err;
+  } val;
+} openssl_component_digest_result_void_digest_error_t;
+
+typedef openssl_component_error_code_t openssl_component_pkey_code_t;
+
+typedef openssl_component_digest_algorithm_t openssl_component_pkey_hash_t;
+
+typedef uint8_t openssl_component_pkey_curve_t;
+
+#define OPENSSL_COMPONENT_PKEY_CURVE_P192 0
+#define OPENSSL_COMPONENT_PKEY_CURVE_P224 1
+#define OPENSSL_COMPONENT_PKEY_CURVE_P256 2
+#define OPENSSL_COMPONENT_PKEY_CURVE_P384 3
+#define OPENSSL_COMPONENT_PKEY_CURVE_P521 4
+#define OPENSSL_COMPONENT_PKEY_CURVE_SECP256K1 5
+#define OPENSSL_COMPONENT_PKEY_CURVE_BRAINPOOL_P256R1 6
+#define OPENSSL_COMPONENT_PKEY_CURVE_BRAINPOOL_P384R1 7
+#define OPENSSL_COMPONENT_PKEY_CURVE_BRAINPOOL_P512R1 8
+#define OPENSSL_COMPONENT_PKEY_CURVE_SM2 9
+
+typedef uint8_t openssl_component_pkey_edwards_curve_t;
+
+#define OPENSSL_COMPONENT_PKEY_EDWARDS_CURVE_ED25519 0
+#define OPENSSL_COMPONENT_PKEY_EDWARDS_CURVE_ED448 1
+
+typedef uint8_t openssl_component_pkey_montgomery_curve_t;
+
+#define OPENSSL_COMPONENT_PKEY_MONTGOMERY_CURVE_X25519 0
+#define OPENSSL_COMPONENT_PKEY_MONTGOMERY_CURVE_X448 1
+
+typedef struct openssl_component_pkey_key_type_t {
+  uint8_t tag;
+  union {
+    openssl_component_pkey_curve_t     ec;
+    openssl_component_pkey_edwards_curve_t     ed;
+    openssl_component_pkey_montgomery_curve_t     x;
+  } val;
+} openssl_component_pkey_key_type_t;
+
+#define OPENSSL_COMPONENT_PKEY_KEY_TYPE_RSA 0
+#define OPENSSL_COMPONENT_PKEY_KEY_TYPE_RSA_PSS 1
+#define OPENSSL_COMPONENT_PKEY_KEY_TYPE_EC 2
+#define OPENSSL_COMPONENT_PKEY_KEY_TYPE_ED 3
+#define OPENSSL_COMPONENT_PKEY_KEY_TYPE_X 4
+#define OPENSSL_COMPONENT_PKEY_KEY_TYPE_DH 5
+
+typedef uint8_t openssl_component_pkey_encoding_t;
+
+#define OPENSSL_COMPONENT_PKEY_ENCODING_PEM 0
+#define OPENSSL_COMPONENT_PKEY_ENCODING_DER 1
+
+typedef uint8_t openssl_component_pkey_key_format_t;
+
+// PKCS#1 / SEC1 — algorithm-specific private-key encoding.
+#define OPENSSL_COMPONENT_PKEY_KEY_FORMAT_TRADITIONAL 0
+// PKCS#8 — algorithm-agnostic private-key encoding.
+#define OPENSSL_COMPONENT_PKEY_KEY_FORMAT_PKCS8 1
+// SubjectPublicKeyInfo.
+#define OPENSSL_COMPONENT_PKEY_KEY_FORMAT_SPKI 2
+
+typedef struct openssl_component_pkey_oaep_params_t {
+  openssl_component_pkey_hash_t   hash;
+  openssl_component_pkey_hash_t   mgf1_hash;
+  ssl_import_list_u8_t   label;
+} openssl_component_pkey_oaep_params_t;
+
+typedef struct openssl_component_pkey_pss_params_t {
+  openssl_component_pkey_hash_t   hash;
+  openssl_component_pkey_hash_t   mgf1_hash;
+  // -1 = RSA_PSS_SALTLEN_DIGEST, -2 = RSA_PSS_SALTLEN_MAX.
+  int32_t   salt_len;
+} openssl_component_pkey_pss_params_t;
+
+typedef struct openssl_component_pkey_rsa_padding_t {
+  uint8_t tag;
+  union {
+    openssl_component_pkey_oaep_params_t     pkcs1_oaep;
+    openssl_component_pkey_pss_params_t     pkcs1_pss;
+  } val;
+} openssl_component_pkey_rsa_padding_t;
+
+#define OPENSSL_COMPONENT_PKEY_RSA_PADDING_PKCS1 0
+#define OPENSSL_COMPONENT_PKEY_RSA_PADDING_PKCS1_OAEP 1
+#define OPENSSL_COMPONENT_PKEY_RSA_PADDING_PKCS1_PSS 2
+#define OPENSSL_COMPONENT_PKEY_RSA_PADDING_NO_PADDING 3
+
+typedef struct openssl_component_pkey_pkey_error_t {
+  uint8_t tag;
+  union {
+    openssl_component_pkey_code_t     internal;
+  } val;
+} openssl_component_pkey_pkey_error_t;
+
+#define OPENSSL_COMPONENT_PKEY_PKEY_ERROR_UNSUPPORTED_TYPE 0
+#define OPENSSL_COMPONENT_PKEY_PKEY_ERROR_BAD_ENCODING 1
+#define OPENSSL_COMPONENT_PKEY_PKEY_ERROR_BAD_PASSPHRASE 2
+#define OPENSSL_COMPONENT_PKEY_PKEY_ERROR_UNSUPPORTED_CURVE 3
+#define OPENSSL_COMPONENT_PKEY_PKEY_ERROR_INVALID_SIGNATURE 4
+#define OPENSSL_COMPONENT_PKEY_PKEY_ERROR_BAD_KEY_SIZE 5
+#define OPENSSL_COMPONENT_PKEY_PKEY_ERROR_DECRYPT_FAILED 6
+#define OPENSSL_COMPONENT_PKEY_PKEY_ERROR_ENCRYPT_FAILED 7
+#define OPENSSL_COMPONENT_PKEY_PKEY_ERROR_SIGN_FAILED 8
+#define OPENSSL_COMPONENT_PKEY_PKEY_ERROR_VERIFY_FAILED 9
+#define OPENSSL_COMPONENT_PKEY_PKEY_ERROR_DERIVE_FAILED 10
+#define OPENSSL_COMPONENT_PKEY_PKEY_ERROR_KEYGEN_FAILED 11
+#define OPENSSL_COMPONENT_PKEY_PKEY_ERROR_INTERNAL 12
+
+typedef struct {
+  bool is_some;
+  uint64_t val;
+} ssl_import_option_u64_t;
+
+typedef struct openssl_component_pkey_rsa_keygen_t {
+  // Modulus size in bits (typically 2048, 3072, 4096).
+  uint32_t   bits;
+  // Public exponent; defaults to 65537 if none.
+  ssl_import_option_u64_t   public_exponent;
+} openssl_component_pkey_rsa_keygen_t;
+
+typedef struct openssl_component_pkey_dh_keygen_t {
+  // Prime size in bits.
+  uint32_t   prime_bits;
+  // Generator (usually 2).
+  uint32_t   generator;
+} openssl_component_pkey_dh_keygen_t;
+
+// Standardized DH groups. These are the safe primes every real
+// deployment uses (TLS FFDHE per RFC 7919, IPsec MODP per RFC 3526);
+// use these whenever possible because fresh prime generation is
+// both slow (>2 min per call on wasm) and a security footgun if
+// the caller forgets to demand a safe prime.
+typedef uint8_t openssl_component_pkey_dh_group_t;
+
+// RFC 7919 — TLS finite-field DH groups.
+#define OPENSSL_COMPONENT_PKEY_DH_GROUP_FFDHE2048 0
+#define OPENSSL_COMPONENT_PKEY_DH_GROUP_FFDHE3072 1
+#define OPENSSL_COMPONENT_PKEY_DH_GROUP_FFDHE4096 2
+#define OPENSSL_COMPONENT_PKEY_DH_GROUP_FFDHE6144 3
+#define OPENSSL_COMPONENT_PKEY_DH_GROUP_FFDHE8192 4
+// RFC 3526 — IKE/IPsec MODP groups.
+#define OPENSSL_COMPONENT_PKEY_DH_GROUP_MODP2048 5
+#define OPENSSL_COMPONENT_PKEY_DH_GROUP_MODP3072 6
+#define OPENSSL_COMPONENT_PKEY_DH_GROUP_MODP4096 7
+#define OPENSSL_COMPONENT_PKEY_DH_GROUP_MODP6144 8
+#define OPENSSL_COMPONENT_PKEY_DH_GROUP_MODP8192 9
+
+typedef struct openssl_component_pkey_keygen_params_t {
+  uint8_t tag;
+  union {
+    openssl_component_pkey_rsa_keygen_t     rsa;
+    openssl_component_pkey_rsa_keygen_t     rsa_pss;
+    openssl_component_pkey_curve_t     ec;
+    openssl_component_pkey_edwards_curve_t     ed;
+    openssl_component_pkey_montgomery_curve_t     x;
+    openssl_component_pkey_dh_keygen_t     dh;
+    openssl_component_pkey_dh_group_t     dh_named;
+  } val;
+} openssl_component_pkey_keygen_params_t;
+
+#define OPENSSL_COMPONENT_PKEY_KEYGEN_PARAMS_RSA 0
+#define OPENSSL_COMPONENT_PKEY_KEYGEN_PARAMS_RSA_PSS 1
+#define OPENSSL_COMPONENT_PKEY_KEYGEN_PARAMS_EC 2
+#define OPENSSL_COMPONENT_PKEY_KEYGEN_PARAMS_ED 3
+#define OPENSSL_COMPONENT_PKEY_KEYGEN_PARAMS_X 4
+#define OPENSSL_COMPONENT_PKEY_KEYGEN_PARAMS_DH 5
+// Generate a DH keypair in a standardized group. Orders of
+// magnitude faster than `dh` — no prime search, just scalar
+// multiplication.
+#define OPENSSL_COMPONENT_PKEY_KEYGEN_PARAMS_DH_NAMED 6
+
+typedef struct {
+  bool is_some;
+  ssl_import_list_u8_t val;
+} ssl_import_option_list_u8_t;
+
+typedef struct openssl_component_pkey_load_options_t {
+  openssl_component_pkey_key_format_t   format;
+  openssl_component_pkey_encoding_t   encoding;
+  ssl_import_option_list_u8_t   passphrase;
+} openssl_component_pkey_load_options_t;
+
+typedef struct openssl_component_pkey_save_options_t {
+  openssl_component_pkey_key_format_t   format;
+  openssl_component_pkey_encoding_t   encoding;
+  // If set, output is encrypted with PBES2 (PKCS#8 only).
+  ssl_import_option_list_u8_t   passphrase;
+} openssl_component_pkey_save_options_t;
+
+typedef struct openssl_component_pkey_own_pkey_t {
+  int32_t __handle;
+} openssl_component_pkey_own_pkey_t;
+
+typedef struct openssl_component_pkey_borrow_pkey_t {
+  int32_t __handle;
+} openssl_component_pkey_borrow_pkey_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    openssl_component_pkey_own_pkey_t ok;
+    openssl_component_pkey_pkey_error_t err;
+  } val;
+} openssl_component_pkey_result_own_pkey_pkey_error_t;
 
 typedef struct {
   bool is_err;
   union {
     ssl_import_list_u8_t ok;
-    tegmentum_tls_context_tls_error_t err;
+    openssl_component_pkey_pkey_error_t err;
   } val;
-} tegmentum_tls_context_result_list_u8_tls_error_t;
+} openssl_component_pkey_result_list_u8_pkey_error_t;
+
+typedef struct {
+  bool is_some;
+  openssl_component_pkey_rsa_padding_t val;
+} openssl_component_pkey_option_rsa_padding_t;
+
+typedef struct {
+  bool is_some;
+  openssl_component_pkey_hash_t val;
+} openssl_component_pkey_option_hash_t;
 
 typedef struct {
   bool is_err;
   union {
-    tegmentum_tls_context_tls_error_t err;
+    bool ok;
+    openssl_component_pkey_pkey_error_t err;
   } val;
-} tegmentum_tls_context_result_void_tls_error_t;
+} openssl_component_pkey_result_bool_pkey_error_t;
+
+typedef openssl_component_error_code_t openssl_component_x509_code_t;
+
+typedef openssl_component_digest_algorithm_t openssl_component_x509_hash_t;
+
+typedef openssl_component_pkey_encoding_t openssl_component_x509_encoding_t;
+
+typedef struct openssl_component_x509_x509_error_t {
+  uint8_t tag;
+  union {
+    openssl_component_x509_code_t     internal;
+  } val;
+} openssl_component_x509_x509_error_t;
+
+#define OPENSSL_COMPONENT_X509_X509_ERROR_PARSE_FAILED 0
+#define OPENSSL_COMPONENT_X509_X509_ERROR_ENCODING_FAILED 1
+#define OPENSSL_COMPONENT_X509_X509_ERROR_SIGN_FAILED 2
+#define OPENSSL_COMPONENT_X509_X509_ERROR_VERIFY_FAILED 3
+#define OPENSSL_COMPONENT_X509_X509_ERROR_BAD_NAME 4
+#define OPENSSL_COMPONENT_X509_X509_ERROR_BAD_EXTENSION 5
+#define OPENSSL_COMPONENT_X509_X509_ERROR_KEY_MISMATCH 6
+#define OPENSSL_COMPONENT_X509_X509_ERROR_EXPIRED 7
+#define OPENSSL_COMPONENT_X509_X509_ERROR_NOT_YET_VALID 8
+#define OPENSSL_COMPONENT_X509_X509_ERROR_UNKNOWN_ISSUER 9
+#define OPENSSL_COMPONENT_X509_X509_ERROR_UNTRUSTED 10
+#define OPENSSL_COMPONENT_X509_X509_ERROR_REVOKED 11
+#define OPENSSL_COMPONENT_X509_X509_ERROR_CHAIN_TOO_LONG 12
+#define OPENSSL_COMPONENT_X509_X509_ERROR_SELF_SIGNED_IN_CHAIN 13
+#define OPENSSL_COMPONENT_X509_X509_ERROR_HOSTNAME_MISMATCH 14
+#define OPENSSL_COMPONENT_X509_X509_ERROR_INTERNAL 15
+
+// A distinguished name as a list of RDN components.
+typedef struct openssl_component_x509_name_entry_t {
+  // OID or short name (e.g. "CN", "O", "C", "emailAddress").
+  ssl_import_string_t   oid;
+  ssl_import_string_t   value;
+} openssl_component_x509_name_entry_t;
+
+typedef struct openssl_component_x509_name_t {
+  openssl_component_x509_name_entry_t   *ptr;
+  size_t len;
+} openssl_component_x509_name_t;
+
+// ISO 8601 UTC timestamp (e.g. "2030-01-01T00:00:00Z").
+typedef ssl_import_string_t openssl_component_x509_timestamp_t;
+
+typedef struct openssl_component_x509_validity_t {
+  openssl_component_x509_timestamp_t   not_before;
+  openssl_component_x509_timestamp_t   not_after;
+} openssl_component_x509_validity_t;
+
+typedef struct openssl_component_x509_general_name_t {
+  uint8_t tag;
+  union {
+    ssl_import_string_t     dns;
+    ssl_import_string_t     email;
+    ssl_import_string_t     uri;
+    ssl_import_list_u8_t     ip;
+    ssl_import_list_u8_t     other;
+  } val;
+} openssl_component_x509_general_name_t;
+
+#define OPENSSL_COMPONENT_X509_GENERAL_NAME_DNS 0
+#define OPENSSL_COMPONENT_X509_GENERAL_NAME_EMAIL 1
+#define OPENSSL_COMPONENT_X509_GENERAL_NAME_URI 2
+#define OPENSSL_COMPONENT_X509_GENERAL_NAME_IP 3
+// Raw DER for unrecognized / uncommon types.
+#define OPENSSL_COMPONENT_X509_GENERAL_NAME_OTHER 4
+
+typedef uint16_t openssl_component_x509_key_usage_t;
+
+#define OPENSSL_COMPONENT_X509_KEY_USAGE_DIGITAL_SIGNATURE (1 << 0)
+#define OPENSSL_COMPONENT_X509_KEY_USAGE_NON_REPUDIATION (1 << 1)
+#define OPENSSL_COMPONENT_X509_KEY_USAGE_KEY_ENCIPHERMENT (1 << 2)
+#define OPENSSL_COMPONENT_X509_KEY_USAGE_DATA_ENCIPHERMENT (1 << 3)
+#define OPENSSL_COMPONENT_X509_KEY_USAGE_KEY_AGREEMENT (1 << 4)
+#define OPENSSL_COMPONENT_X509_KEY_USAGE_KEY_CERT_SIGN (1 << 5)
+#define OPENSSL_COMPONENT_X509_KEY_USAGE_CRL_SIGN (1 << 6)
+#define OPENSSL_COMPONENT_X509_KEY_USAGE_ENCIPHER_ONLY (1 << 7)
+#define OPENSSL_COMPONENT_X509_KEY_USAGE_DECIPHER_ONLY (1 << 8)
+
+typedef uint8_t openssl_component_x509_extended_key_usage_t;
+
+#define OPENSSL_COMPONENT_X509_EXTENDED_KEY_USAGE_SERVER_AUTH 0
+#define OPENSSL_COMPONENT_X509_EXTENDED_KEY_USAGE_CLIENT_AUTH 1
+#define OPENSSL_COMPONENT_X509_EXTENDED_KEY_USAGE_CODE_SIGNING 2
+#define OPENSSL_COMPONENT_X509_EXTENDED_KEY_USAGE_EMAIL_PROTECTION 3
+#define OPENSSL_COMPONENT_X509_EXTENDED_KEY_USAGE_TIME_STAMPING 4
+#define OPENSSL_COMPONENT_X509_EXTENDED_KEY_USAGE_OCSP_SIGNING 5
+#define OPENSSL_COMPONENT_X509_EXTENDED_KEY_USAGE_ANY 6
+
+typedef struct openssl_component_x509_basic_constraints_t {
+  bool   is_ca;
+  ssl_import_option_u32_t   path_len;
+} openssl_component_x509_basic_constraints_t;
 
 typedef struct {
-  ssl_import_list_u8_t *ptr;
+  openssl_component_x509_general_name_t *ptr;
   size_t len;
-} ssl_import_list_list_u8_t;
+} openssl_component_x509_list_general_name_t;
 
 typedef struct {
   bool is_some;
-  tegmentum_tls_context_cipher_info_t val;
-} tegmentum_tls_context_option_cipher_info_t;
+  openssl_component_x509_basic_constraints_t val;
+} openssl_component_x509_option_basic_constraints_t;
 
-// Imported Functions from `tegmentum:tls/context@0.1.0`
-extern tegmentum_tls_context_own_client_t tegmentum_tls_context_constructor_client(tegmentum_tls_context_client_config_t *config);
-extern bool tegmentum_tls_context_method_client_push_tls_input(tegmentum_tls_context_borrow_client_t self, ssl_import_list_u8_t *bytes, uint64_t *ret, tegmentum_tls_context_tls_error_t *err);
-extern void tegmentum_tls_context_method_client_pull_tls_output(tegmentum_tls_context_borrow_client_t self, uint64_t max, ssl_import_list_u8_t *ret);
-extern bool tegmentum_tls_context_method_client_write_plaintext(tegmentum_tls_context_borrow_client_t self, ssl_import_list_u8_t *bytes, uint64_t *ret, tegmentum_tls_context_tls_error_t *err);
-extern bool tegmentum_tls_context_method_client_read_plaintext(tegmentum_tls_context_borrow_client_t self, uint64_t max, ssl_import_list_u8_t *ret, tegmentum_tls_context_tls_error_t *err);
-extern uint64_t tegmentum_tls_context_method_client_pending(tegmentum_tls_context_borrow_client_t self);
-extern tegmentum_tls_context_connection_state_t tegmentum_tls_context_method_client_state(tegmentum_tls_context_borrow_client_t self);
-extern bool tegmentum_tls_context_method_client_handshake_complete(tegmentum_tls_context_borrow_client_t self);
-extern bool tegmentum_tls_context_method_client_close_notify(tegmentum_tls_context_borrow_client_t self, tegmentum_tls_context_tls_error_t *err);
-extern bool tegmentum_tls_context_method_client_peer_cert_der(tegmentum_tls_context_borrow_client_t self, ssl_import_list_u8_t *ret);
-extern void tegmentum_tls_context_method_client_get_unverified_chain(tegmentum_tls_context_borrow_client_t self, ssl_import_list_list_u8_t *ret);
-extern void tegmentum_tls_context_method_client_get_verified_chain(tegmentum_tls_context_borrow_client_t self, ssl_import_list_list_u8_t *ret);
-extern bool tegmentum_tls_context_method_client_cipher(tegmentum_tls_context_borrow_client_t self, tegmentum_tls_context_cipher_info_t *ret);
-extern bool tegmentum_tls_context_method_client_channel_binding(tegmentum_tls_context_borrow_client_t self, ssl_import_string_t *cb_type, ssl_import_list_u8_t *ret);
-extern void tegmentum_tls_context_method_client_alpn_selected(tegmentum_tls_context_borrow_client_t self, ssl_import_string_t *ret);
-extern void tegmentum_tls_context_method_client_version(tegmentum_tls_context_borrow_client_t self, ssl_import_string_t *ret);
+typedef struct {
+  bool is_some;
+  openssl_component_x509_key_usage_t val;
+} openssl_component_x509_option_key_usage_t;
+
+typedef struct {
+  openssl_component_x509_extended_key_usage_t *ptr;
+  size_t len;
+} openssl_component_x509_list_extended_key_usage_t;
+
+typedef struct openssl_component_x509_certificate_info_t {
+  uint32_t   version;
+  ssl_import_string_t   serial_hex;
+  openssl_component_x509_name_t   issuer;
+  openssl_component_x509_name_t   subject;
+  openssl_component_x509_validity_t   validity;
+  ssl_import_string_t   signature_algorithm;
+  openssl_component_x509_list_general_name_t   subject_alt_names;
+  openssl_component_x509_list_general_name_t   issuer_alt_names;
+  openssl_component_x509_option_basic_constraints_t   basic_constraints;
+  openssl_component_x509_option_key_usage_t   key_usage;
+  openssl_component_x509_list_extended_key_usage_t   extended_key_usage;
+  // SHA-256 fingerprint of the DER encoding.
+  ssl_import_list_u8_t   fingerprint_sha256;
+} openssl_component_x509_certificate_info_t;
+
+typedef struct openssl_component_x509_csr_info_t {
+  openssl_component_x509_name_t   subject;
+  openssl_component_x509_list_general_name_t   subject_alt_names;
+} openssl_component_x509_csr_info_t;
+
+typedef struct openssl_component_x509_own_certificate_t {
+  int32_t __handle;
+} openssl_component_x509_own_certificate_t;
+
+typedef struct openssl_component_x509_borrow_certificate_t {
+  int32_t __handle;
+} openssl_component_x509_borrow_certificate_t;
+
+typedef openssl_component_pkey_own_pkey_t openssl_component_x509_own_pkey_t;
+
+typedef struct openssl_component_x509_certificate_builder_input_t {
+  openssl_component_x509_name_t   subject;
+  openssl_component_x509_name_t   issuer;
+  ssl_import_option_string_t   serial_hex;
+  openssl_component_x509_validity_t   validity;
+  openssl_component_x509_list_general_name_t   subject_alt_names;
+  openssl_component_x509_option_key_usage_t   key_usage;
+  openssl_component_x509_list_extended_key_usage_t   extended_key_usage;
+  openssl_component_x509_option_basic_constraints_t   basic_constraints;
+  // Subject public key to certify.
+  openssl_component_x509_own_pkey_t   subject_key;
+  // Digest used to produce the signature.
+  openssl_component_x509_hash_t   signature_hash;
+} openssl_component_x509_certificate_builder_input_t;
+
+typedef struct openssl_component_x509_own_csr_t {
+  int32_t __handle;
+} openssl_component_x509_own_csr_t;
+
+typedef struct openssl_component_x509_borrow_csr_t {
+  int32_t __handle;
+} openssl_component_x509_borrow_csr_t;
+
+// CRLs -----------------------------------------------------------------
+typedef struct openssl_component_x509_revoked_entry_t {
+  ssl_import_string_t   serial_hex;
+  openssl_component_x509_timestamp_t   revocation_date;
+  ssl_import_option_string_t   reason;
+} openssl_component_x509_revoked_entry_t;
+
+typedef struct {
+  bool is_some;
+  openssl_component_x509_timestamp_t val;
+} ssl_import_option_timestamp_t;
+
+typedef struct {
+  openssl_component_x509_revoked_entry_t *ptr;
+  size_t len;
+} openssl_component_x509_list_revoked_entry_t;
+
+typedef struct openssl_component_x509_crl_info_t {
+  openssl_component_x509_name_t   issuer;
+  openssl_component_x509_timestamp_t   this_update;
+  ssl_import_option_timestamp_t   next_update;
+  openssl_component_x509_list_revoked_entry_t   revoked;
+} openssl_component_x509_crl_info_t;
+
+typedef struct openssl_component_x509_own_crl_t {
+  int32_t __handle;
+} openssl_component_x509_own_crl_t;
+
+typedef struct openssl_component_x509_borrow_crl_t {
+  int32_t __handle;
+} openssl_component_x509_borrow_crl_t;
+
+typedef struct {
+  bool is_some;
+  openssl_component_x509_extended_key_usage_t val;
+} openssl_component_x509_option_extended_key_usage_t;
+
+// Store / path validation ---------------------------------------------
+typedef struct openssl_component_x509_verify_options_t {
+  // Hostname to match against subject/SAN during validation.
+  ssl_import_option_string_t   hostname;
+  // IP to match against iPAddress SAN.
+  ssl_import_option_string_t   ip;
+  // Purpose (constrains EKU checks).
+  openssl_component_x509_option_extended_key_usage_t   purpose;
+  // Validation time (defaults to now).
+  ssl_import_option_timestamp_t   at;
+  // Partial-chain permitted? (treat trusted intermediates as anchors)
+  bool   partial_chain;
+  // Allow usage of a CRL if provided.
+  bool   crl_check;
+  // Require CRL check for every cert in the chain.
+  bool   crl_check_all;
+} openssl_component_x509_verify_options_t;
+
+typedef struct openssl_component_x509_own_store_t {
+  int32_t __handle;
+} openssl_component_x509_own_store_t;
+
+typedef struct openssl_component_x509_borrow_store_t {
+  int32_t __handle;
+} openssl_component_x509_borrow_store_t;
+
+typedef struct {
+  bool is_some;
+  openssl_component_x509_own_pkey_t val;
+} openssl_component_x509_option_own_pkey_t;
+
+typedef struct {
+  bool is_some;
+  openssl_component_x509_own_certificate_t val;
+} openssl_component_x509_option_own_certificate_t;
+
+typedef struct {
+  openssl_component_x509_own_certificate_t *ptr;
+  size_t len;
+} openssl_component_x509_list_own_certificate_t;
+
+// PKCS#12 --------------------------------------------------------------
+typedef struct openssl_component_x509_pkcs12_contents_t {
+  openssl_component_x509_option_own_pkey_t   key;
+  openssl_component_x509_option_own_certificate_t   cert;
+  openssl_component_x509_list_own_certificate_t   extra_certs;
+} openssl_component_x509_pkcs12_contents_t;
+
+typedef struct openssl_component_x509_pkcs12_build_input_t {
+  ssl_import_option_string_t   friendly_name;
+  openssl_component_x509_own_pkey_t   key;
+  openssl_component_x509_own_certificate_t   cert;
+  openssl_component_x509_list_own_certificate_t   extra_certs;
+  // Passphrase encrypting the key bag.
+  ssl_import_list_u8_t   passphrase;
+} openssl_component_x509_pkcs12_build_input_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    openssl_component_x509_own_certificate_t ok;
+    openssl_component_x509_x509_error_t err;
+  } val;
+} openssl_component_x509_result_own_certificate_x509_error_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    openssl_component_x509_list_own_certificate_t ok;
+    openssl_component_x509_x509_error_t err;
+  } val;
+} openssl_component_x509_result_list_own_certificate_x509_error_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    ssl_import_list_u8_t ok;
+    openssl_component_x509_x509_error_t err;
+  } val;
+} openssl_component_x509_result_list_u8_x509_error_t;
+
+typedef openssl_component_pkey_borrow_pkey_t openssl_component_x509_borrow_pkey_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    bool ok;
+    openssl_component_x509_x509_error_t err;
+  } val;
+} openssl_component_x509_result_bool_x509_error_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    openssl_component_x509_own_csr_t ok;
+    openssl_component_x509_x509_error_t err;
+  } val;
+} openssl_component_x509_result_own_csr_x509_error_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    openssl_component_x509_own_crl_t ok;
+    openssl_component_x509_x509_error_t err;
+  } val;
+} openssl_component_x509_result_own_crl_x509_error_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    openssl_component_x509_x509_error_t err;
+  } val;
+} openssl_component_x509_result_void_x509_error_t;
+
+typedef struct {
+  openssl_component_x509_borrow_certificate_t *ptr;
+  size_t len;
+} openssl_component_x509_list_borrow_certificate_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    openssl_component_x509_pkcs12_contents_t ok;
+    openssl_component_x509_x509_error_t err;
+  } val;
+} openssl_component_x509_result_pkcs12_contents_x509_error_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    ssl_import_option_list_u8_t ok;
+    openssl_component_x509_x509_error_t err;
+  } val;
+} openssl_component_x509_result_option_list_u8_x509_error_t;
+
+typedef openssl_component_error_code_t openssl_component_tls_code_t;
+
+typedef openssl_component_x509_verify_options_t openssl_component_tls_verify_options_t;
+
+// See note in digest.wit: trailing digit-only segments (e.g.
+// `tls1-2`) fail wac's kebab-case check. Use single-word aliases.
+typedef uint8_t openssl_component_tls_protocol_t;
+
+#define OPENSSL_COMPONENT_TLS_PROTOCOL_TLS12 0
+#define OPENSSL_COMPONENT_TLS_PROTOCOL_TLS13 1
+#define OPENSSL_COMPONENT_TLS_PROTOCOL_DTLS12 2
+
+typedef struct openssl_component_tls_protocol_range_t {
+  openssl_component_tls_protocol_t   min;
+  openssl_component_tls_protocol_t   max;
+} openssl_component_tls_protocol_range_t;
+
+typedef uint8_t openssl_component_tls_verify_mode_t;
+
+// Do not verify peer cert. Insecure; for development only.
+#define OPENSSL_COMPONENT_TLS_VERIFY_MODE_NONE 0
+// Verify and fail if invalid.
+#define OPENSSL_COMPONENT_TLS_VERIFY_MODE_REQUIRED 1
+// Clients: required. Servers: request client cert, fail if given
+// and invalid (mTLS).
+#define OPENSSL_COMPONENT_TLS_VERIFY_MODE_OPTIONAL 2
+
+// TLS 1.3 cipher suites and TLS 1.2 cipher list names. Free-form to
+// allow the caller to pass OpenSSL cipher strings verbatim.
+typedef struct openssl_component_tls_cipher_preferences_t {
+  // e.g. "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256"
+  ssl_import_option_string_t   tls13;
+  // e.g. "HIGH:!aNULL:!MD5"
+  ssl_import_option_string_t   tls12;
+} openssl_component_tls_cipher_preferences_t;
+
+typedef struct {
+  ssl_import_string_t *ptr;
+  size_t len;
+} ssl_import_list_string_t;
+
+typedef struct openssl_component_tls_alpn_offer_t {
+  ssl_import_list_string_t   protocols;
+} openssl_component_tls_alpn_offer_t;
+
+typedef uint8_t openssl_component_tls_session_ticket_policy_t;
+
+#define OPENSSL_COMPONENT_TLS_SESSION_TICKET_POLICY_DISABLED 0
+#define OPENSSL_COMPONENT_TLS_SESSION_TICKET_POLICY_STATELESS 1
+#define OPENSSL_COMPONENT_TLS_SESSION_TICKET_POLICY_STATEFUL 2
+
+typedef struct openssl_component_tls_verify_failure_t {
+  // X.509 error code (matches OpenSSL's X509_V_ERR_*).
+  uint32_t   code;
+  ssl_import_string_t   message;
+  // Depth in the chain at which the failure occurred (0 = leaf).
+  uint32_t   depth;
+} openssl_component_tls_verify_failure_t;
+
+typedef struct openssl_component_tls_tls_error_t {
+  uint8_t tag;
+  union {
+    openssl_component_tls_verify_failure_t     verify_failed;
+    openssl_component_tls_code_t     internal;
+  } val;
+} openssl_component_tls_tls_error_t;
+
+#define OPENSSL_COMPONENT_TLS_TLS_ERROR_BAD_CONFIG 0
+#define OPENSSL_COMPONENT_TLS_TLS_ERROR_HANDSHAKE_FAILED 1
+#define OPENSSL_COMPONENT_TLS_TLS_ERROR_VERIFY_FAILED 2
+#define OPENSSL_COMPONENT_TLS_TLS_ERROR_ALPN_MISMATCH 3
+#define OPENSSL_COMPONENT_TLS_TLS_ERROR_SNI_MISMATCH 4
+#define OPENSSL_COMPONENT_TLS_TLS_ERROR_HOSTNAME_MISMATCH 5
+#define OPENSSL_COMPONENT_TLS_TLS_ERROR_PROTOCOL_VERSION 6
+#define OPENSSL_COMPONENT_TLS_TLS_ERROR_IO_CLOSED 7
+#define OPENSSL_COMPONENT_TLS_TLS_ERROR_WOULD_BLOCK 8
+#define OPENSSL_COMPONENT_TLS_TLS_ERROR_INTERNAL 9
+
+typedef openssl_component_x509_own_store_t openssl_component_tls_own_store_t;
+
+typedef struct {
+  bool is_some;
+  openssl_component_tls_own_store_t val;
+} openssl_component_tls_option_own_store_t;
+
+typedef struct {
+  bool is_some;
+  openssl_component_tls_verify_options_t val;
+} openssl_component_tls_option_verify_options_t;
+
+typedef openssl_component_x509_own_certificate_t openssl_component_tls_own_certificate_t;
+
+typedef struct {
+  bool is_some;
+  openssl_component_tls_own_certificate_t val;
+} openssl_component_tls_option_own_certificate_t;
+
+typedef openssl_component_pkey_own_pkey_t openssl_component_tls_own_pkey_t;
+
+typedef struct {
+  bool is_some;
+  openssl_component_tls_own_pkey_t val;
+} openssl_component_tls_option_own_pkey_t;
+
+typedef struct {
+  bool is_some;
+  openssl_component_tls_alpn_offer_t val;
+} openssl_component_tls_option_alpn_offer_t;
+
+typedef struct {
+  bool is_some;
+  openssl_component_tls_cipher_preferences_t val;
+} openssl_component_tls_option_cipher_preferences_t;
+
+typedef struct openssl_component_tls_client_config_t {
+  openssl_component_tls_protocol_range_t   protocols;
+  openssl_component_tls_verify_mode_t   verify;
+  openssl_component_tls_option_own_store_t   trust;
+  openssl_component_tls_option_verify_options_t   verify_options;
+  // SNI hostname to send and verify against.
+  ssl_import_option_string_t   server_name;
+  // Client certificate for mTLS.
+  openssl_component_tls_option_own_certificate_t   client_cert;
+  openssl_component_tls_option_own_pkey_t   client_key;
+  openssl_component_tls_option_alpn_offer_t   alpn;
+  openssl_component_tls_option_cipher_preferences_t   ciphers;
+  // Advertised key-exchange groups in preference order, passed
+  // verbatim to `SSL_CTX_set1_groups_list`. Accepts EC curves
+  // (`P-256`, `X25519`, …), TLS 1.3 FFDHE groups (`ffdhe2048`
+  // through `ffdhe8192` per RFC 7919), and hybrid PQ groups
+  // (`X25519MLKEM768`, …). Example: "X25519:ffdhe2048:P-256".
+  ssl_import_option_string_t   groups;
+  // Enable 0-RTT on TLS 1.3. Requires a resumable session.
+  bool   enable_early_data;
+  // Resumption ticket previously returned by `client.session-ticket`.
+  ssl_import_option_list_u8_t   resume_session;
+  // Enable NSS-format SECRET_LOG capture. Drain via `client.drain-keylog`.
+  bool   keylog;
+} openssl_component_tls_client_config_t;
+
+typedef struct {
+  openssl_component_tls_own_certificate_t *ptr;
+  size_t len;
+} openssl_component_tls_list_own_certificate_t;
+
+typedef struct openssl_component_tls_sni_binding_t {
+  ssl_import_string_t   hostname;
+  openssl_component_tls_list_own_certificate_t   cert_chain;
+  openssl_component_tls_own_pkey_t   key;
+} openssl_component_tls_sni_binding_t;
+
+typedef struct {
+  openssl_component_tls_sni_binding_t *ptr;
+  size_t len;
+} openssl_component_tls_list_sni_binding_t;
+
+typedef struct openssl_component_tls_server_config_t {
+  openssl_component_tls_protocol_range_t   protocols;
+  openssl_component_tls_verify_mode_t   verify;
+  // Client-auth trust store (mTLS). Required if verify != none.
+  openssl_component_tls_option_own_store_t   client_trust;
+  // Server certificate chain: leaf first, then intermediates.
+  openssl_component_tls_list_own_certificate_t   cert_chain;
+  // Server private key corresponding to cert-chain[0].
+  openssl_component_tls_own_pkey_t   key;
+  // Optional SNI → (cert-chain, key) overrides keyed by hostname.
+  openssl_component_tls_list_sni_binding_t   sni_hosts;
+  openssl_component_tls_option_alpn_offer_t   alpn;
+  openssl_component_tls_option_cipher_preferences_t   ciphers;
+  ssl_import_option_string_t   groups;
+  openssl_component_tls_session_ticket_policy_t   session_tickets;
+  // Enable NSS-format SECRET_LOG capture. Drain via `server.drain-keylog`.
+  bool   keylog;
+} openssl_component_tls_server_config_t;
+
+typedef struct openssl_component_tls_peer_info_t {
+  // Negotiated protocol version.
+  openssl_component_tls_protocol_t   protocol;
+  // Cipher suite name (e.g. "TLS_AES_256_GCM_SHA384").
+  ssl_import_string_t   cipher_suite;
+  // Negotiated ALPN protocol, if any.
+  ssl_import_option_string_t   alpn;
+  // SNI server-name the peer sent, if any (servers only).
+  ssl_import_option_string_t   sni;
+  // Peer certificate chain.
+  openssl_component_tls_list_own_certificate_t   peer_chain;
+  // Whether the current session was resumed.
+  bool   resumed;
+  // Negotiated group (curve / hybrid KEM).
+  ssl_import_option_string_t   group;
+} openssl_component_tls_peer_info_t;
+
+typedef struct openssl_component_tls_own_client_t {
+  int32_t __handle;
+} openssl_component_tls_own_client_t;
+
+typedef struct openssl_component_tls_borrow_client_t {
+  int32_t __handle;
+} openssl_component_tls_borrow_client_t;
+
+typedef struct openssl_component_tls_own_server_listener_t {
+  int32_t __handle;
+} openssl_component_tls_own_server_listener_t;
+
+typedef struct openssl_component_tls_borrow_server_listener_t {
+  int32_t __handle;
+} openssl_component_tls_borrow_server_listener_t;
+
+typedef struct openssl_component_tls_own_server_t {
+  int32_t __handle;
+} openssl_component_tls_own_server_t;
+
+typedef struct openssl_component_tls_borrow_server_t {
+  int32_t __handle;
+} openssl_component_tls_borrow_server_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    openssl_component_tls_own_client_t ok;
+    openssl_component_tls_tls_error_t err;
+  } val;
+} openssl_component_tls_result_own_client_tls_error_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    uint32_t ok;
+    openssl_component_tls_tls_error_t err;
+  } val;
+} openssl_component_tls_result_u32_tls_error_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    ssl_import_list_u8_t ok;
+    openssl_component_tls_tls_error_t err;
+  } val;
+} openssl_component_tls_result_list_u8_tls_error_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    openssl_component_tls_own_server_listener_t ok;
+    openssl_component_tls_tls_error_t err;
+  } val;
+} openssl_component_tls_result_own_server_listener_tls_error_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    openssl_component_tls_own_server_t ok;
+    openssl_component_tls_tls_error_t err;
+  } val;
+} openssl_component_tls_result_own_server_tls_error_t;
+
+// Imported Functions from `openssl:component/error@0.1.0`
+// Pop the oldest error from the thread-local error queue, or
+// return `none` if empty.
+extern bool openssl_component_error_pop_error(openssl_component_error_error_info_t *ret);
+// Clear the thread-local error queue.
+extern void openssl_component_error_clear_errors(void);
+// Drain all queued errors at once.
+extern void openssl_component_error_drain_errors(openssl_component_error_list_error_info_t *ret);
+// Render a single error code to a printable string without popping.
+extern void openssl_component_error_describe(openssl_component_error_code_t c, ssl_import_string_t *ret);
+
+// Imported Functions from `openssl:component/digest@0.1.0`
+// Fixed-length digest.
+extern bool openssl_component_digest_one_shot(openssl_component_digest_algorithm_t alg, ssl_import_list_u8_t *data, ssl_import_list_u8_t *ret, openssl_component_digest_digest_error_t *err);
+// Extendable-output function (SHAKE128/256). Other algs error.
+extern bool openssl_component_digest_one_shot_xof(openssl_component_digest_algorithm_t alg, ssl_import_list_u8_t *data, uint32_t out_len, ssl_import_list_u8_t *ret, openssl_component_digest_digest_error_t *err);
+// Output size in bytes for non-XOF algorithms.
+extern bool openssl_component_digest_output_size(openssl_component_digest_algorithm_t alg, uint32_t *ret, openssl_component_digest_digest_error_t *err);
+// Block size in bytes.
+extern bool openssl_component_digest_block_size(openssl_component_digest_algorithm_t alg, uint32_t *ret, openssl_component_digest_digest_error_t *err);
+extern openssl_component_digest_own_context_t openssl_component_digest_constructor_context(openssl_component_digest_algorithm_t alg);
+extern bool openssl_component_digest_method_context_update(openssl_component_digest_borrow_context_t self, ssl_import_list_u8_t *data, openssl_component_digest_digest_error_t *err);
+// Finalize and return digest bytes. Consumes the context.
+extern bool openssl_component_digest_static_context_finish(openssl_component_digest_own_context_t ctx, ssl_import_list_u8_t *ret, openssl_component_digest_digest_error_t *err);
+// Finalize XOF with a caller-chosen output length. Consumes.
+extern bool openssl_component_digest_static_context_finish_xof(openssl_component_digest_own_context_t ctx, uint32_t out_len, ssl_import_list_u8_t *ret, openssl_component_digest_digest_error_t *err);
+// Deep-copy for mid-stream fork (e.g. TLS Finished computations).
+extern openssl_component_digest_own_context_t openssl_component_digest_method_context_clone(openssl_component_digest_borrow_context_t self);
+
+// Imported Functions from `openssl:component/pkey@0.1.0`
+// Generate a new keypair.
+extern bool openssl_component_pkey_static_pkey_generate(openssl_component_pkey_keygen_params_t *params, openssl_component_pkey_own_pkey_t *ret, openssl_component_pkey_pkey_error_t *err);
+// Load a private key from encoded bytes.
+extern bool openssl_component_pkey_static_pkey_load_private(ssl_import_list_u8_t *bytes, openssl_component_pkey_load_options_t *opts, openssl_component_pkey_own_pkey_t *ret, openssl_component_pkey_pkey_error_t *err);
+// Load a public key from encoded bytes.
+extern bool openssl_component_pkey_static_pkey_load_public(ssl_import_list_u8_t *bytes, openssl_component_pkey_load_options_t *opts, openssl_component_pkey_own_pkey_t *ret, openssl_component_pkey_pkey_error_t *err);
+// Import raw material (e.g. Ed25519 seed, X25519 scalar).
+extern bool openssl_component_pkey_static_pkey_from_raw_private(openssl_component_pkey_key_type_t *kind, ssl_import_list_u8_t *bytes, openssl_component_pkey_own_pkey_t *ret, openssl_component_pkey_pkey_error_t *err);
+extern bool openssl_component_pkey_static_pkey_from_raw_public(openssl_component_pkey_key_type_t *kind, ssl_import_list_u8_t *bytes, openssl_component_pkey_own_pkey_t *ret, openssl_component_pkey_pkey_error_t *err);
+// Key metadata.
+extern void openssl_component_pkey_method_pkey_kind(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_key_type_t *ret);
+extern uint32_t openssl_component_pkey_method_pkey_bits(openssl_component_pkey_borrow_pkey_t self);
+extern uint32_t openssl_component_pkey_method_pkey_security_bits(openssl_component_pkey_borrow_pkey_t self);
+extern bool openssl_component_pkey_method_pkey_has_private(openssl_component_pkey_borrow_pkey_t self);
+// Export.
+extern bool openssl_component_pkey_method_pkey_save_private(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_save_options_t *opts, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err);
+extern bool openssl_component_pkey_method_pkey_save_public(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_save_options_t *opts, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err);
+extern bool openssl_component_pkey_method_pkey_raw_private(openssl_component_pkey_borrow_pkey_t self, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err);
+extern bool openssl_component_pkey_method_pkey_raw_public(openssl_component_pkey_borrow_pkey_t self, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err);
+// Sign a pre-hashed digest (RSA/ECDSA).
+extern bool openssl_component_pkey_method_pkey_sign_digest(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_hash_t hash, ssl_import_list_u8_t *digest, openssl_component_pkey_rsa_padding_t *maybe_padding, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err);
+// Sign an arbitrary message (required for Ed25519/Ed448).
+extern bool openssl_component_pkey_method_pkey_sign_message(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_hash_t *maybe_hash, ssl_import_list_u8_t *message, openssl_component_pkey_rsa_padding_t *maybe_padding, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err);
+extern bool openssl_component_pkey_method_pkey_verify_digest(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_hash_t hash, ssl_import_list_u8_t *digest, ssl_import_list_u8_t *signature, openssl_component_pkey_rsa_padding_t *maybe_padding, bool *ret, openssl_component_pkey_pkey_error_t *err);
+extern bool openssl_component_pkey_method_pkey_verify_message(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_hash_t *maybe_hash, ssl_import_list_u8_t *message, ssl_import_list_u8_t *signature, openssl_component_pkey_rsa_padding_t *maybe_padding, bool *ret, openssl_component_pkey_pkey_error_t *err);
+// RSA encryption (public key operation).
+extern bool openssl_component_pkey_method_pkey_encrypt(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_rsa_padding_t *padding, ssl_import_list_u8_t *plaintext, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err);
+// RSA decryption (private key operation).
+extern bool openssl_component_pkey_method_pkey_decrypt(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_rsa_padding_t *padding, ssl_import_list_u8_t *ciphertext, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err);
+// Derive a shared secret. `peer` must be a public key of a
+// compatible type (ECDH / X25519 / X448 / DH).
+extern bool openssl_component_pkey_method_pkey_derive(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_borrow_pkey_t peer, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err);
+// Deep clone.
+extern openssl_component_pkey_own_pkey_t openssl_component_pkey_method_pkey_clone(openssl_component_pkey_borrow_pkey_t self);
+
+// Imported Functions from `openssl:component/x509@0.1.0`
+// Parse a single certificate (PEM or DER).
+extern bool openssl_component_x509_static_certificate_parse(ssl_import_list_u8_t *bytes, openssl_component_x509_encoding_t enc, openssl_component_x509_own_certificate_t *ret, openssl_component_x509_x509_error_t *err);
+// Parse a chain (PEM bundle only).
+extern bool openssl_component_x509_static_certificate_parse_chain(ssl_import_list_u8_t *pem, openssl_component_x509_list_own_certificate_t *ret, openssl_component_x509_x509_error_t *err);
+extern bool openssl_component_x509_method_certificate_encode(openssl_component_x509_borrow_certificate_t self, openssl_component_x509_encoding_t enc, ssl_import_list_u8_t *ret, openssl_component_x509_x509_error_t *err);
+extern void openssl_component_x509_method_certificate_info(openssl_component_x509_borrow_certificate_t self, openssl_component_x509_certificate_info_t *ret);
+extern openssl_component_x509_own_pkey_t openssl_component_x509_method_certificate_public_key(openssl_component_x509_borrow_certificate_t self);
+// Verify signature against an alleged issuer's public key.
+// Does NOT perform full chain validation — use `store`.
+extern bool openssl_component_x509_method_certificate_verify_signature(openssl_component_x509_borrow_certificate_t self, openssl_component_x509_borrow_pkey_t issuer, bool *ret, openssl_component_x509_x509_error_t *err);
+// SHA-256 fingerprint of the DER encoding.
+extern void openssl_component_x509_method_certificate_fingerprint(openssl_component_x509_borrow_certificate_t self, openssl_component_x509_hash_t alg, ssl_import_list_u8_t *ret);
+extern openssl_component_x509_own_certificate_t openssl_component_x509_method_certificate_clone(openssl_component_x509_borrow_certificate_t self);
+// Build and sign a certificate with the given signer key.
+extern bool openssl_component_x509_build_and_sign(openssl_component_x509_certificate_builder_input_t *input, openssl_component_x509_borrow_pkey_t signer, openssl_component_x509_own_certificate_t *ret, openssl_component_x509_x509_error_t *err);
+extern bool openssl_component_x509_static_csr_parse(ssl_import_list_u8_t *bytes, openssl_component_x509_encoding_t enc, openssl_component_x509_own_csr_t *ret, openssl_component_x509_x509_error_t *err);
+extern bool openssl_component_x509_method_csr_encode(openssl_component_x509_borrow_csr_t self, openssl_component_x509_encoding_t enc, ssl_import_list_u8_t *ret, openssl_component_x509_x509_error_t *err);
+extern void openssl_component_x509_method_csr_info(openssl_component_x509_borrow_csr_t self, openssl_component_x509_csr_info_t *ret);
+extern openssl_component_x509_own_pkey_t openssl_component_x509_method_csr_public_key(openssl_component_x509_borrow_csr_t self);
+extern bool openssl_component_x509_method_csr_verify_signature(openssl_component_x509_borrow_csr_t self, bool *ret, openssl_component_x509_x509_error_t *err);
+extern bool openssl_component_x509_static_csr_build_and_sign(openssl_component_x509_csr_info_t *info, openssl_component_x509_borrow_pkey_t key, openssl_component_x509_hash_t signature_hash, openssl_component_x509_own_csr_t *ret, openssl_component_x509_x509_error_t *err);
+extern bool openssl_component_x509_static_crl_parse(ssl_import_list_u8_t *bytes, openssl_component_x509_encoding_t enc, openssl_component_x509_own_crl_t *ret, openssl_component_x509_x509_error_t *err);
+extern bool openssl_component_x509_method_crl_encode(openssl_component_x509_borrow_crl_t self, openssl_component_x509_encoding_t enc, ssl_import_list_u8_t *ret, openssl_component_x509_x509_error_t *err);
+extern void openssl_component_x509_method_crl_info(openssl_component_x509_borrow_crl_t self, openssl_component_x509_crl_info_t *ret);
+extern bool openssl_component_x509_method_crl_verify_signature(openssl_component_x509_borrow_crl_t self, openssl_component_x509_borrow_pkey_t issuer, bool *ret, openssl_component_x509_x509_error_t *err);
+extern bool openssl_component_x509_method_crl_is_revoked(openssl_component_x509_borrow_crl_t self, ssl_import_string_t *serial_hex);
+extern openssl_component_x509_own_store_t openssl_component_x509_constructor_store(void);
+// Treat `cert` as a trust anchor.
+extern bool openssl_component_x509_method_store_add_trusted(openssl_component_x509_borrow_store_t self, openssl_component_x509_borrow_certificate_t cert, openssl_component_x509_x509_error_t *err);
+// Add an intermediate certificate for chain building.
+extern bool openssl_component_x509_method_store_add_untrusted(openssl_component_x509_borrow_store_t self, openssl_component_x509_borrow_certificate_t cert, openssl_component_x509_x509_error_t *err);
+// Load system default trust roots (if any are available to the
+// component via preopened dirs — see README).
+extern bool openssl_component_x509_method_store_load_defaults(openssl_component_x509_borrow_store_t self, openssl_component_x509_x509_error_t *err);
+// Load a PEM bundle from a preopened filesystem path.
+extern bool openssl_component_x509_method_store_load_from_file(openssl_component_x509_borrow_store_t self, ssl_import_string_t *path, openssl_component_x509_x509_error_t *err);
+// Add a CRL.
+extern bool openssl_component_x509_method_store_add_crl(openssl_component_x509_borrow_store_t self, openssl_component_x509_borrow_crl_t crl, openssl_component_x509_x509_error_t *err);
+// Build and verify a chain for `leaf` against the store. Returns the
+// validated chain on success (leaf first, anchor last).
+extern bool openssl_component_x509_verify_chain(openssl_component_x509_borrow_store_t store, openssl_component_x509_borrow_certificate_t leaf, openssl_component_x509_list_borrow_certificate_t *extra_intermediates, openssl_component_x509_verify_options_t *opts, openssl_component_x509_list_own_certificate_t *ret, openssl_component_x509_x509_error_t *err);
+extern bool openssl_component_x509_pkcs12_parse(ssl_import_list_u8_t *bytes, ssl_import_list_u8_t *passphrase, openssl_component_x509_pkcs12_contents_t *ret, openssl_component_x509_x509_error_t *err);
+extern bool openssl_component_x509_pkcs12_build(openssl_component_x509_pkcs12_build_input_t *input, ssl_import_list_u8_t *ret, openssl_component_x509_x509_error_t *err);
+// PKCS#7 / CMS ---------------------------------------------------------
+// Sign arbitrary content producing a detached or attached CMS SignedData.
+extern bool openssl_component_x509_cms_sign(ssl_import_list_u8_t *content, openssl_component_x509_borrow_pkey_t signer, openssl_component_x509_borrow_certificate_t cert, openssl_component_x509_list_borrow_certificate_t *intermediates, bool detached, openssl_component_x509_encoding_t enc, ssl_import_list_u8_t *ret, openssl_component_x509_x509_error_t *err);
+// Verify a CMS SignedData. Returns recovered content if attached.
+extern bool openssl_component_x509_cms_verify(ssl_import_list_u8_t *cms, openssl_component_x509_borrow_store_t store, ssl_import_list_u8_t *maybe_detached_content, openssl_component_x509_encoding_t enc, ssl_import_option_list_u8_t *ret, openssl_component_x509_x509_error_t *err);
+// Encrypt content for a set of recipients.
+extern bool openssl_component_x509_cms_encrypt(ssl_import_list_u8_t *content, openssl_component_x509_list_borrow_certificate_t *recipients, ssl_import_string_t *cipher, openssl_component_x509_encoding_t enc, ssl_import_list_u8_t *ret, openssl_component_x509_x509_error_t *err);
+extern bool openssl_component_x509_cms_decrypt(ssl_import_list_u8_t *cms, openssl_component_x509_borrow_pkey_t recipient, openssl_component_x509_borrow_certificate_t recipient_cert, openssl_component_x509_encoding_t enc, ssl_import_list_u8_t *ret, openssl_component_x509_x509_error_t *err);
+
+// Imported Functions from `openssl:component/tls@0.1.0`
+// Open a TCP connection to `host:port` and perform the TLS
+// handshake. `host` is used both for DNS and SNI unless the
+// config overrides SNI explicitly.
+extern bool openssl_component_tls_static_client_connect(ssl_import_string_t *host, uint16_t port, openssl_component_tls_client_config_t *config, openssl_component_tls_own_client_t *ret, openssl_component_tls_tls_error_t *err);
+// Write plaintext; returns bytes written (may be short).
+extern bool openssl_component_tls_method_client_write(openssl_component_tls_borrow_client_t self, ssl_import_list_u8_t *data, uint32_t *ret, openssl_component_tls_tls_error_t *err);
+// Read plaintext; returns empty list on clean close.
+extern bool openssl_component_tls_method_client_read(openssl_component_tls_borrow_client_t self, uint32_t max_bytes, ssl_import_list_u8_t *ret, openssl_component_tls_tls_error_t *err);
+// 0-RTT data; valid only before the first `read`/`write` when
+// `enable-early-data` is set and a session ticket is supplied.
+extern bool openssl_component_tls_method_client_write_early(openssl_component_tls_borrow_client_t self, ssl_import_list_u8_t *data, uint32_t *ret, openssl_component_tls_tls_error_t *err);
+extern bool openssl_component_tls_method_client_early_data_accepted(openssl_component_tls_borrow_client_t self);
+// Session info for reuse.
+extern void openssl_component_tls_method_client_peer(openssl_component_tls_borrow_client_t self, openssl_component_tls_peer_info_t *ret);
+// Returns a serialized session ticket if the peer issued one.
+extern bool openssl_component_tls_method_client_session_ticket(openssl_component_tls_borrow_client_t self, ssl_import_list_u8_t *ret);
+// Take buffered NSS-format keylog lines. Empty unless
+// `keylog` was set in the config.
+extern void openssl_component_tls_method_client_drain_keylog(openssl_component_tls_borrow_client_t self, ssl_import_list_string_t *ret);
+// Send close_notify and close the underlying socket.
+extern void openssl_component_tls_static_client_close(openssl_component_tls_own_client_t c);
+// Bind to `host:port`. `host` may be "0.0.0.0" or "::".
+extern bool openssl_component_tls_static_server_listener_bind(ssl_import_string_t *host, uint16_t port, openssl_component_tls_server_config_t *config, openssl_component_tls_own_server_listener_t *ret, openssl_component_tls_tls_error_t *err);
+// Accept one incoming TLS connection.
+extern bool openssl_component_tls_method_server_listener_accept(openssl_component_tls_borrow_server_listener_t self, openssl_component_tls_own_server_t *ret, openssl_component_tls_tls_error_t *err);
+// Port actually bound (useful when caller passed 0).
+extern uint16_t openssl_component_tls_method_server_listener_local_port(openssl_component_tls_borrow_server_listener_t self);
+extern void openssl_component_tls_static_server_listener_close(openssl_component_tls_own_server_listener_t l);
+extern bool openssl_component_tls_method_server_write(openssl_component_tls_borrow_server_t self, ssl_import_list_u8_t *data, uint32_t *ret, openssl_component_tls_tls_error_t *err);
+extern bool openssl_component_tls_method_server_read(openssl_component_tls_borrow_server_t self, uint32_t max_bytes, ssl_import_list_u8_t *ret, openssl_component_tls_tls_error_t *err);
+extern void openssl_component_tls_method_server_peer(openssl_component_tls_borrow_server_t self, openssl_component_tls_peer_info_t *ret);
+// Take buffered NSS-format keylog lines. Empty unless
+// `keylog` was set in the listener's server-config.
+extern void openssl_component_tls_method_server_drain_keylog(openssl_component_tls_borrow_server_t self, ssl_import_list_string_t *ret);
+extern void openssl_component_tls_static_server_close(openssl_component_tls_own_server_t s);
 
 // Helper Functions
 
-extern void tegmentum_tls_context_client_drop_own(tegmentum_tls_context_own_client_t handle);
+void ssl_import_option_string_free(ssl_import_option_string_t *ptr);
 
-extern void tegmentum_tls_context_client_drop_borrow(tegmentum_tls_context_borrow_client_t handle);
+void ssl_import_option_u32_free(ssl_import_option_u32_t *ptr);
 
-extern tegmentum_tls_context_borrow_client_t tegmentum_tls_context_borrow_client(tegmentum_tls_context_own_client_t handle);
+void openssl_component_error_error_info_free(openssl_component_error_error_info_t *ptr);
 
-void tegmentum_tls_context_cipher_info_free(tegmentum_tls_context_cipher_info_t *ptr);
+void openssl_component_error_option_error_info_free(openssl_component_error_option_error_info_t *ptr);
 
-void ssl_import_list_string_free(ssl_import_list_string_t *ptr);
+void openssl_component_error_list_error_info_free(openssl_component_error_list_error_info_t *ptr);
+
+void openssl_component_digest_digest_error_free(openssl_component_digest_digest_error_t *ptr);
+
+extern void openssl_component_digest_context_drop_own(openssl_component_digest_own_context_t handle);
+
+extern void openssl_component_digest_context_drop_borrow(openssl_component_digest_borrow_context_t handle);
+
+extern openssl_component_digest_borrow_context_t openssl_component_digest_borrow_context(openssl_component_digest_own_context_t handle);
 
 void ssl_import_list_u8_free(ssl_import_list_u8_t *ptr);
 
+void openssl_component_digest_result_list_u8_digest_error_free(openssl_component_digest_result_list_u8_digest_error_t *ptr);
+
+void openssl_component_digest_result_u32_digest_error_free(openssl_component_digest_result_u32_digest_error_t *ptr);
+
+void openssl_component_digest_result_void_digest_error_free(openssl_component_digest_result_void_digest_error_t *ptr);
+
+void openssl_component_pkey_key_type_free(openssl_component_pkey_key_type_t *ptr);
+
+void openssl_component_pkey_oaep_params_free(openssl_component_pkey_oaep_params_t *ptr);
+
+void openssl_component_pkey_rsa_padding_free(openssl_component_pkey_rsa_padding_t *ptr);
+
+void openssl_component_pkey_pkey_error_free(openssl_component_pkey_pkey_error_t *ptr);
+
+void ssl_import_option_u64_free(ssl_import_option_u64_t *ptr);
+
+void openssl_component_pkey_rsa_keygen_free(openssl_component_pkey_rsa_keygen_t *ptr);
+
+void openssl_component_pkey_keygen_params_free(openssl_component_pkey_keygen_params_t *ptr);
+
 void ssl_import_option_list_u8_free(ssl_import_option_list_u8_t *ptr);
 
-void tegmentum_tls_context_client_config_free(tegmentum_tls_context_client_config_t *ptr);
+void openssl_component_pkey_load_options_free(openssl_component_pkey_load_options_t *ptr);
 
-void tegmentum_tls_context_tls_error_free(tegmentum_tls_context_tls_error_t *ptr);
+void openssl_component_pkey_save_options_free(openssl_component_pkey_save_options_t *ptr);
 
-void tegmentum_tls_context_result_u64_tls_error_free(tegmentum_tls_context_result_u64_tls_error_t *ptr);
+extern void openssl_component_pkey_pkey_drop_own(openssl_component_pkey_own_pkey_t handle);
 
-void tegmentum_tls_context_result_list_u8_tls_error_free(tegmentum_tls_context_result_list_u8_tls_error_t *ptr);
+extern void openssl_component_pkey_pkey_drop_borrow(openssl_component_pkey_borrow_pkey_t handle);
 
-void tegmentum_tls_context_result_void_tls_error_free(tegmentum_tls_context_result_void_tls_error_t *ptr);
+extern openssl_component_pkey_borrow_pkey_t openssl_component_pkey_borrow_pkey(openssl_component_pkey_own_pkey_t handle);
 
-void ssl_import_list_list_u8_free(ssl_import_list_list_u8_t *ptr);
+void openssl_component_pkey_result_own_pkey_pkey_error_free(openssl_component_pkey_result_own_pkey_pkey_error_t *ptr);
 
-void tegmentum_tls_context_option_cipher_info_free(tegmentum_tls_context_option_cipher_info_t *ptr);
+void openssl_component_pkey_result_list_u8_pkey_error_free(openssl_component_pkey_result_list_u8_pkey_error_t *ptr);
+
+void openssl_component_pkey_option_rsa_padding_free(openssl_component_pkey_option_rsa_padding_t *ptr);
+
+void openssl_component_pkey_option_hash_free(openssl_component_pkey_option_hash_t *ptr);
+
+void openssl_component_pkey_result_bool_pkey_error_free(openssl_component_pkey_result_bool_pkey_error_t *ptr);
+
+void openssl_component_x509_x509_error_free(openssl_component_x509_x509_error_t *ptr);
+
+void openssl_component_x509_name_entry_free(openssl_component_x509_name_entry_t *ptr);
+
+void openssl_component_x509_name_free(openssl_component_x509_name_t *ptr);
+
+void openssl_component_x509_timestamp_free(openssl_component_x509_timestamp_t *ptr);
+
+void openssl_component_x509_validity_free(openssl_component_x509_validity_t *ptr);
+
+void openssl_component_x509_general_name_free(openssl_component_x509_general_name_t *ptr);
+
+void openssl_component_x509_basic_constraints_free(openssl_component_x509_basic_constraints_t *ptr);
+
+void openssl_component_x509_list_general_name_free(openssl_component_x509_list_general_name_t *ptr);
+
+void openssl_component_x509_option_basic_constraints_free(openssl_component_x509_option_basic_constraints_t *ptr);
+
+void openssl_component_x509_option_key_usage_free(openssl_component_x509_option_key_usage_t *ptr);
+
+void openssl_component_x509_list_extended_key_usage_free(openssl_component_x509_list_extended_key_usage_t *ptr);
+
+void openssl_component_x509_certificate_info_free(openssl_component_x509_certificate_info_t *ptr);
+
+void openssl_component_x509_csr_info_free(openssl_component_x509_csr_info_t *ptr);
+
+extern void openssl_component_x509_certificate_drop_own(openssl_component_x509_own_certificate_t handle);
+
+extern void openssl_component_x509_certificate_drop_borrow(openssl_component_x509_borrow_certificate_t handle);
+
+extern openssl_component_x509_borrow_certificate_t openssl_component_x509_borrow_certificate(openssl_component_x509_own_certificate_t handle);
+
+void openssl_component_x509_certificate_builder_input_free(openssl_component_x509_certificate_builder_input_t *ptr);
+
+extern void openssl_component_x509_csr_drop_own(openssl_component_x509_own_csr_t handle);
+
+extern void openssl_component_x509_csr_drop_borrow(openssl_component_x509_borrow_csr_t handle);
+
+extern openssl_component_x509_borrow_csr_t openssl_component_x509_borrow_csr(openssl_component_x509_own_csr_t handle);
+
+void openssl_component_x509_revoked_entry_free(openssl_component_x509_revoked_entry_t *ptr);
+
+void ssl_import_option_timestamp_free(ssl_import_option_timestamp_t *ptr);
+
+void openssl_component_x509_list_revoked_entry_free(openssl_component_x509_list_revoked_entry_t *ptr);
+
+void openssl_component_x509_crl_info_free(openssl_component_x509_crl_info_t *ptr);
+
+extern void openssl_component_x509_crl_drop_own(openssl_component_x509_own_crl_t handle);
+
+extern void openssl_component_x509_crl_drop_borrow(openssl_component_x509_borrow_crl_t handle);
+
+extern openssl_component_x509_borrow_crl_t openssl_component_x509_borrow_crl(openssl_component_x509_own_crl_t handle);
+
+void openssl_component_x509_option_extended_key_usage_free(openssl_component_x509_option_extended_key_usage_t *ptr);
+
+void openssl_component_x509_verify_options_free(openssl_component_x509_verify_options_t *ptr);
+
+extern void openssl_component_x509_store_drop_own(openssl_component_x509_own_store_t handle);
+
+extern void openssl_component_x509_store_drop_borrow(openssl_component_x509_borrow_store_t handle);
+
+extern openssl_component_x509_borrow_store_t openssl_component_x509_borrow_store(openssl_component_x509_own_store_t handle);
+
+void openssl_component_x509_option_own_pkey_free(openssl_component_x509_option_own_pkey_t *ptr);
+
+void openssl_component_x509_option_own_certificate_free(openssl_component_x509_option_own_certificate_t *ptr);
+
+void openssl_component_x509_list_own_certificate_free(openssl_component_x509_list_own_certificate_t *ptr);
+
+void openssl_component_x509_pkcs12_contents_free(openssl_component_x509_pkcs12_contents_t *ptr);
+
+void openssl_component_x509_pkcs12_build_input_free(openssl_component_x509_pkcs12_build_input_t *ptr);
+
+void openssl_component_x509_result_own_certificate_x509_error_free(openssl_component_x509_result_own_certificate_x509_error_t *ptr);
+
+void openssl_component_x509_result_list_own_certificate_x509_error_free(openssl_component_x509_result_list_own_certificate_x509_error_t *ptr);
+
+void openssl_component_x509_result_list_u8_x509_error_free(openssl_component_x509_result_list_u8_x509_error_t *ptr);
+
+void openssl_component_x509_result_bool_x509_error_free(openssl_component_x509_result_bool_x509_error_t *ptr);
+
+void openssl_component_x509_result_own_csr_x509_error_free(openssl_component_x509_result_own_csr_x509_error_t *ptr);
+
+void openssl_component_x509_result_own_crl_x509_error_free(openssl_component_x509_result_own_crl_x509_error_t *ptr);
+
+void openssl_component_x509_result_void_x509_error_free(openssl_component_x509_result_void_x509_error_t *ptr);
+
+void openssl_component_x509_list_borrow_certificate_free(openssl_component_x509_list_borrow_certificate_t *ptr);
+
+void openssl_component_x509_result_pkcs12_contents_x509_error_free(openssl_component_x509_result_pkcs12_contents_x509_error_t *ptr);
+
+void openssl_component_x509_result_option_list_u8_x509_error_free(openssl_component_x509_result_option_list_u8_x509_error_t *ptr);
+
+void openssl_component_tls_verify_options_free(openssl_component_tls_verify_options_t *ptr);
+
+void openssl_component_tls_cipher_preferences_free(openssl_component_tls_cipher_preferences_t *ptr);
+
+void ssl_import_list_string_free(ssl_import_list_string_t *ptr);
+
+void openssl_component_tls_alpn_offer_free(openssl_component_tls_alpn_offer_t *ptr);
+
+void openssl_component_tls_verify_failure_free(openssl_component_tls_verify_failure_t *ptr);
+
+void openssl_component_tls_tls_error_free(openssl_component_tls_tls_error_t *ptr);
+
+void openssl_component_tls_option_own_store_free(openssl_component_tls_option_own_store_t *ptr);
+
+void openssl_component_tls_option_verify_options_free(openssl_component_tls_option_verify_options_t *ptr);
+
+void openssl_component_tls_option_own_certificate_free(openssl_component_tls_option_own_certificate_t *ptr);
+
+void openssl_component_tls_option_own_pkey_free(openssl_component_tls_option_own_pkey_t *ptr);
+
+void openssl_component_tls_option_alpn_offer_free(openssl_component_tls_option_alpn_offer_t *ptr);
+
+void openssl_component_tls_option_cipher_preferences_free(openssl_component_tls_option_cipher_preferences_t *ptr);
+
+void openssl_component_tls_client_config_free(openssl_component_tls_client_config_t *ptr);
+
+void openssl_component_tls_list_own_certificate_free(openssl_component_tls_list_own_certificate_t *ptr);
+
+void openssl_component_tls_sni_binding_free(openssl_component_tls_sni_binding_t *ptr);
+
+void openssl_component_tls_list_sni_binding_free(openssl_component_tls_list_sni_binding_t *ptr);
+
+void openssl_component_tls_server_config_free(openssl_component_tls_server_config_t *ptr);
+
+void openssl_component_tls_peer_info_free(openssl_component_tls_peer_info_t *ptr);
+
+extern void openssl_component_tls_client_drop_own(openssl_component_tls_own_client_t handle);
+
+extern void openssl_component_tls_client_drop_borrow(openssl_component_tls_borrow_client_t handle);
+
+extern openssl_component_tls_borrow_client_t openssl_component_tls_borrow_client(openssl_component_tls_own_client_t handle);
+
+extern void openssl_component_tls_server_listener_drop_own(openssl_component_tls_own_server_listener_t handle);
+
+extern void openssl_component_tls_server_listener_drop_borrow(openssl_component_tls_borrow_server_listener_t handle);
+
+extern openssl_component_tls_borrow_server_listener_t openssl_component_tls_borrow_server_listener(openssl_component_tls_own_server_listener_t handle);
+
+extern void openssl_component_tls_server_drop_own(openssl_component_tls_own_server_t handle);
+
+extern void openssl_component_tls_server_drop_borrow(openssl_component_tls_borrow_server_t handle);
+
+extern openssl_component_tls_borrow_server_t openssl_component_tls_borrow_server(openssl_component_tls_own_server_t handle);
+
+void openssl_component_tls_result_own_client_tls_error_free(openssl_component_tls_result_own_client_tls_error_t *ptr);
+
+void openssl_component_tls_result_u32_tls_error_free(openssl_component_tls_result_u32_tls_error_t *ptr);
+
+void openssl_component_tls_result_list_u8_tls_error_free(openssl_component_tls_result_list_u8_tls_error_t *ptr);
+
+void openssl_component_tls_result_own_server_listener_tls_error_free(openssl_component_tls_result_own_server_listener_tls_error_t *ptr);
+
+void openssl_component_tls_result_own_server_tls_error_free(openssl_component_tls_result_own_server_tls_error_t *ptr);
 
 // Sets the string `ret` to reference the input string `s` without copying it
 void ssl_import_string_set(ssl_import_string_t *ret, const char*s);

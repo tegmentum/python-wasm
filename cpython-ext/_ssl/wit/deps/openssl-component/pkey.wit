@@ -1,0 +1,223 @@
+package openssl:component@0.1.0;
+
+// Asymmetric keys (EVP_PKEY): keygen, sign/verify, encrypt/decrypt, key
+// agreement. Covers RSA, ECDSA/ECDH, EdDSA, X25519/X448, DH.
+
+interface pkey {
+    use error.{code};
+    use digest.{algorithm as hash};
+
+    enum curve {
+        p192,
+        p224,
+        p256,
+        p384,
+        p521,
+        secp256k1,
+        brainpool-p256r1,
+        brainpool-p384r1,
+        brainpool-p512r1,
+        sm2,
+    }
+
+    enum edwards-curve {
+        ed25519,
+        ed448,
+    }
+
+    enum montgomery-curve {
+        x25519,
+        x448,
+    }
+
+    variant key-type {
+        rsa,
+        rsa-pss,
+        ec(curve),
+        ed(edwards-curve),
+        x(montgomery-curve),
+        dh,
+    }
+
+    enum encoding {
+        pem,
+        der,
+    }
+
+    enum key-format {
+        /// PKCS#1 / SEC1 — algorithm-specific private-key encoding.
+        traditional,
+        /// PKCS#8 — algorithm-agnostic private-key encoding.
+        pkcs8,
+        /// SubjectPublicKeyInfo.
+        spki,
+    }
+
+    variant rsa-padding {
+        pkcs1,
+        pkcs1-oaep(oaep-params),
+        pkcs1-pss(pss-params),
+        no-padding,
+    }
+
+    record oaep-params {
+        hash: hash,
+        mgf1-hash: hash,
+        label: list<u8>,
+    }
+
+    record pss-params {
+        hash: hash,
+        mgf1-hash: hash,
+        /// -1 = RSA_PSS_SALTLEN_DIGEST, -2 = RSA_PSS_SALTLEN_MAX.
+        salt-len: s32,
+    }
+
+    variant pkey-error {
+        unsupported-type,
+        bad-encoding,
+        bad-passphrase,
+        unsupported-curve,
+        invalid-signature,
+        bad-key-size,
+        decrypt-failed,
+        encrypt-failed,
+        sign-failed,
+        verify-failed,
+        derive-failed,
+        keygen-failed,
+        internal(code),
+    }
+
+    record rsa-keygen {
+        /// Modulus size in bits (typically 2048, 3072, 4096).
+        bits: u32,
+        /// Public exponent; defaults to 65537 if none.
+        public-exponent: option<u64>,
+    }
+
+    record dh-keygen {
+        /// Prime size in bits.
+        prime-bits: u32,
+        /// Generator (usually 2).
+        generator: u32,
+    }
+
+    /// Standardized DH groups. These are the safe primes every real
+    /// deployment uses (TLS FFDHE per RFC 7919, IPsec MODP per RFC 3526);
+    /// use these whenever possible because fresh prime generation is
+    /// both slow (>2 min per call on wasm) and a security footgun if
+    /// the caller forgets to demand a safe prime.
+    enum dh-group {
+        /// RFC 7919 — TLS finite-field DH groups.
+        ffdhe2048,
+        ffdhe3072,
+        ffdhe4096,
+        ffdhe6144,
+        ffdhe8192,
+        /// RFC 3526 — IKE/IPsec MODP groups.
+        modp2048,
+        modp3072,
+        modp4096,
+        modp6144,
+        modp8192,
+    }
+
+    variant keygen-params {
+        rsa(rsa-keygen),
+        rsa-pss(rsa-keygen),
+        ec(curve),
+        ed(edwards-curve),
+        x(montgomery-curve),
+        dh(dh-keygen),
+        /// Generate a DH keypair in a standardized group. Orders of
+        /// magnitude faster than `dh` — no prime search, just scalar
+        /// multiplication.
+        dh-named(dh-group),
+    }
+
+    record load-options {
+        format: key-format,
+        encoding: encoding,
+        passphrase: option<list<u8>>,
+    }
+
+    record save-options {
+        format: key-format,
+        encoding: encoding,
+        /// If set, output is encrypted with PBES2 (PKCS#8 only).
+        passphrase: option<list<u8>>,
+    }
+
+    resource pkey {
+        /// Generate a new keypair.
+        generate: static func(params: keygen-params) -> result<pkey, pkey-error>;
+
+        /// Load a private key from encoded bytes.
+        load-private: static func(bytes: list<u8>, opts: load-options)
+            -> result<pkey, pkey-error>;
+        /// Load a public key from encoded bytes.
+        load-public: static func(bytes: list<u8>, opts: load-options)
+            -> result<pkey, pkey-error>;
+
+        /// Import raw material (e.g. Ed25519 seed, X25519 scalar).
+        from-raw-private: static func(kind: key-type, bytes: list<u8>)
+            -> result<pkey, pkey-error>;
+        from-raw-public: static func(kind: key-type, bytes: list<u8>)
+            -> result<pkey, pkey-error>;
+
+        /// Key metadata.
+        kind: func() -> key-type;
+        bits: func() -> u32;
+        security-bits: func() -> u32;
+        has-private: func() -> bool;
+
+        /// Export.
+        save-private: func(opts: save-options) -> result<list<u8>, pkey-error>;
+        save-public: func(opts: save-options) -> result<list<u8>, pkey-error>;
+        raw-private: func() -> result<list<u8>, pkey-error>;
+        raw-public: func() -> result<list<u8>, pkey-error>;
+
+        /// Sign a pre-hashed digest (RSA/ECDSA).
+        sign-digest: func(
+            hash: hash,
+            digest: list<u8>,
+            padding: option<rsa-padding>,
+        ) -> result<list<u8>, pkey-error>;
+
+        /// Sign an arbitrary message (required for Ed25519/Ed448).
+        sign-message: func(
+            hash: option<hash>,
+            message: list<u8>,
+            padding: option<rsa-padding>,
+        ) -> result<list<u8>, pkey-error>;
+
+        verify-digest: func(
+            hash: hash,
+            digest: list<u8>,
+            signature: list<u8>,
+            padding: option<rsa-padding>,
+        ) -> result<bool, pkey-error>;
+
+        verify-message: func(
+            hash: option<hash>,
+            message: list<u8>,
+            signature: list<u8>,
+            padding: option<rsa-padding>,
+        ) -> result<bool, pkey-error>;
+
+        /// RSA encryption (public key operation).
+        encrypt: func(padding: rsa-padding, plaintext: list<u8>)
+            -> result<list<u8>, pkey-error>;
+        /// RSA decryption (private key operation).
+        decrypt: func(padding: rsa-padding, ciphertext: list<u8>)
+            -> result<list<u8>, pkey-error>;
+
+        /// Derive a shared secret. `peer` must be a public key of a
+        /// compatible type (ECDH / X25519 / X448 / DH).
+        derive: func(peer: borrow<pkey>) -> result<list<u8>, pkey-error>;
+
+        /// Deep clone.
+        clone: func() -> pkey;
+    }
+}

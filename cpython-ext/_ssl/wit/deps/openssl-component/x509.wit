@@ -1,0 +1,289 @@
+package openssl:component@0.1.0;
+
+// X.509 certificates, CSRs, CRLs, stores, and path validation.
+
+interface x509 {
+    use error.{code};
+    use digest.{algorithm as hash};
+    use pkey.{pkey, encoding};
+
+    variant x509-error {
+        parse-failed,
+        encoding-failed,
+        sign-failed,
+        verify-failed,
+        bad-name,
+        bad-extension,
+        key-mismatch,
+        expired,
+        not-yet-valid,
+        unknown-issuer,
+        untrusted,
+        revoked,
+        chain-too-long,
+        self-signed-in-chain,
+        hostname-mismatch,
+        internal(code),
+    }
+
+    /// A distinguished name as a list of RDN components.
+    record name-entry {
+        /// OID or short name (e.g. "CN", "O", "C", "emailAddress").
+        oid: string,
+        value: string,
+    }
+
+    type name = list<name-entry>;
+
+    /// ISO 8601 UTC timestamp (e.g. "2030-01-01T00:00:00Z").
+    type timestamp = string;
+
+    record validity {
+        not-before: timestamp,
+        not-after: timestamp,
+    }
+
+    variant general-name {
+        dns(string),
+        email(string),
+        uri(string),
+        ip(list<u8>),
+        /// Raw DER for unrecognized / uncommon types.
+        other(list<u8>),
+    }
+
+    flags key-usage {
+        digital-signature,
+        non-repudiation,
+        key-encipherment,
+        data-encipherment,
+        key-agreement,
+        key-cert-sign,
+        crl-sign,
+        encipher-only,
+        decipher-only,
+    }
+
+    enum extended-key-usage {
+        server-auth,
+        client-auth,
+        code-signing,
+        email-protection,
+        time-stamping,
+        ocsp-signing,
+        any,
+    }
+
+    record basic-constraints {
+        is-ca: bool,
+        path-len: option<u32>,
+    }
+
+    record certificate-info {
+        version: u32,
+        serial-hex: string,
+        issuer: name,
+        subject: name,
+        validity: validity,
+        signature-algorithm: string,
+        subject-alt-names: list<general-name>,
+        issuer-alt-names: list<general-name>,
+        basic-constraints: option<basic-constraints>,
+        key-usage: option<key-usage>,
+        extended-key-usage: list<extended-key-usage>,
+        /// SHA-256 fingerprint of the DER encoding.
+        fingerprint-sha256: list<u8>,
+    }
+
+    record csr-info {
+        subject: name,
+        subject-alt-names: list<general-name>,
+    }
+
+    resource certificate {
+        /// Parse a single certificate (PEM or DER).
+        parse: static func(bytes: list<u8>, enc: encoding)
+            -> result<certificate, x509-error>;
+        /// Parse a chain (PEM bundle only).
+        parse-chain: static func(pem: list<u8>)
+            -> result<list<certificate>, x509-error>;
+
+        encode: func(enc: encoding) -> result<list<u8>, x509-error>;
+
+        info: func() -> certificate-info;
+        public-key: func() -> pkey;
+
+        /// Verify signature against an alleged issuer's public key.
+        /// Does NOT perform full chain validation — use `store`.
+        verify-signature: func(issuer: borrow<pkey>) -> result<bool, x509-error>;
+
+        /// SHA-256 fingerprint of the DER encoding.
+        fingerprint: func(alg: hash) -> list<u8>;
+
+        clone: func() -> certificate;
+    }
+
+    record certificate-builder-input {
+        subject: name,
+        issuer: name,
+        serial-hex: option<string>,
+        validity: validity,
+        subject-alt-names: list<general-name>,
+        key-usage: option<key-usage>,
+        extended-key-usage: list<extended-key-usage>,
+        basic-constraints: option<basic-constraints>,
+        /// Subject public key to certify.
+        subject-key: pkey,
+        /// Digest used to produce the signature.
+        signature-hash: hash,
+    }
+
+    /// Build and sign a certificate with the given signer key.
+    build-and-sign: func(
+        input: certificate-builder-input,
+        signer: borrow<pkey>,
+    ) -> result<certificate, x509-error>;
+
+    // CSRs -----------------------------------------------------------------
+
+    resource csr {
+        parse: static func(bytes: list<u8>, enc: encoding)
+            -> result<csr, x509-error>;
+        encode: func(enc: encoding) -> result<list<u8>, x509-error>;
+        info: func() -> csr-info;
+        public-key: func() -> pkey;
+        verify-signature: func() -> result<bool, x509-error>;
+
+        build-and-sign: static func(
+            info: csr-info,
+            key: borrow<pkey>,
+            signature-hash: hash,
+        ) -> result<csr, x509-error>;
+    }
+
+    // CRLs -----------------------------------------------------------------
+
+    record revoked-entry {
+        serial-hex: string,
+        revocation-date: timestamp,
+        reason: option<string>,
+    }
+
+    record crl-info {
+        issuer: name,
+        this-update: timestamp,
+        next-update: option<timestamp>,
+        revoked: list<revoked-entry>,
+    }
+
+    resource crl {
+        parse: static func(bytes: list<u8>, enc: encoding)
+            -> result<crl, x509-error>;
+        encode: func(enc: encoding) -> result<list<u8>, x509-error>;
+        info: func() -> crl-info;
+        verify-signature: func(issuer: borrow<pkey>) -> result<bool, x509-error>;
+        is-revoked: func(serial-hex: string) -> bool;
+    }
+
+    // Store / path validation ---------------------------------------------
+
+    record verify-options {
+        /// Hostname to match against subject/SAN during validation.
+        hostname: option<string>,
+        /// IP to match against iPAddress SAN.
+        ip: option<string>,
+        /// Purpose (constrains EKU checks).
+        purpose: option<extended-key-usage>,
+        /// Validation time (defaults to now).
+        at: option<timestamp>,
+        /// Partial-chain permitted? (treat trusted intermediates as anchors)
+        partial-chain: bool,
+        /// Allow usage of a CRL if provided.
+        crl-check: bool,
+        /// Require CRL check for every cert in the chain.
+        crl-check-all: bool,
+    }
+
+    resource store {
+        constructor();
+        /// Treat `cert` as a trust anchor.
+        add-trusted: func(cert: borrow<certificate>) -> result<_, x509-error>;
+        /// Add an intermediate certificate for chain building.
+        add-untrusted: func(cert: borrow<certificate>) -> result<_, x509-error>;
+        /// Load system default trust roots (if any are available to the
+        /// component via preopened dirs — see README).
+        load-defaults: func() -> result<_, x509-error>;
+        /// Load a PEM bundle from a preopened filesystem path.
+        load-from-file: func(path: string) -> result<_, x509-error>;
+        /// Add a CRL.
+        add-crl: func(crl: borrow<crl>) -> result<_, x509-error>;
+    }
+
+    /// Build and verify a chain for `leaf` against the store. Returns the
+    /// validated chain on success (leaf first, anchor last).
+    verify-chain: func(
+        store: borrow<store>,
+        leaf: borrow<certificate>,
+        extra-intermediates: list<borrow<certificate>>,
+        opts: verify-options,
+    ) -> result<list<certificate>, x509-error>;
+
+    // PKCS#12 --------------------------------------------------------------
+
+    record pkcs12-contents {
+        key: option<pkey>,
+        cert: option<certificate>,
+        extra-certs: list<certificate>,
+    }
+
+    record pkcs12-build-input {
+        friendly-name: option<string>,
+        key: pkey,
+        cert: certificate,
+        extra-certs: list<certificate>,
+        /// Passphrase encrypting the key bag.
+        passphrase: list<u8>,
+    }
+
+    pkcs12-parse: func(bytes: list<u8>, passphrase: list<u8>)
+        -> result<pkcs12-contents, x509-error>;
+
+    pkcs12-build: func(input: pkcs12-build-input) -> result<list<u8>, x509-error>;
+
+    // PKCS#7 / CMS ---------------------------------------------------------
+
+    /// Sign arbitrary content producing a detached or attached CMS SignedData.
+    cms-sign: func(
+        content: list<u8>,
+        signer: borrow<pkey>,
+        cert: borrow<certificate>,
+        intermediates: list<borrow<certificate>>,
+        detached: bool,
+        enc: encoding,
+    ) -> result<list<u8>, x509-error>;
+
+    /// Verify a CMS SignedData. Returns recovered content if attached.
+    cms-verify: func(
+        cms: list<u8>,
+        store: borrow<store>,
+        /// Required when `cms` is a detached signature.
+        detached-content: option<list<u8>>,
+        enc: encoding,
+    ) -> result<option<list<u8>>, x509-error>;
+
+    /// Encrypt content for a set of recipients.
+    cms-encrypt: func(
+        content: list<u8>,
+        recipients: list<borrow<certificate>>,
+        /// Bulk cipher (e.g. `aes-256-gcm`).
+        cipher: string,
+        enc: encoding,
+    ) -> result<list<u8>, x509-error>;
+
+    cms-decrypt: func(
+        cms: list<u8>,
+        recipient: borrow<pkey>,
+        recipient-cert: borrow<certificate>,
+        enc: encoding,
+    ) -> result<list<u8>, x509-error>;
+}

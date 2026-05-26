@@ -1,8 +1,16 @@
 package tegmentum:python-ssl@0.1.0;
 
-/// Companion WIT for CPython's `_ssl` extension. The C extension imports
-/// `context` (client side) from tegmentum:tls; composectl/wac wires it to
-/// tls-wasm at compose time. Server import will be added in v1.1.
+/// Companion WIT for CPython's `_ssl` extension. Imports openssl:component/tls
+/// (Phase 3a pivot: consume openssl-wasm's existing TLS interface directly,
+/// rather than build a separate tegmentum:tls component).
+///
+/// The full openssl-wasm WIT (vendored under wit/deps/openssl-component/)
+/// also brings in x509 and pkey, which we need for client-cert (mTLS) and
+/// for building the trust store from PEM root CAs. error is brought in
+/// because tls.tls-error.internal carries an error.code.
 world ssl-import {
-    import tegmentum:tls/context@0.1.0;
+    import openssl:component/tls@0.1.0;
+    import openssl:component/x509@0.1.0;
+    import openssl:component/pkey@0.1.0;
+    import openssl:component/error@0.1.0;
 }

@@ -1,0 +1,22 @@
+package openssl:component@0.1.0;
+
+// World definition for the openssl component.
+//
+// Only exports are declared. WASI imports (wasi:io, wasi:sockets,
+// wasi:clocks, wasi:filesystem, wasi:random) are discovered from the
+// core module at `wasm-tools component new` time, so they do not need
+// to appear here. Host-side, `wasmtime_wasi::add_to_linker_async`
+// provides them.
+
+world openssl {
+    export error;
+    export random;
+    export bignum;
+    export digest;
+    export mac;
+    export cipher;
+    export kdf;
+    export pkey;
+    export x509;
+    export tls;
+}

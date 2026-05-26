@@ -1,0 +1,23 @@
+package openssl:component@0.1.0;
+
+// Cryptographically secure random bytes, backed by OpenSSL's DRBG
+// (itself seeded from wasi:random via getentropy).
+
+interface random {
+    use error.{code};
+
+    variant random-error {
+        drbg-failure(code),
+        out-of-memory,
+    }
+
+    /// Public (non-sensitive) random bytes.
+    bytes: func(n: u32) -> result<list<u8>, random-error>;
+
+    /// Private random bytes — drawn from the private DRBG instance.
+    /// Use for key material.
+    private-bytes: func(n: u32) -> result<list<u8>, random-error>;
+
+    /// Add caller-supplied entropy to the DRBG pool.
+    add-seed: func(material: list<u8>, entropy-bits: f64);
+}

@@ -3,55 +3,270 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Imported Functions from `tegmentum:tls/context@0.1.0`
+// Imported Functions from `openssl:component/error@0.1.0`
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[constructor]client")))
-extern int32_t __wasm_import_tegmentum_tls_context_constructor_client(uint8_t *);
+__attribute__((__import_module__("openssl:component/error@0.1.0"), __import_name__("pop-error")))
+extern void __wasm_import_openssl_component_error_pop_error(uint8_t *);
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[method]client.push-tls-input")))
-extern void __wasm_import_tegmentum_tls_context_method_client_push_tls_input(int32_t, uint8_t *, size_t, uint8_t *);
+__attribute__((__import_module__("openssl:component/error@0.1.0"), __import_name__("clear-errors")))
+extern void __wasm_import_openssl_component_error_clear_errors(void);
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[method]client.pull-tls-output")))
-extern void __wasm_import_tegmentum_tls_context_method_client_pull_tls_output(int32_t, int64_t, uint8_t *);
+__attribute__((__import_module__("openssl:component/error@0.1.0"), __import_name__("drain-errors")))
+extern void __wasm_import_openssl_component_error_drain_errors(uint8_t *);
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[method]client.write-plaintext")))
-extern void __wasm_import_tegmentum_tls_context_method_client_write_plaintext(int32_t, uint8_t *, size_t, uint8_t *);
+__attribute__((__import_module__("openssl:component/error@0.1.0"), __import_name__("describe")))
+extern void __wasm_import_openssl_component_error_describe(int64_t, uint8_t *);
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[method]client.read-plaintext")))
-extern void __wasm_import_tegmentum_tls_context_method_client_read_plaintext(int32_t, int64_t, uint8_t *);
+// Imported Functions from `openssl:component/digest@0.1.0`
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[method]client.pending")))
-extern int64_t __wasm_import_tegmentum_tls_context_method_client_pending(int32_t);
+__attribute__((__import_module__("openssl:component/digest@0.1.0"), __import_name__("one-shot")))
+extern void __wasm_import_openssl_component_digest_one_shot(int32_t, uint8_t *, size_t, uint8_t *);
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[method]client.state")))
-extern int32_t __wasm_import_tegmentum_tls_context_method_client_state(int32_t);
+__attribute__((__import_module__("openssl:component/digest@0.1.0"), __import_name__("one-shot-xof")))
+extern void __wasm_import_openssl_component_digest_one_shot_xof(int32_t, uint8_t *, size_t, int32_t, uint8_t *);
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[method]client.handshake-complete")))
-extern int32_t __wasm_import_tegmentum_tls_context_method_client_handshake_complete(int32_t);
+__attribute__((__import_module__("openssl:component/digest@0.1.0"), __import_name__("output-size")))
+extern void __wasm_import_openssl_component_digest_output_size(int32_t, uint8_t *);
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[method]client.close-notify")))
-extern void __wasm_import_tegmentum_tls_context_method_client_close_notify(int32_t, uint8_t *);
+__attribute__((__import_module__("openssl:component/digest@0.1.0"), __import_name__("block-size")))
+extern void __wasm_import_openssl_component_digest_block_size(int32_t, uint8_t *);
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[method]client.peer-cert-der")))
-extern void __wasm_import_tegmentum_tls_context_method_client_peer_cert_der(int32_t, uint8_t *);
+__attribute__((__import_module__("openssl:component/digest@0.1.0"), __import_name__("[constructor]context")))
+extern int32_t __wasm_import_openssl_component_digest_constructor_context(int32_t);
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[method]client.get-unverified-chain")))
-extern void __wasm_import_tegmentum_tls_context_method_client_get_unverified_chain(int32_t, uint8_t *);
+__attribute__((__import_module__("openssl:component/digest@0.1.0"), __import_name__("[method]context.update")))
+extern void __wasm_import_openssl_component_digest_method_context_update(int32_t, uint8_t *, size_t, uint8_t *);
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[method]client.get-verified-chain")))
-extern void __wasm_import_tegmentum_tls_context_method_client_get_verified_chain(int32_t, uint8_t *);
+__attribute__((__import_module__("openssl:component/digest@0.1.0"), __import_name__("[static]context.finish")))
+extern void __wasm_import_openssl_component_digest_static_context_finish(int32_t, uint8_t *);
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[method]client.cipher")))
-extern void __wasm_import_tegmentum_tls_context_method_client_cipher(int32_t, uint8_t *);
+__attribute__((__import_module__("openssl:component/digest@0.1.0"), __import_name__("[static]context.finish-xof")))
+extern void __wasm_import_openssl_component_digest_static_context_finish_xof(int32_t, int32_t, uint8_t *);
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[method]client.channel-binding")))
-extern void __wasm_import_tegmentum_tls_context_method_client_channel_binding(int32_t, uint8_t *, size_t, uint8_t *);
+__attribute__((__import_module__("openssl:component/digest@0.1.0"), __import_name__("[method]context.clone")))
+extern int32_t __wasm_import_openssl_component_digest_method_context_clone(int32_t);
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[method]client.alpn-selected")))
-extern void __wasm_import_tegmentum_tls_context_method_client_alpn_selected(int32_t, uint8_t *);
+// Imported Functions from `openssl:component/pkey@0.1.0`
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[method]client.version")))
-extern void __wasm_import_tegmentum_tls_context_method_client_version(int32_t, uint8_t *);
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[static]pkey.generate")))
+extern void __wasm_import_openssl_component_pkey_static_pkey_generate(int32_t, int32_t, int32_t, int64_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[static]pkey.load-private")))
+extern void __wasm_import_openssl_component_pkey_static_pkey_load_private(uint8_t *, size_t, int32_t, int32_t, int32_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[static]pkey.load-public")))
+extern void __wasm_import_openssl_component_pkey_static_pkey_load_public(uint8_t *, size_t, int32_t, int32_t, int32_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[static]pkey.from-raw-private")))
+extern void __wasm_import_openssl_component_pkey_static_pkey_from_raw_private(int32_t, int32_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[static]pkey.from-raw-public")))
+extern void __wasm_import_openssl_component_pkey_static_pkey_from_raw_public(int32_t, int32_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[method]pkey.kind")))
+extern void __wasm_import_openssl_component_pkey_method_pkey_kind(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[method]pkey.bits")))
+extern int32_t __wasm_import_openssl_component_pkey_method_pkey_bits(int32_t);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[method]pkey.security-bits")))
+extern int32_t __wasm_import_openssl_component_pkey_method_pkey_security_bits(int32_t);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[method]pkey.has-private")))
+extern int32_t __wasm_import_openssl_component_pkey_method_pkey_has_private(int32_t);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[method]pkey.save-private")))
+extern void __wasm_import_openssl_component_pkey_method_pkey_save_private(int32_t, int32_t, int32_t, int32_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[method]pkey.save-public")))
+extern void __wasm_import_openssl_component_pkey_method_pkey_save_public(int32_t, int32_t, int32_t, int32_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[method]pkey.raw-private")))
+extern void __wasm_import_openssl_component_pkey_method_pkey_raw_private(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[method]pkey.raw-public")))
+extern void __wasm_import_openssl_component_pkey_method_pkey_raw_public(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[method]pkey.sign-digest")))
+extern void __wasm_import_openssl_component_pkey_method_pkey_sign_digest(int32_t, int32_t, uint8_t *, size_t, int32_t, int32_t, int32_t, int32_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[method]pkey.sign-message")))
+extern void __wasm_import_openssl_component_pkey_method_pkey_sign_message(int32_t, int32_t, int32_t, uint8_t *, size_t, int32_t, int32_t, int32_t, int32_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[method]pkey.verify-digest")))
+extern void __wasm_import_openssl_component_pkey_method_pkey_verify_digest(int32_t, int32_t, uint8_t *, size_t, uint8_t *, size_t, int32_t, int32_t, int32_t, int32_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[method]pkey.verify-message")))
+extern void __wasm_import_openssl_component_pkey_method_pkey_verify_message(int32_t, int32_t, int32_t, uint8_t *, size_t, uint8_t *, size_t, int32_t, int32_t, int32_t, int32_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[method]pkey.encrypt")))
+extern void __wasm_import_openssl_component_pkey_method_pkey_encrypt(int32_t, int32_t, int32_t, int32_t, uint8_t *, size_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[method]pkey.decrypt")))
+extern void __wasm_import_openssl_component_pkey_method_pkey_decrypt(int32_t, int32_t, int32_t, int32_t, uint8_t *, size_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[method]pkey.derive")))
+extern void __wasm_import_openssl_component_pkey_method_pkey_derive(int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[method]pkey.clone")))
+extern int32_t __wasm_import_openssl_component_pkey_method_pkey_clone(int32_t);
+
+// Imported Functions from `openssl:component/x509@0.1.0`
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[static]certificate.parse")))
+extern void __wasm_import_openssl_component_x509_static_certificate_parse(uint8_t *, size_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[static]certificate.parse-chain")))
+extern void __wasm_import_openssl_component_x509_static_certificate_parse_chain(uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]certificate.encode")))
+extern void __wasm_import_openssl_component_x509_method_certificate_encode(int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]certificate.info")))
+extern void __wasm_import_openssl_component_x509_method_certificate_info(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]certificate.public-key")))
+extern int32_t __wasm_import_openssl_component_x509_method_certificate_public_key(int32_t);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]certificate.verify-signature")))
+extern void __wasm_import_openssl_component_x509_method_certificate_verify_signature(int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]certificate.fingerprint")))
+extern void __wasm_import_openssl_component_x509_method_certificate_fingerprint(int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]certificate.clone")))
+extern int32_t __wasm_import_openssl_component_x509_method_certificate_clone(int32_t);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("build-and-sign")))
+extern void __wasm_import_openssl_component_x509_build_and_sign(uint8_t *, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[static]csr.parse")))
+extern void __wasm_import_openssl_component_x509_static_csr_parse(uint8_t *, size_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]csr.encode")))
+extern void __wasm_import_openssl_component_x509_method_csr_encode(int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]csr.info")))
+extern void __wasm_import_openssl_component_x509_method_csr_info(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]csr.public-key")))
+extern int32_t __wasm_import_openssl_component_x509_method_csr_public_key(int32_t);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]csr.verify-signature")))
+extern void __wasm_import_openssl_component_x509_method_csr_verify_signature(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[static]csr.build-and-sign")))
+extern void __wasm_import_openssl_component_x509_static_csr_build_and_sign(uint8_t *, size_t, uint8_t *, size_t, int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[static]crl.parse")))
+extern void __wasm_import_openssl_component_x509_static_crl_parse(uint8_t *, size_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]crl.encode")))
+extern void __wasm_import_openssl_component_x509_method_crl_encode(int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]crl.info")))
+extern void __wasm_import_openssl_component_x509_method_crl_info(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]crl.verify-signature")))
+extern void __wasm_import_openssl_component_x509_method_crl_verify_signature(int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]crl.is-revoked")))
+extern int32_t __wasm_import_openssl_component_x509_method_crl_is_revoked(int32_t, uint8_t *, size_t);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[constructor]store")))
+extern int32_t __wasm_import_openssl_component_x509_constructor_store(void);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]store.add-trusted")))
+extern void __wasm_import_openssl_component_x509_method_store_add_trusted(int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]store.add-untrusted")))
+extern void __wasm_import_openssl_component_x509_method_store_add_untrusted(int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]store.load-defaults")))
+extern void __wasm_import_openssl_component_x509_method_store_load_defaults(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]store.load-from-file")))
+extern void __wasm_import_openssl_component_x509_method_store_load_from_file(int32_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[method]store.add-crl")))
+extern void __wasm_import_openssl_component_x509_method_store_add_crl(int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("verify-chain")))
+extern void __wasm_import_openssl_component_x509_verify_chain(uint8_t *, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("pkcs12-parse")))
+extern void __wasm_import_openssl_component_x509_pkcs12_parse(uint8_t *, size_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("pkcs12-build")))
+extern void __wasm_import_openssl_component_x509_pkcs12_build(int32_t, uint8_t *, size_t, int32_t, int32_t, uint8_t *, size_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("cms-sign")))
+extern void __wasm_import_openssl_component_x509_cms_sign(uint8_t *, size_t, int32_t, int32_t, uint8_t *, size_t, int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("cms-verify")))
+extern void __wasm_import_openssl_component_x509_cms_verify(uint8_t *, size_t, int32_t, int32_t, uint8_t *, size_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("cms-encrypt")))
+extern void __wasm_import_openssl_component_x509_cms_encrypt(uint8_t *, size_t, uint8_t *, size_t, uint8_t *, size_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("cms-decrypt")))
+extern void __wasm_import_openssl_component_x509_cms_decrypt(uint8_t *, size_t, int32_t, int32_t, int32_t, uint8_t *);
+
+// Imported Functions from `openssl:component/tls@0.1.0`
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[static]client.connect")))
+extern void __wasm_import_openssl_component_tls_static_client_connect(uint8_t *, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]client.write")))
+extern void __wasm_import_openssl_component_tls_method_client_write(int32_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]client.read")))
+extern void __wasm_import_openssl_component_tls_method_client_read(int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]client.write-early")))
+extern void __wasm_import_openssl_component_tls_method_client_write_early(int32_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]client.early-data-accepted")))
+extern int32_t __wasm_import_openssl_component_tls_method_client_early_data_accepted(int32_t);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]client.peer")))
+extern void __wasm_import_openssl_component_tls_method_client_peer(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]client.session-ticket")))
+extern void __wasm_import_openssl_component_tls_method_client_session_ticket(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]client.drain-keylog")))
+extern void __wasm_import_openssl_component_tls_method_client_drain_keylog(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[static]client.close")))
+extern void __wasm_import_openssl_component_tls_static_client_close(int32_t);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[static]server-listener.bind")))
+extern void __wasm_import_openssl_component_tls_static_server_listener_bind(uint8_t *, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]server-listener.accept")))
+extern void __wasm_import_openssl_component_tls_method_server_listener_accept(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]server-listener.local-port")))
+extern int32_t __wasm_import_openssl_component_tls_method_server_listener_local_port(int32_t);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[static]server-listener.close")))
+extern void __wasm_import_openssl_component_tls_static_server_listener_close(int32_t);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]server.write")))
+extern void __wasm_import_openssl_component_tls_method_server_write(int32_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]server.read")))
+extern void __wasm_import_openssl_component_tls_method_server_read(int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]server.peer")))
+extern void __wasm_import_openssl_component_tls_method_server_peer(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]server.drain-keylog")))
+extern void __wasm_import_openssl_component_tls_method_server_drain_keylog(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[static]server.close")))
+extern void __wasm_import_openssl_component_tls_static_server_close(int32_t);
 
 // Canonical ABI intrinsics
 
@@ -66,24 +281,576 @@ void *cabi_realloc(void *ptr, size_t old_size, size_t align, size_t new_size) {
 
 // Helper Functions
 
-__attribute__((__import_module__("tegmentum:tls/context@0.1.0"), __import_name__("[resource-drop]client")))
-extern void __wasm_import_tegmentum_tls_context_client_drop(int32_t handle);
-
-void tegmentum_tls_context_client_drop_own(tegmentum_tls_context_own_client_t handle) {
-  __wasm_import_tegmentum_tls_context_client_drop(handle.__handle);
+void ssl_import_option_string_free(ssl_import_option_string_t *ptr) {
+  if (ptr->is_some) {
+    ssl_import_string_free(&ptr->val);
+  }
 }
 
-void tegmentum_tls_context_client_drop_borrow(tegmentum_tls_context_borrow_client_t handle) {
-  __wasm_import_tegmentum_tls_context_client_drop(handle.__handle);
+void ssl_import_option_u32_free(ssl_import_option_u32_t *ptr) {
+  if (ptr->is_some) {
+  }
 }
 
-tegmentum_tls_context_borrow_client_t tegmentum_tls_context_borrow_client(tegmentum_tls_context_own_client_t arg) {
-  return (tegmentum_tls_context_borrow_client_t) { arg.__handle };
+void openssl_component_error_error_info_free(openssl_component_error_error_info_t *ptr) {
+  ssl_import_string_free(&ptr->library);
+  ssl_import_string_free(&ptr->reason);
+  ssl_import_option_string_free(&ptr->file);
+  ssl_import_option_u32_free(&ptr->line);
+  ssl_import_option_string_free(&ptr->data);
 }
 
-void tegmentum_tls_context_cipher_info_free(tegmentum_tls_context_cipher_info_t *ptr) {
-  ssl_import_string_free(&ptr->name);
-  ssl_import_string_free(&ptr->version);
+void openssl_component_error_option_error_info_free(openssl_component_error_option_error_info_t *ptr) {
+  if (ptr->is_some) {
+    openssl_component_error_error_info_free(&ptr->val);
+  }
+}
+
+void openssl_component_error_list_error_info_free(openssl_component_error_list_error_info_t *ptr) {
+  size_t list_len = ptr->len;
+  if (list_len > 0) {
+    openssl_component_error_error_info_t *list_ptr = ptr->ptr;
+    for (size_t i = 0; i < list_len; i++) {
+      openssl_component_error_error_info_free(&list_ptr[i]);
+    }
+    free(list_ptr);
+  }
+}
+
+void openssl_component_digest_digest_error_free(openssl_component_digest_digest_error_t *ptr) {
+  switch ((int32_t) ptr->tag) {
+    case 2: {
+      break;
+    }
+  }
+}
+
+__attribute__((__import_module__("openssl:component/digest@0.1.0"), __import_name__("[resource-drop]context")))
+extern void __wasm_import_openssl_component_digest_context_drop(int32_t handle);
+
+void openssl_component_digest_context_drop_own(openssl_component_digest_own_context_t handle) {
+  __wasm_import_openssl_component_digest_context_drop(handle.__handle);
+}
+
+void openssl_component_digest_context_drop_borrow(openssl_component_digest_borrow_context_t handle) {
+  __wasm_import_openssl_component_digest_context_drop(handle.__handle);
+}
+
+openssl_component_digest_borrow_context_t openssl_component_digest_borrow_context(openssl_component_digest_own_context_t arg) {
+  return (openssl_component_digest_borrow_context_t) { arg.__handle };
+}
+
+void ssl_import_list_u8_free(ssl_import_list_u8_t *ptr) {
+  size_t list_len = ptr->len;
+  if (list_len > 0) {
+    uint8_t *list_ptr = ptr->ptr;
+    for (size_t i = 0; i < list_len; i++) {
+    }
+    free(list_ptr);
+  }
+}
+
+void openssl_component_digest_result_list_u8_digest_error_free(openssl_component_digest_result_list_u8_digest_error_t *ptr) {
+  if (!ptr->is_err) {
+    ssl_import_list_u8_free(&ptr->val.ok);
+  } else {
+    openssl_component_digest_digest_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_digest_result_u32_digest_error_free(openssl_component_digest_result_u32_digest_error_t *ptr) {
+  if (!ptr->is_err) {
+  } else {
+    openssl_component_digest_digest_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_digest_result_void_digest_error_free(openssl_component_digest_result_void_digest_error_t *ptr) {
+  if (!ptr->is_err) {
+  } else {
+    openssl_component_digest_digest_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_pkey_key_type_free(openssl_component_pkey_key_type_t *ptr) {
+  switch ((int32_t) ptr->tag) {
+    case 2: {
+      break;
+    }
+    case 3: {
+      break;
+    }
+    case 4: {
+      break;
+    }
+  }
+}
+
+void openssl_component_pkey_oaep_params_free(openssl_component_pkey_oaep_params_t *ptr) {
+  ssl_import_list_u8_free(&ptr->label);
+}
+
+void openssl_component_pkey_rsa_padding_free(openssl_component_pkey_rsa_padding_t *ptr) {
+  switch ((int32_t) ptr->tag) {
+    case 1: {
+      openssl_component_pkey_oaep_params_free(&ptr->val.pkcs1_oaep);
+      break;
+    }
+    case 2: {
+      break;
+    }
+  }
+}
+
+void openssl_component_pkey_pkey_error_free(openssl_component_pkey_pkey_error_t *ptr) {
+  switch ((int32_t) ptr->tag) {
+    case 12: {
+      break;
+    }
+  }
+}
+
+void ssl_import_option_u64_free(ssl_import_option_u64_t *ptr) {
+  if (ptr->is_some) {
+  }
+}
+
+void openssl_component_pkey_rsa_keygen_free(openssl_component_pkey_rsa_keygen_t *ptr) {
+  ssl_import_option_u64_free(&ptr->public_exponent);
+}
+
+void openssl_component_pkey_keygen_params_free(openssl_component_pkey_keygen_params_t *ptr) {
+  switch ((int32_t) ptr->tag) {
+    case 0: {
+      openssl_component_pkey_rsa_keygen_free(&ptr->val.rsa);
+      break;
+    }
+    case 1: {
+      openssl_component_pkey_rsa_keygen_free(&ptr->val.rsa_pss);
+      break;
+    }
+    case 2: {
+      break;
+    }
+    case 3: {
+      break;
+    }
+    case 4: {
+      break;
+    }
+    case 5: {
+      break;
+    }
+    case 6: {
+      break;
+    }
+  }
+}
+
+void ssl_import_option_list_u8_free(ssl_import_option_list_u8_t *ptr) {
+  if (ptr->is_some) {
+    ssl_import_list_u8_free(&ptr->val);
+  }
+}
+
+void openssl_component_pkey_load_options_free(openssl_component_pkey_load_options_t *ptr) {
+  ssl_import_option_list_u8_free(&ptr->passphrase);
+}
+
+void openssl_component_pkey_save_options_free(openssl_component_pkey_save_options_t *ptr) {
+  ssl_import_option_list_u8_free(&ptr->passphrase);
+}
+
+__attribute__((__import_module__("openssl:component/pkey@0.1.0"), __import_name__("[resource-drop]pkey")))
+extern void __wasm_import_openssl_component_pkey_pkey_drop(int32_t handle);
+
+void openssl_component_pkey_pkey_drop_own(openssl_component_pkey_own_pkey_t handle) {
+  __wasm_import_openssl_component_pkey_pkey_drop(handle.__handle);
+}
+
+void openssl_component_pkey_pkey_drop_borrow(openssl_component_pkey_borrow_pkey_t handle) {
+  __wasm_import_openssl_component_pkey_pkey_drop(handle.__handle);
+}
+
+openssl_component_pkey_borrow_pkey_t openssl_component_pkey_borrow_pkey(openssl_component_pkey_own_pkey_t arg) {
+  return (openssl_component_pkey_borrow_pkey_t) { arg.__handle };
+}
+
+void openssl_component_pkey_result_own_pkey_pkey_error_free(openssl_component_pkey_result_own_pkey_pkey_error_t *ptr) {
+  if (!ptr->is_err) {
+  } else {
+    openssl_component_pkey_pkey_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_pkey_result_list_u8_pkey_error_free(openssl_component_pkey_result_list_u8_pkey_error_t *ptr) {
+  if (!ptr->is_err) {
+    ssl_import_list_u8_free(&ptr->val.ok);
+  } else {
+    openssl_component_pkey_pkey_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_pkey_option_rsa_padding_free(openssl_component_pkey_option_rsa_padding_t *ptr) {
+  if (ptr->is_some) {
+    openssl_component_pkey_rsa_padding_free(&ptr->val);
+  }
+}
+
+void openssl_component_pkey_option_hash_free(openssl_component_pkey_option_hash_t *ptr) {
+  if (ptr->is_some) {
+  }
+}
+
+void openssl_component_pkey_result_bool_pkey_error_free(openssl_component_pkey_result_bool_pkey_error_t *ptr) {
+  if (!ptr->is_err) {
+  } else {
+    openssl_component_pkey_pkey_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_x509_x509_error_free(openssl_component_x509_x509_error_t *ptr) {
+  switch ((int32_t) ptr->tag) {
+    case 15: {
+      break;
+    }
+  }
+}
+
+void openssl_component_x509_name_entry_free(openssl_component_x509_name_entry_t *ptr) {
+  ssl_import_string_free(&ptr->oid);
+  ssl_import_string_free(&ptr->value);
+}
+
+void openssl_component_x509_name_free(openssl_component_x509_name_t *ptr) {
+  size_t list_len = ptr->len;
+  if (list_len > 0) {
+    openssl_component_x509_name_entry_t *list_ptr = ptr->ptr;
+    for (size_t i = 0; i < list_len; i++) {
+      openssl_component_x509_name_entry_free(&list_ptr[i]);
+    }
+    free(list_ptr);
+  }
+}
+
+void openssl_component_x509_timestamp_free(openssl_component_x509_timestamp_t *ptr) {
+  ssl_import_string_free(ptr);
+}
+
+void openssl_component_x509_validity_free(openssl_component_x509_validity_t *ptr) {
+  openssl_component_x509_timestamp_free(&ptr->not_before);
+  openssl_component_x509_timestamp_free(&ptr->not_after);
+}
+
+void openssl_component_x509_general_name_free(openssl_component_x509_general_name_t *ptr) {
+  switch ((int32_t) ptr->tag) {
+    case 0: {
+      ssl_import_string_free(&ptr->val.dns);
+      break;
+    }
+    case 1: {
+      ssl_import_string_free(&ptr->val.email);
+      break;
+    }
+    case 2: {
+      ssl_import_string_free(&ptr->val.uri);
+      break;
+    }
+    case 3: {
+      ssl_import_list_u8_free(&ptr->val.ip);
+      break;
+    }
+    case 4: {
+      ssl_import_list_u8_free(&ptr->val.other);
+      break;
+    }
+  }
+}
+
+void openssl_component_x509_basic_constraints_free(openssl_component_x509_basic_constraints_t *ptr) {
+  ssl_import_option_u32_free(&ptr->path_len);
+}
+
+void openssl_component_x509_list_general_name_free(openssl_component_x509_list_general_name_t *ptr) {
+  size_t list_len = ptr->len;
+  if (list_len > 0) {
+    openssl_component_x509_general_name_t *list_ptr = ptr->ptr;
+    for (size_t i = 0; i < list_len; i++) {
+      openssl_component_x509_general_name_free(&list_ptr[i]);
+    }
+    free(list_ptr);
+  }
+}
+
+void openssl_component_x509_option_basic_constraints_free(openssl_component_x509_option_basic_constraints_t *ptr) {
+  if (ptr->is_some) {
+    openssl_component_x509_basic_constraints_free(&ptr->val);
+  }
+}
+
+void openssl_component_x509_option_key_usage_free(openssl_component_x509_option_key_usage_t *ptr) {
+  if (ptr->is_some) {
+  }
+}
+
+void openssl_component_x509_list_extended_key_usage_free(openssl_component_x509_list_extended_key_usage_t *ptr) {
+  size_t list_len = ptr->len;
+  if (list_len > 0) {
+    openssl_component_x509_extended_key_usage_t *list_ptr = ptr->ptr;
+    for (size_t i = 0; i < list_len; i++) {
+    }
+    free(list_ptr);
+  }
+}
+
+void openssl_component_x509_certificate_info_free(openssl_component_x509_certificate_info_t *ptr) {
+  ssl_import_string_free(&ptr->serial_hex);
+  openssl_component_x509_name_free(&ptr->issuer);
+  openssl_component_x509_name_free(&ptr->subject);
+  openssl_component_x509_validity_free(&ptr->validity);
+  ssl_import_string_free(&ptr->signature_algorithm);
+  openssl_component_x509_list_general_name_free(&ptr->subject_alt_names);
+  openssl_component_x509_list_general_name_free(&ptr->issuer_alt_names);
+  openssl_component_x509_option_basic_constraints_free(&ptr->basic_constraints);
+  openssl_component_x509_option_key_usage_free(&ptr->key_usage);
+  openssl_component_x509_list_extended_key_usage_free(&ptr->extended_key_usage);
+  ssl_import_list_u8_free(&ptr->fingerprint_sha256);
+}
+
+void openssl_component_x509_csr_info_free(openssl_component_x509_csr_info_t *ptr) {
+  openssl_component_x509_name_free(&ptr->subject);
+  openssl_component_x509_list_general_name_free(&ptr->subject_alt_names);
+}
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[resource-drop]certificate")))
+extern void __wasm_import_openssl_component_x509_certificate_drop(int32_t handle);
+
+void openssl_component_x509_certificate_drop_own(openssl_component_x509_own_certificate_t handle) {
+  __wasm_import_openssl_component_x509_certificate_drop(handle.__handle);
+}
+
+void openssl_component_x509_certificate_drop_borrow(openssl_component_x509_borrow_certificate_t handle) {
+  __wasm_import_openssl_component_x509_certificate_drop(handle.__handle);
+}
+
+openssl_component_x509_borrow_certificate_t openssl_component_x509_borrow_certificate(openssl_component_x509_own_certificate_t arg) {
+  return (openssl_component_x509_borrow_certificate_t) { arg.__handle };
+}
+
+void openssl_component_x509_certificate_builder_input_free(openssl_component_x509_certificate_builder_input_t *ptr) {
+  openssl_component_x509_name_free(&ptr->subject);
+  openssl_component_x509_name_free(&ptr->issuer);
+  ssl_import_option_string_free(&ptr->serial_hex);
+  openssl_component_x509_validity_free(&ptr->validity);
+  openssl_component_x509_list_general_name_free(&ptr->subject_alt_names);
+  openssl_component_x509_option_key_usage_free(&ptr->key_usage);
+  openssl_component_x509_list_extended_key_usage_free(&ptr->extended_key_usage);
+  openssl_component_x509_option_basic_constraints_free(&ptr->basic_constraints);
+}
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[resource-drop]csr")))
+extern void __wasm_import_openssl_component_x509_csr_drop(int32_t handle);
+
+void openssl_component_x509_csr_drop_own(openssl_component_x509_own_csr_t handle) {
+  __wasm_import_openssl_component_x509_csr_drop(handle.__handle);
+}
+
+void openssl_component_x509_csr_drop_borrow(openssl_component_x509_borrow_csr_t handle) {
+  __wasm_import_openssl_component_x509_csr_drop(handle.__handle);
+}
+
+openssl_component_x509_borrow_csr_t openssl_component_x509_borrow_csr(openssl_component_x509_own_csr_t arg) {
+  return (openssl_component_x509_borrow_csr_t) { arg.__handle };
+}
+
+void openssl_component_x509_revoked_entry_free(openssl_component_x509_revoked_entry_t *ptr) {
+  ssl_import_string_free(&ptr->serial_hex);
+  openssl_component_x509_timestamp_free(&ptr->revocation_date);
+  ssl_import_option_string_free(&ptr->reason);
+}
+
+void ssl_import_option_timestamp_free(ssl_import_option_timestamp_t *ptr) {
+  if (ptr->is_some) {
+    openssl_component_x509_timestamp_free(&ptr->val);
+  }
+}
+
+void openssl_component_x509_list_revoked_entry_free(openssl_component_x509_list_revoked_entry_t *ptr) {
+  size_t list_len = ptr->len;
+  if (list_len > 0) {
+    openssl_component_x509_revoked_entry_t *list_ptr = ptr->ptr;
+    for (size_t i = 0; i < list_len; i++) {
+      openssl_component_x509_revoked_entry_free(&list_ptr[i]);
+    }
+    free(list_ptr);
+  }
+}
+
+void openssl_component_x509_crl_info_free(openssl_component_x509_crl_info_t *ptr) {
+  openssl_component_x509_name_free(&ptr->issuer);
+  openssl_component_x509_timestamp_free(&ptr->this_update);
+  ssl_import_option_timestamp_free(&ptr->next_update);
+  openssl_component_x509_list_revoked_entry_free(&ptr->revoked);
+}
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[resource-drop]crl")))
+extern void __wasm_import_openssl_component_x509_crl_drop(int32_t handle);
+
+void openssl_component_x509_crl_drop_own(openssl_component_x509_own_crl_t handle) {
+  __wasm_import_openssl_component_x509_crl_drop(handle.__handle);
+}
+
+void openssl_component_x509_crl_drop_borrow(openssl_component_x509_borrow_crl_t handle) {
+  __wasm_import_openssl_component_x509_crl_drop(handle.__handle);
+}
+
+openssl_component_x509_borrow_crl_t openssl_component_x509_borrow_crl(openssl_component_x509_own_crl_t arg) {
+  return (openssl_component_x509_borrow_crl_t) { arg.__handle };
+}
+
+void openssl_component_x509_option_extended_key_usage_free(openssl_component_x509_option_extended_key_usage_t *ptr) {
+  if (ptr->is_some) {
+  }
+}
+
+void openssl_component_x509_verify_options_free(openssl_component_x509_verify_options_t *ptr) {
+  ssl_import_option_string_free(&ptr->hostname);
+  ssl_import_option_string_free(&ptr->ip);
+  openssl_component_x509_option_extended_key_usage_free(&ptr->purpose);
+  ssl_import_option_timestamp_free(&ptr->at);
+}
+
+__attribute__((__import_module__("openssl:component/x509@0.1.0"), __import_name__("[resource-drop]store")))
+extern void __wasm_import_openssl_component_x509_store_drop(int32_t handle);
+
+void openssl_component_x509_store_drop_own(openssl_component_x509_own_store_t handle) {
+  __wasm_import_openssl_component_x509_store_drop(handle.__handle);
+}
+
+void openssl_component_x509_store_drop_borrow(openssl_component_x509_borrow_store_t handle) {
+  __wasm_import_openssl_component_x509_store_drop(handle.__handle);
+}
+
+openssl_component_x509_borrow_store_t openssl_component_x509_borrow_store(openssl_component_x509_own_store_t arg) {
+  return (openssl_component_x509_borrow_store_t) { arg.__handle };
+}
+
+void openssl_component_x509_option_own_pkey_free(openssl_component_x509_option_own_pkey_t *ptr) {
+  if (ptr->is_some) {
+  }
+}
+
+void openssl_component_x509_option_own_certificate_free(openssl_component_x509_option_own_certificate_t *ptr) {
+  if (ptr->is_some) {
+  }
+}
+
+void openssl_component_x509_list_own_certificate_free(openssl_component_x509_list_own_certificate_t *ptr) {
+  size_t list_len = ptr->len;
+  if (list_len > 0) {
+    openssl_component_x509_own_certificate_t *list_ptr = ptr->ptr;
+    for (size_t i = 0; i < list_len; i++) {
+    }
+    free(list_ptr);
+  }
+}
+
+void openssl_component_x509_pkcs12_contents_free(openssl_component_x509_pkcs12_contents_t *ptr) {
+  openssl_component_x509_option_own_pkey_free(&ptr->key);
+  openssl_component_x509_option_own_certificate_free(&ptr->cert);
+  openssl_component_x509_list_own_certificate_free(&ptr->extra_certs);
+}
+
+void openssl_component_x509_pkcs12_build_input_free(openssl_component_x509_pkcs12_build_input_t *ptr) {
+  ssl_import_option_string_free(&ptr->friendly_name);
+  openssl_component_x509_list_own_certificate_free(&ptr->extra_certs);
+  ssl_import_list_u8_free(&ptr->passphrase);
+}
+
+void openssl_component_x509_result_own_certificate_x509_error_free(openssl_component_x509_result_own_certificate_x509_error_t *ptr) {
+  if (!ptr->is_err) {
+  } else {
+    openssl_component_x509_x509_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_x509_result_list_own_certificate_x509_error_free(openssl_component_x509_result_list_own_certificate_x509_error_t *ptr) {
+  if (!ptr->is_err) {
+    openssl_component_x509_list_own_certificate_free(&ptr->val.ok);
+  } else {
+    openssl_component_x509_x509_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_x509_result_list_u8_x509_error_free(openssl_component_x509_result_list_u8_x509_error_t *ptr) {
+  if (!ptr->is_err) {
+    ssl_import_list_u8_free(&ptr->val.ok);
+  } else {
+    openssl_component_x509_x509_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_x509_result_bool_x509_error_free(openssl_component_x509_result_bool_x509_error_t *ptr) {
+  if (!ptr->is_err) {
+  } else {
+    openssl_component_x509_x509_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_x509_result_own_csr_x509_error_free(openssl_component_x509_result_own_csr_x509_error_t *ptr) {
+  if (!ptr->is_err) {
+  } else {
+    openssl_component_x509_x509_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_x509_result_own_crl_x509_error_free(openssl_component_x509_result_own_crl_x509_error_t *ptr) {
+  if (!ptr->is_err) {
+  } else {
+    openssl_component_x509_x509_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_x509_result_void_x509_error_free(openssl_component_x509_result_void_x509_error_t *ptr) {
+  if (!ptr->is_err) {
+  } else {
+    openssl_component_x509_x509_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_x509_list_borrow_certificate_free(openssl_component_x509_list_borrow_certificate_t *ptr) {
+  size_t list_len = ptr->len;
+  if (list_len > 0) {
+    openssl_component_x509_borrow_certificate_t *list_ptr = ptr->ptr;
+    for (size_t i = 0; i < list_len; i++) {
+    }
+    free(list_ptr);
+  }
+}
+
+void openssl_component_x509_result_pkcs12_contents_x509_error_free(openssl_component_x509_result_pkcs12_contents_x509_error_t *ptr) {
+  if (!ptr->is_err) {
+    openssl_component_x509_pkcs12_contents_free(&ptr->val.ok);
+  } else {
+    openssl_component_x509_x509_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_x509_result_option_list_u8_x509_error_free(openssl_component_x509_result_option_list_u8_x509_error_t *ptr) {
+  if (!ptr->is_err) {
+    ssl_import_option_list_u8_free(&ptr->val.ok);
+  } else {
+    openssl_component_x509_x509_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_tls_verify_options_free(openssl_component_tls_verify_options_t *ptr) {
+  openssl_component_x509_verify_options_free(ptr);
+}
+
+void openssl_component_tls_cipher_preferences_free(openssl_component_tls_cipher_preferences_t *ptr) {
+  ssl_import_option_string_free(&ptr->tls13);
+  ssl_import_option_string_free(&ptr->tls12);
 }
 
 void ssl_import_list_string_free(ssl_import_list_string_t *ptr) {
@@ -97,91 +864,192 @@ void ssl_import_list_string_free(ssl_import_list_string_t *ptr) {
   }
 }
 
-void ssl_import_list_u8_free(ssl_import_list_u8_t *ptr) {
+void openssl_component_tls_alpn_offer_free(openssl_component_tls_alpn_offer_t *ptr) {
+  ssl_import_list_string_free(&ptr->protocols);
+}
+
+void openssl_component_tls_verify_failure_free(openssl_component_tls_verify_failure_t *ptr) {
+  ssl_import_string_free(&ptr->message);
+}
+
+void openssl_component_tls_tls_error_free(openssl_component_tls_tls_error_t *ptr) {
+  switch ((int32_t) ptr->tag) {
+    case 2: {
+      openssl_component_tls_verify_failure_free(&ptr->val.verify_failed);
+      break;
+    }
+    case 9: {
+      break;
+    }
+  }
+}
+
+void openssl_component_tls_option_own_store_free(openssl_component_tls_option_own_store_t *ptr) {
+  if (ptr->is_some) {
+  }
+}
+
+void openssl_component_tls_option_verify_options_free(openssl_component_tls_option_verify_options_t *ptr) {
+  if (ptr->is_some) {
+    openssl_component_tls_verify_options_free(&ptr->val);
+  }
+}
+
+void openssl_component_tls_option_own_certificate_free(openssl_component_tls_option_own_certificate_t *ptr) {
+  if (ptr->is_some) {
+  }
+}
+
+void openssl_component_tls_option_own_pkey_free(openssl_component_tls_option_own_pkey_t *ptr) {
+  if (ptr->is_some) {
+  }
+}
+
+void openssl_component_tls_option_alpn_offer_free(openssl_component_tls_option_alpn_offer_t *ptr) {
+  if (ptr->is_some) {
+    openssl_component_tls_alpn_offer_free(&ptr->val);
+  }
+}
+
+void openssl_component_tls_option_cipher_preferences_free(openssl_component_tls_option_cipher_preferences_t *ptr) {
+  if (ptr->is_some) {
+    openssl_component_tls_cipher_preferences_free(&ptr->val);
+  }
+}
+
+void openssl_component_tls_client_config_free(openssl_component_tls_client_config_t *ptr) {
+  openssl_component_tls_option_own_store_free(&ptr->trust);
+  openssl_component_tls_option_verify_options_free(&ptr->verify_options);
+  ssl_import_option_string_free(&ptr->server_name);
+  openssl_component_tls_option_own_certificate_free(&ptr->client_cert);
+  openssl_component_tls_option_own_pkey_free(&ptr->client_key);
+  openssl_component_tls_option_alpn_offer_free(&ptr->alpn);
+  openssl_component_tls_option_cipher_preferences_free(&ptr->ciphers);
+  ssl_import_option_string_free(&ptr->groups);
+  ssl_import_option_list_u8_free(&ptr->resume_session);
+}
+
+void openssl_component_tls_list_own_certificate_free(openssl_component_tls_list_own_certificate_t *ptr) {
   size_t list_len = ptr->len;
   if (list_len > 0) {
-    uint8_t *list_ptr = ptr->ptr;
+    openssl_component_tls_own_certificate_t *list_ptr = ptr->ptr;
     for (size_t i = 0; i < list_len; i++) {
     }
     free(list_ptr);
   }
 }
 
-void ssl_import_option_list_u8_free(ssl_import_option_list_u8_t *ptr) {
-  if (ptr->is_some) {
-    ssl_import_list_u8_free(&ptr->val);
+void openssl_component_tls_sni_binding_free(openssl_component_tls_sni_binding_t *ptr) {
+  ssl_import_string_free(&ptr->hostname);
+  openssl_component_tls_list_own_certificate_free(&ptr->cert_chain);
+}
+
+void openssl_component_tls_list_sni_binding_free(openssl_component_tls_list_sni_binding_t *ptr) {
+  size_t list_len = ptr->len;
+  if (list_len > 0) {
+    openssl_component_tls_sni_binding_t *list_ptr = ptr->ptr;
+    for (size_t i = 0; i < list_len; i++) {
+      openssl_component_tls_sni_binding_free(&list_ptr[i]);
+    }
+    free(list_ptr);
   }
 }
 
-void tegmentum_tls_context_client_config_free(tegmentum_tls_context_client_config_t *ptr) {
-  ssl_import_string_free(&ptr->server_name);
-  ssl_import_list_string_free(&ptr->alpn);
-  ssl_import_option_list_u8_free(&ptr->ca_roots);
-  ssl_import_option_list_u8_free(&ptr->client_cert);
-  ssl_import_option_list_u8_free(&ptr->client_key);
+void openssl_component_tls_server_config_free(openssl_component_tls_server_config_t *ptr) {
+  openssl_component_tls_option_own_store_free(&ptr->client_trust);
+  openssl_component_tls_list_own_certificate_free(&ptr->cert_chain);
+  openssl_component_tls_list_sni_binding_free(&ptr->sni_hosts);
+  openssl_component_tls_option_alpn_offer_free(&ptr->alpn);
+  openssl_component_tls_option_cipher_preferences_free(&ptr->ciphers);
+  ssl_import_option_string_free(&ptr->groups);
 }
 
-void tegmentum_tls_context_tls_error_free(tegmentum_tls_context_tls_error_t *ptr) {
-  switch ((int32_t) ptr->tag) {
-    case 1: {
-      ssl_import_string_free(&ptr->val.cert_verify_failed);
-      break;
-    }
-    case 2: {
-      ssl_import_string_free(&ptr->val.handshake_failed);
-      break;
-    }
-    case 3: {
-      ssl_import_string_free(&ptr->val.protocol);
-      break;
-    }
-    case 5: {
-      ssl_import_string_free(&ptr->val.invalid_config);
-      break;
-    }
-    case 6: {
-      ssl_import_string_free(&ptr->val.io);
-      break;
-    }
-  }
+void openssl_component_tls_peer_info_free(openssl_component_tls_peer_info_t *ptr) {
+  ssl_import_string_free(&ptr->cipher_suite);
+  ssl_import_option_string_free(&ptr->alpn);
+  ssl_import_option_string_free(&ptr->sni);
+  openssl_component_tls_list_own_certificate_free(&ptr->peer_chain);
+  ssl_import_option_string_free(&ptr->group);
 }
 
-void tegmentum_tls_context_result_u64_tls_error_free(tegmentum_tls_context_result_u64_tls_error_t *ptr) {
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[resource-drop]client")))
+extern void __wasm_import_openssl_component_tls_client_drop(int32_t handle);
+
+void openssl_component_tls_client_drop_own(openssl_component_tls_own_client_t handle) {
+  __wasm_import_openssl_component_tls_client_drop(handle.__handle);
+}
+
+void openssl_component_tls_client_drop_borrow(openssl_component_tls_borrow_client_t handle) {
+  __wasm_import_openssl_component_tls_client_drop(handle.__handle);
+}
+
+openssl_component_tls_borrow_client_t openssl_component_tls_borrow_client(openssl_component_tls_own_client_t arg) {
+  return (openssl_component_tls_borrow_client_t) { arg.__handle };
+}
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[resource-drop]server-listener")))
+extern void __wasm_import_openssl_component_tls_server_listener_drop(int32_t handle);
+
+void openssl_component_tls_server_listener_drop_own(openssl_component_tls_own_server_listener_t handle) {
+  __wasm_import_openssl_component_tls_server_listener_drop(handle.__handle);
+}
+
+void openssl_component_tls_server_listener_drop_borrow(openssl_component_tls_borrow_server_listener_t handle) {
+  __wasm_import_openssl_component_tls_server_listener_drop(handle.__handle);
+}
+
+openssl_component_tls_borrow_server_listener_t openssl_component_tls_borrow_server_listener(openssl_component_tls_own_server_listener_t arg) {
+  return (openssl_component_tls_borrow_server_listener_t) { arg.__handle };
+}
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[resource-drop]server")))
+extern void __wasm_import_openssl_component_tls_server_drop(int32_t handle);
+
+void openssl_component_tls_server_drop_own(openssl_component_tls_own_server_t handle) {
+  __wasm_import_openssl_component_tls_server_drop(handle.__handle);
+}
+
+void openssl_component_tls_server_drop_borrow(openssl_component_tls_borrow_server_t handle) {
+  __wasm_import_openssl_component_tls_server_drop(handle.__handle);
+}
+
+openssl_component_tls_borrow_server_t openssl_component_tls_borrow_server(openssl_component_tls_own_server_t arg) {
+  return (openssl_component_tls_borrow_server_t) { arg.__handle };
+}
+
+void openssl_component_tls_result_own_client_tls_error_free(openssl_component_tls_result_own_client_tls_error_t *ptr) {
   if (!ptr->is_err) {
   } else {
-    tegmentum_tls_context_tls_error_free(&ptr->val.err);
+    openssl_component_tls_tls_error_free(&ptr->val.err);
   }
 }
 
-void tegmentum_tls_context_result_list_u8_tls_error_free(tegmentum_tls_context_result_list_u8_tls_error_t *ptr) {
+void openssl_component_tls_result_u32_tls_error_free(openssl_component_tls_result_u32_tls_error_t *ptr) {
+  if (!ptr->is_err) {
+  } else {
+    openssl_component_tls_tls_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_tls_result_list_u8_tls_error_free(openssl_component_tls_result_list_u8_tls_error_t *ptr) {
   if (!ptr->is_err) {
     ssl_import_list_u8_free(&ptr->val.ok);
   } else {
-    tegmentum_tls_context_tls_error_free(&ptr->val.err);
+    openssl_component_tls_tls_error_free(&ptr->val.err);
   }
 }
 
-void tegmentum_tls_context_result_void_tls_error_free(tegmentum_tls_context_result_void_tls_error_t *ptr) {
+void openssl_component_tls_result_own_server_listener_tls_error_free(openssl_component_tls_result_own_server_listener_tls_error_t *ptr) {
   if (!ptr->is_err) {
   } else {
-    tegmentum_tls_context_tls_error_free(&ptr->val.err);
+    openssl_component_tls_tls_error_free(&ptr->val.err);
   }
 }
 
-void ssl_import_list_list_u8_free(ssl_import_list_list_u8_t *ptr) {
-  size_t list_len = ptr->len;
-  if (list_len > 0) {
-    ssl_import_list_u8_t *list_ptr = ptr->ptr;
-    for (size_t i = 0; i < list_len; i++) {
-      ssl_import_list_u8_free(&list_ptr[i]);
-    }
-    free(list_ptr);
-  }
-}
-
-void tegmentum_tls_context_option_cipher_info_free(tegmentum_tls_context_option_cipher_info_t *ptr) {
-  if (ptr->is_some) {
-    tegmentum_tls_context_cipher_info_free(&ptr->val);
+void openssl_component_tls_result_own_server_tls_error_free(openssl_component_tls_result_own_server_tls_error_t *ptr) {
+  if (!ptr->is_err) {
+  } else {
+    openssl_component_tls_tls_error_free(&ptr->val.err);
   }
 }
 
@@ -206,87 +1074,2780 @@ void ssl_import_string_free(ssl_import_string_t *ret) {
 
 // Component Adapters
 
-tegmentum_tls_context_own_client_t tegmentum_tls_context_constructor_client(tegmentum_tls_context_client_config_t *config) {
-  __attribute__((__aligned__(sizeof(void*))))
-  uint8_t ret_area[(14*sizeof(void*))];
+bool openssl_component_error_pop_error(openssl_component_error_error_info_t *ret) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(24+10*sizeof(void*))];
   uint8_t *ptr = (uint8_t *) &ret_area;
-  *((size_t*)(ptr + sizeof(void*))) = ((*config).server_name).len;
-  *((uint8_t **)(ptr + 0)) = (uint8_t *) ((*config).server_name).ptr;
-  *((size_t*)(ptr + (3*sizeof(void*)))) = ((*config).alpn).len;
-  *((uint8_t **)(ptr + (2*sizeof(void*)))) = (uint8_t *) ((*config).alpn).ptr;
-  if (((*config).ca_roots).is_some) {
-    const ssl_import_list_u8_t *payload0 = &((*config).ca_roots).val;
+  __wasm_import_openssl_component_error_pop_error(ptr);
+  openssl_component_error_option_error_info_t option2;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      option2.is_some = false;
+      break;
+    }
+    case 1: {
+      option2.is_some = true;
+      ssl_import_option_string_t option;
+      switch ((int32_t) *((uint8_t*) (ptr + (16+4*sizeof(void*))))) {
+        case 0: {
+          option.is_some = false;
+          break;
+        }
+        case 1: {
+          option.is_some = true;
+          option.val = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (16+5*sizeof(void*))))), (*((size_t*) (ptr + (16+6*sizeof(void*))))) };
+          break;
+        }
+      }
+      ssl_import_option_u32_t option0;
+      switch ((int32_t) *((uint8_t*) (ptr + (16+7*sizeof(void*))))) {
+        case 0: {
+          option0.is_some = false;
+          break;
+        }
+        case 1: {
+          option0.is_some = true;
+          option0.val = (uint32_t) (*((int32_t*) (ptr + (20+7*sizeof(void*)))));
+          break;
+        }
+      }
+      ssl_import_option_string_t option1;
+      switch ((int32_t) *((uint8_t*) (ptr + (24+7*sizeof(void*))))) {
+        case 0: {
+          option1.is_some = false;
+          break;
+        }
+        case 1: {
+          option1.is_some = true;
+          option1.val = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (24+8*sizeof(void*))))), (*((size_t*) (ptr + (24+9*sizeof(void*))))) };
+          break;
+        }
+      }
+
+      option2.val = (openssl_component_error_error_info_t) {
+        (openssl_component_error_code_t) (uint64_t) (*((int64_t*) (ptr + 8))),
+        (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + 16))), (*((size_t*) (ptr + (16+1*sizeof(void*))))) },
+        (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (16+2*sizeof(void*))))), (*((size_t*) (ptr + (16+3*sizeof(void*))))) },
+        (ssl_import_option_string_t) option,
+        (ssl_import_option_u32_t) option0,
+        (ssl_import_option_string_t) option1,
+      };
+      break;
+    }
+  }
+  *ret = option2.val;
+  return option2.is_some;
+}
+
+void openssl_component_error_clear_errors(void) {
+  __wasm_import_openssl_component_error_clear_errors();
+}
+
+void openssl_component_error_drain_errors(openssl_component_error_list_error_info_t *ret) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(2*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_error_drain_errors(ptr);
+  *ret = (openssl_component_error_list_error_info_t) { (openssl_component_error_error_info_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) };
+}
+
+void openssl_component_error_describe(openssl_component_error_code_t c, ssl_import_string_t *ret) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(2*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_error_describe((int64_t) (c), ptr);
+  *ret = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) };
+}
+
+bool openssl_component_digest_one_shot(openssl_component_digest_algorithm_t alg, ssl_import_list_u8_t *data, ssl_import_list_u8_t *ret, openssl_component_digest_digest_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_digest_one_shot((int32_t) alg, (uint8_t *) (*data).ptr, (*data).len, ptr);
+  openssl_component_digest_result_list_u8_digest_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_digest_digest_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_digest_one_shot_xof(openssl_component_digest_algorithm_t alg, ssl_import_list_u8_t *data, uint32_t out_len, ssl_import_list_u8_t *ret, openssl_component_digest_digest_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_digest_one_shot_xof((int32_t) alg, (uint8_t *) (*data).ptr, (*data).len, (int32_t) (out_len), ptr);
+  openssl_component_digest_result_list_u8_digest_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_digest_digest_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_digest_output_size(openssl_component_digest_algorithm_t alg, uint32_t *ret, openssl_component_digest_digest_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_digest_output_size((int32_t) alg, ptr);
+  openssl_component_digest_result_u32_digest_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (uint32_t) (*((int32_t*) (ptr + 8)));
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_digest_digest_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_digest_block_size(openssl_component_digest_algorithm_t alg, uint32_t *ret, openssl_component_digest_digest_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_digest_block_size((int32_t) alg, ptr);
+  openssl_component_digest_result_u32_digest_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (uint32_t) (*((int32_t*) (ptr + 8)));
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_digest_digest_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+openssl_component_digest_own_context_t openssl_component_digest_constructor_context(openssl_component_digest_algorithm_t alg) {
+  int32_t ret = __wasm_import_openssl_component_digest_constructor_context((int32_t) alg);
+  return (openssl_component_digest_own_context_t) { ret };
+}
+
+bool openssl_component_digest_method_context_update(openssl_component_digest_borrow_context_t self, ssl_import_list_u8_t *data, openssl_component_digest_digest_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_digest_method_context_update((self).__handle, (uint8_t *) (*data).ptr, (*data).len, ptr);
+  openssl_component_digest_result_void_digest_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_digest_digest_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_digest_static_context_finish(openssl_component_digest_own_context_t ctx, ssl_import_list_u8_t *ret, openssl_component_digest_digest_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_digest_static_context_finish((ctx).__handle, ptr);
+  openssl_component_digest_result_list_u8_digest_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_digest_digest_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_digest_static_context_finish_xof(openssl_component_digest_own_context_t ctx, uint32_t out_len, ssl_import_list_u8_t *ret, openssl_component_digest_digest_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_digest_static_context_finish_xof((ctx).__handle, (int32_t) (out_len), ptr);
+  openssl_component_digest_result_list_u8_digest_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_digest_digest_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+openssl_component_digest_own_context_t openssl_component_digest_method_context_clone(openssl_component_digest_borrow_context_t self) {
+  int32_t ret = __wasm_import_openssl_component_digest_method_context_clone((self).__handle);
+  return (openssl_component_digest_own_context_t) { ret };
+}
+
+bool openssl_component_pkey_static_pkey_generate(openssl_component_pkey_keygen_params_t *params, openssl_component_pkey_own_pkey_t *ret, openssl_component_pkey_pkey_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  int32_t variant;
+  int32_t variant13;
+  int32_t variant14;
+  int64_t variant15;
+  switch ((int32_t) (*params).tag) {
+    case 0: {
+      const openssl_component_pkey_rsa_keygen_t *payload = &(*params).val.rsa;
+      int32_t option;
+      int64_t option2;
+      if (((*payload).public_exponent).is_some) {
+        const uint64_t *payload1 = &((*payload).public_exponent).val;
+        option = 1;
+        option2 = (int64_t) (*payload1);
+      } else {
+        option = 0;
+        option2 = 0;
+      }
+      variant = 0;
+      variant13 = (int32_t) ((*payload).bits);
+      variant14 = option;
+      variant15 = option2;
+      break;
+    }
+    case 1: {
+      const openssl_component_pkey_rsa_keygen_t *payload3 = &(*params).val.rsa_pss;
+      int32_t option6;
+      int64_t option7;
+      if (((*payload3).public_exponent).is_some) {
+        const uint64_t *payload5 = &((*payload3).public_exponent).val;
+        option6 = 1;
+        option7 = (int64_t) (*payload5);
+      } else {
+        option6 = 0;
+        option7 = 0;
+      }
+      variant = 1;
+      variant13 = (int32_t) ((*payload3).bits);
+      variant14 = option6;
+      variant15 = option7;
+      break;
+    }
+    case 2: {
+      const openssl_component_pkey_curve_t *payload8 = &(*params).val.ec;
+      variant = 2;
+      variant13 = (int32_t) *payload8;
+      variant14 = 0;
+      variant15 = 0;
+      break;
+    }
+    case 3: {
+      const openssl_component_pkey_edwards_curve_t *payload9 = &(*params).val.ed;
+      variant = 3;
+      variant13 = (int32_t) *payload9;
+      variant14 = 0;
+      variant15 = 0;
+      break;
+    }
+    case 4: {
+      const openssl_component_pkey_montgomery_curve_t *payload10 = &(*params).val.x;
+      variant = 4;
+      variant13 = (int32_t) *payload10;
+      variant14 = 0;
+      variant15 = 0;
+      break;
+    }
+    case 5: {
+      const openssl_component_pkey_dh_keygen_t *payload11 = &(*params).val.dh;
+      variant = 5;
+      variant13 = (int32_t) ((*payload11).prime_bits);
+      variant14 = (int32_t) ((*payload11).generator);
+      variant15 = 0;
+      break;
+    }
+    case 6: {
+      const openssl_component_pkey_dh_group_t *payload12 = &(*params).val.dh_named;
+      variant = 6;
+      variant13 = (int32_t) *payload12;
+      variant14 = 0;
+      variant15 = 0;
+      break;
+    }
+  }
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_static_pkey_generate(variant, variant13, variant14, variant15, ptr);
+  openssl_component_pkey_result_own_pkey_pkey_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (openssl_component_pkey_own_pkey_t) { *((int32_t*) (ptr + 8)) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_pkey_pkey_error_t variant16;
+      variant16.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant16.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          variant16.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant16;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_pkey_static_pkey_load_private(ssl_import_list_u8_t *bytes, openssl_component_pkey_load_options_t *opts, openssl_component_pkey_own_pkey_t *ret, openssl_component_pkey_pkey_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  int32_t option;
+  uint8_t * option1;
+  size_t option2;
+  if (((*opts).passphrase).is_some) {
+    const ssl_import_list_u8_t *payload0 = &((*opts).passphrase).val;
+    option = 1;
+    option1 = (uint8_t *) (*payload0).ptr;
+    option2 = (*payload0).len;
+  } else {
+    option = 0;
+    option1 = 0;
+    option2 = 0;
+  }
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_static_pkey_load_private((uint8_t *) (*bytes).ptr, (*bytes).len, (int32_t) (*opts).format, (int32_t) (*opts).encoding, option, option1, option2, ptr);
+  openssl_component_pkey_result_own_pkey_pkey_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (openssl_component_pkey_own_pkey_t) { *((int32_t*) (ptr + 8)) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_pkey_pkey_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_pkey_static_pkey_load_public(ssl_import_list_u8_t *bytes, openssl_component_pkey_load_options_t *opts, openssl_component_pkey_own_pkey_t *ret, openssl_component_pkey_pkey_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  int32_t option;
+  uint8_t * option1;
+  size_t option2;
+  if (((*opts).passphrase).is_some) {
+    const ssl_import_list_u8_t *payload0 = &((*opts).passphrase).val;
+    option = 1;
+    option1 = (uint8_t *) (*payload0).ptr;
+    option2 = (*payload0).len;
+  } else {
+    option = 0;
+    option1 = 0;
+    option2 = 0;
+  }
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_static_pkey_load_public((uint8_t *) (*bytes).ptr, (*bytes).len, (int32_t) (*opts).format, (int32_t) (*opts).encoding, option, option1, option2, ptr);
+  openssl_component_pkey_result_own_pkey_pkey_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (openssl_component_pkey_own_pkey_t) { *((int32_t*) (ptr + 8)) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_pkey_pkey_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_pkey_static_pkey_from_raw_private(openssl_component_pkey_key_type_t *kind, ssl_import_list_u8_t *bytes, openssl_component_pkey_own_pkey_t *ret, openssl_component_pkey_pkey_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  int32_t variant;
+  int32_t variant5;
+  switch ((int32_t) (*kind).tag) {
+    case 0: {
+      variant = 0;
+      variant5 = 0;
+      break;
+    }
+    case 1: {
+      variant = 1;
+      variant5 = 0;
+      break;
+    }
+    case 2: {
+      const openssl_component_pkey_curve_t *payload1 = &(*kind).val.ec;
+      variant = 2;
+      variant5 = (int32_t) *payload1;
+      break;
+    }
+    case 3: {
+      const openssl_component_pkey_edwards_curve_t *payload2 = &(*kind).val.ed;
+      variant = 3;
+      variant5 = (int32_t) *payload2;
+      break;
+    }
+    case 4: {
+      const openssl_component_pkey_montgomery_curve_t *payload3 = &(*kind).val.x;
+      variant = 4;
+      variant5 = (int32_t) *payload3;
+      break;
+    }
+    case 5: {
+      variant = 5;
+      variant5 = 0;
+      break;
+    }
+  }
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_static_pkey_from_raw_private(variant, variant5, (uint8_t *) (*bytes).ptr, (*bytes).len, ptr);
+  openssl_component_pkey_result_own_pkey_pkey_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (openssl_component_pkey_own_pkey_t) { *((int32_t*) (ptr + 8)) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_pkey_pkey_error_t variant6;
+      variant6.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant6.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          variant6.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant6;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_pkey_static_pkey_from_raw_public(openssl_component_pkey_key_type_t *kind, ssl_import_list_u8_t *bytes, openssl_component_pkey_own_pkey_t *ret, openssl_component_pkey_pkey_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  int32_t variant;
+  int32_t variant5;
+  switch ((int32_t) (*kind).tag) {
+    case 0: {
+      variant = 0;
+      variant5 = 0;
+      break;
+    }
+    case 1: {
+      variant = 1;
+      variant5 = 0;
+      break;
+    }
+    case 2: {
+      const openssl_component_pkey_curve_t *payload1 = &(*kind).val.ec;
+      variant = 2;
+      variant5 = (int32_t) *payload1;
+      break;
+    }
+    case 3: {
+      const openssl_component_pkey_edwards_curve_t *payload2 = &(*kind).val.ed;
+      variant = 3;
+      variant5 = (int32_t) *payload2;
+      break;
+    }
+    case 4: {
+      const openssl_component_pkey_montgomery_curve_t *payload3 = &(*kind).val.x;
+      variant = 4;
+      variant5 = (int32_t) *payload3;
+      break;
+    }
+    case 5: {
+      variant = 5;
+      variant5 = 0;
+      break;
+    }
+  }
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_static_pkey_from_raw_public(variant, variant5, (uint8_t *) (*bytes).ptr, (*bytes).len, ptr);
+  openssl_component_pkey_result_own_pkey_pkey_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (openssl_component_pkey_own_pkey_t) { *((int32_t*) (ptr + 8)) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_pkey_pkey_error_t variant6;
+      variant6.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant6.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          variant6.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant6;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+void openssl_component_pkey_method_pkey_kind(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_key_type_t *ret) {
+  __attribute__((__aligned__(1)))
+  uint8_t ret_area[2];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_method_pkey_kind((self).__handle, ptr);
+  openssl_component_pkey_key_type_t variant;
+  variant.tag = (int32_t) *((uint8_t*) (ptr + 0));
+  switch ((int32_t) variant.tag) {
+    case 0: {
+      break;
+    }
+    case 1: {
+      break;
+    }
+    case 2: {
+      variant.val.ec = (int32_t) *((uint8_t*) (ptr + 1));
+      break;
+    }
+    case 3: {
+      variant.val.ed = (int32_t) *((uint8_t*) (ptr + 1));
+      break;
+    }
+    case 4: {
+      variant.val.x = (int32_t) *((uint8_t*) (ptr + 1));
+      break;
+    }
+    case 5: {
+      break;
+    }
+  }
+  *ret = variant;
+}
+
+uint32_t openssl_component_pkey_method_pkey_bits(openssl_component_pkey_borrow_pkey_t self) {
+  int32_t ret = __wasm_import_openssl_component_pkey_method_pkey_bits((self).__handle);
+  return (uint32_t) (ret);
+}
+
+uint32_t openssl_component_pkey_method_pkey_security_bits(openssl_component_pkey_borrow_pkey_t self) {
+  int32_t ret = __wasm_import_openssl_component_pkey_method_pkey_security_bits((self).__handle);
+  return (uint32_t) (ret);
+}
+
+bool openssl_component_pkey_method_pkey_has_private(openssl_component_pkey_borrow_pkey_t self) {
+  int32_t ret = __wasm_import_openssl_component_pkey_method_pkey_has_private((self).__handle);
+  return ret;
+}
+
+bool openssl_component_pkey_method_pkey_save_private(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_save_options_t *opts, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  int32_t option;
+  uint8_t * option1;
+  size_t option2;
+  if (((*opts).passphrase).is_some) {
+    const ssl_import_list_u8_t *payload0 = &((*opts).passphrase).val;
+    option = 1;
+    option1 = (uint8_t *) (*payload0).ptr;
+    option2 = (*payload0).len;
+  } else {
+    option = 0;
+    option1 = 0;
+    option2 = 0;
+  }
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_method_pkey_save_private((self).__handle, (int32_t) (*opts).format, (int32_t) (*opts).encoding, option, option1, option2, ptr);
+  openssl_component_pkey_result_list_u8_pkey_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_pkey_pkey_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_pkey_method_pkey_save_public(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_save_options_t *opts, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  int32_t option;
+  uint8_t * option1;
+  size_t option2;
+  if (((*opts).passphrase).is_some) {
+    const ssl_import_list_u8_t *payload0 = &((*opts).passphrase).val;
+    option = 1;
+    option1 = (uint8_t *) (*payload0).ptr;
+    option2 = (*payload0).len;
+  } else {
+    option = 0;
+    option1 = 0;
+    option2 = 0;
+  }
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_method_pkey_save_public((self).__handle, (int32_t) (*opts).format, (int32_t) (*opts).encoding, option, option1, option2, ptr);
+  openssl_component_pkey_result_list_u8_pkey_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_pkey_pkey_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_pkey_method_pkey_raw_private(openssl_component_pkey_borrow_pkey_t self, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_method_pkey_raw_private((self).__handle, ptr);
+  openssl_component_pkey_result_list_u8_pkey_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_pkey_pkey_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_pkey_method_pkey_raw_public(openssl_component_pkey_borrow_pkey_t self, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_method_pkey_raw_public((self).__handle, ptr);
+  openssl_component_pkey_result_list_u8_pkey_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_pkey_pkey_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_pkey_method_pkey_sign_digest(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_hash_t hash, ssl_import_list_u8_t *digest, openssl_component_pkey_rsa_padding_t *maybe_padding, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  openssl_component_pkey_option_rsa_padding_t padding;
+  padding.is_some = maybe_padding != NULL;if (maybe_padding) {
+    padding.val = *maybe_padding;
+  }
+  int32_t option;
+  int32_t option9;
+  int32_t option10;
+  int32_t option11;
+  uint8_t * option12;
+  size_t option13;
+  if ((padding).is_some) {
+    const openssl_component_pkey_rsa_padding_t *payload0 = &(padding).val;
+    int32_t variant;
+    int32_t variant5;
+    int32_t variant6;
+    uint8_t * variant7;
+    size_t variant8;
+    switch ((int32_t) (*payload0).tag) {
+      case 0: {
+        variant = 0;
+        variant5 = 0;
+        variant6 = 0;
+        variant7 = 0;
+        variant8 = 0;
+        break;
+      }
+      case 1: {
+        const openssl_component_pkey_oaep_params_t *payload2 = &(*payload0).val.pkcs1_oaep;
+        variant = 1;
+        variant5 = (int32_t) (*payload2).hash;
+        variant6 = (int32_t) (*payload2).mgf1_hash;
+        variant7 = (uint8_t *) ((*payload2).label).ptr;
+        variant8 = ((*payload2).label).len;
+        break;
+      }
+      case 2: {
+        const openssl_component_pkey_pss_params_t *payload3 = &(*payload0).val.pkcs1_pss;
+        variant = 2;
+        variant5 = (int32_t) (*payload3).hash;
+        variant6 = (int32_t) (*payload3).mgf1_hash;
+        variant7 = (uint8_t *) (*payload3).salt_len;
+        variant8 = 0;
+        break;
+      }
+      case 3: {
+        variant = 3;
+        variant5 = 0;
+        variant6 = 0;
+        variant7 = 0;
+        variant8 = 0;
+        break;
+      }
+    }
+    option = 1;
+    option9 = variant;
+    option10 = variant5;
+    option11 = variant6;
+    option12 = variant7;
+    option13 = variant8;
+  } else {
+    option = 0;
+    option9 = 0;
+    option10 = 0;
+    option11 = 0;
+    option12 = 0;
+    option13 = 0;
+  }
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_method_pkey_sign_digest((self).__handle, (int32_t) hash, (uint8_t *) (*digest).ptr, (*digest).len, option, option9, option10, option11, option12, option13, ptr);
+  openssl_component_pkey_result_list_u8_pkey_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_pkey_pkey_error_t variant14;
+      variant14.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant14.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          variant14.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant14;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_pkey_method_pkey_sign_message(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_hash_t *maybe_hash, ssl_import_list_u8_t *message, openssl_component_pkey_rsa_padding_t *maybe_padding, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  openssl_component_pkey_option_hash_t hash;
+  hash.is_some = maybe_hash != NULL;if (maybe_hash) {
+    hash.val = *maybe_hash;
+  }
+  openssl_component_pkey_option_rsa_padding_t padding;
+  padding.is_some = maybe_padding != NULL;if (maybe_padding) {
+    padding.val = *maybe_padding;
+  }
+  int32_t option;
+  int32_t option1;
+  if ((hash).is_some) {
+    const openssl_component_pkey_hash_t *payload0 = &(hash).val;
+    option = 1;
+    option1 = (int32_t) *payload0;
+  } else {
+    option = 0;
+    option1 = 0;
+  }
+  int32_t option12;
+  int32_t option13;
+  int32_t option14;
+  int32_t option15;
+  uint8_t * option16;
+  size_t option17;
+  if ((padding).is_some) {
+    const openssl_component_pkey_rsa_padding_t *payload3 = &(padding).val;
+    int32_t variant;
+    int32_t variant8;
+    int32_t variant9;
+    uint8_t * variant10;
+    size_t variant11;
+    switch ((int32_t) (*payload3).tag) {
+      case 0: {
+        variant = 0;
+        variant8 = 0;
+        variant9 = 0;
+        variant10 = 0;
+        variant11 = 0;
+        break;
+      }
+      case 1: {
+        const openssl_component_pkey_oaep_params_t *payload5 = &(*payload3).val.pkcs1_oaep;
+        variant = 1;
+        variant8 = (int32_t) (*payload5).hash;
+        variant9 = (int32_t) (*payload5).mgf1_hash;
+        variant10 = (uint8_t *) ((*payload5).label).ptr;
+        variant11 = ((*payload5).label).len;
+        break;
+      }
+      case 2: {
+        const openssl_component_pkey_pss_params_t *payload6 = &(*payload3).val.pkcs1_pss;
+        variant = 2;
+        variant8 = (int32_t) (*payload6).hash;
+        variant9 = (int32_t) (*payload6).mgf1_hash;
+        variant10 = (uint8_t *) (*payload6).salt_len;
+        variant11 = 0;
+        break;
+      }
+      case 3: {
+        variant = 3;
+        variant8 = 0;
+        variant9 = 0;
+        variant10 = 0;
+        variant11 = 0;
+        break;
+      }
+    }
+    option12 = 1;
+    option13 = variant;
+    option14 = variant8;
+    option15 = variant9;
+    option16 = variant10;
+    option17 = variant11;
+  } else {
+    option12 = 0;
+    option13 = 0;
+    option14 = 0;
+    option15 = 0;
+    option16 = 0;
+    option17 = 0;
+  }
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_method_pkey_sign_message((self).__handle, option, option1, (uint8_t *) (*message).ptr, (*message).len, option12, option13, option14, option15, option16, option17, ptr);
+  openssl_component_pkey_result_list_u8_pkey_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_pkey_pkey_error_t variant18;
+      variant18.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant18.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          variant18.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant18;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_pkey_method_pkey_verify_digest(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_hash_t hash, ssl_import_list_u8_t *digest, ssl_import_list_u8_t *signature, openssl_component_pkey_rsa_padding_t *maybe_padding, bool *ret, openssl_component_pkey_pkey_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  openssl_component_pkey_option_rsa_padding_t padding;
+  padding.is_some = maybe_padding != NULL;if (maybe_padding) {
+    padding.val = *maybe_padding;
+  }
+  int32_t option;
+  int32_t option9;
+  int32_t option10;
+  int32_t option11;
+  uint8_t * option12;
+  size_t option13;
+  if ((padding).is_some) {
+    const openssl_component_pkey_rsa_padding_t *payload0 = &(padding).val;
+    int32_t variant;
+    int32_t variant5;
+    int32_t variant6;
+    uint8_t * variant7;
+    size_t variant8;
+    switch ((int32_t) (*payload0).tag) {
+      case 0: {
+        variant = 0;
+        variant5 = 0;
+        variant6 = 0;
+        variant7 = 0;
+        variant8 = 0;
+        break;
+      }
+      case 1: {
+        const openssl_component_pkey_oaep_params_t *payload2 = &(*payload0).val.pkcs1_oaep;
+        variant = 1;
+        variant5 = (int32_t) (*payload2).hash;
+        variant6 = (int32_t) (*payload2).mgf1_hash;
+        variant7 = (uint8_t *) ((*payload2).label).ptr;
+        variant8 = ((*payload2).label).len;
+        break;
+      }
+      case 2: {
+        const openssl_component_pkey_pss_params_t *payload3 = &(*payload0).val.pkcs1_pss;
+        variant = 2;
+        variant5 = (int32_t) (*payload3).hash;
+        variant6 = (int32_t) (*payload3).mgf1_hash;
+        variant7 = (uint8_t *) (*payload3).salt_len;
+        variant8 = 0;
+        break;
+      }
+      case 3: {
+        variant = 3;
+        variant5 = 0;
+        variant6 = 0;
+        variant7 = 0;
+        variant8 = 0;
+        break;
+      }
+    }
+    option = 1;
+    option9 = variant;
+    option10 = variant5;
+    option11 = variant6;
+    option12 = variant7;
+    option13 = variant8;
+  } else {
+    option = 0;
+    option9 = 0;
+    option10 = 0;
+    option11 = 0;
+    option12 = 0;
+    option13 = 0;
+  }
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_method_pkey_verify_digest((self).__handle, (int32_t) hash, (uint8_t *) (*digest).ptr, (*digest).len, (uint8_t *) (*signature).ptr, (*signature).len, option, option9, option10, option11, option12, option13, ptr);
+  openssl_component_pkey_result_bool_pkey_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (int32_t) *((uint8_t*) (ptr + 8));
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_pkey_pkey_error_t variant14;
+      variant14.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant14.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          variant14.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant14;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_pkey_method_pkey_verify_message(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_hash_t *maybe_hash, ssl_import_list_u8_t *message, ssl_import_list_u8_t *signature, openssl_component_pkey_rsa_padding_t *maybe_padding, bool *ret, openssl_component_pkey_pkey_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  openssl_component_pkey_option_hash_t hash;
+  hash.is_some = maybe_hash != NULL;if (maybe_hash) {
+    hash.val = *maybe_hash;
+  }
+  openssl_component_pkey_option_rsa_padding_t padding;
+  padding.is_some = maybe_padding != NULL;if (maybe_padding) {
+    padding.val = *maybe_padding;
+  }
+  int32_t option;
+  int32_t option1;
+  if ((hash).is_some) {
+    const openssl_component_pkey_hash_t *payload0 = &(hash).val;
+    option = 1;
+    option1 = (int32_t) *payload0;
+  } else {
+    option = 0;
+    option1 = 0;
+  }
+  int32_t option12;
+  int32_t option13;
+  int32_t option14;
+  int32_t option15;
+  uint8_t * option16;
+  size_t option17;
+  if ((padding).is_some) {
+    const openssl_component_pkey_rsa_padding_t *payload3 = &(padding).val;
+    int32_t variant;
+    int32_t variant8;
+    int32_t variant9;
+    uint8_t * variant10;
+    size_t variant11;
+    switch ((int32_t) (*payload3).tag) {
+      case 0: {
+        variant = 0;
+        variant8 = 0;
+        variant9 = 0;
+        variant10 = 0;
+        variant11 = 0;
+        break;
+      }
+      case 1: {
+        const openssl_component_pkey_oaep_params_t *payload5 = &(*payload3).val.pkcs1_oaep;
+        variant = 1;
+        variant8 = (int32_t) (*payload5).hash;
+        variant9 = (int32_t) (*payload5).mgf1_hash;
+        variant10 = (uint8_t *) ((*payload5).label).ptr;
+        variant11 = ((*payload5).label).len;
+        break;
+      }
+      case 2: {
+        const openssl_component_pkey_pss_params_t *payload6 = &(*payload3).val.pkcs1_pss;
+        variant = 2;
+        variant8 = (int32_t) (*payload6).hash;
+        variant9 = (int32_t) (*payload6).mgf1_hash;
+        variant10 = (uint8_t *) (*payload6).salt_len;
+        variant11 = 0;
+        break;
+      }
+      case 3: {
+        variant = 3;
+        variant8 = 0;
+        variant9 = 0;
+        variant10 = 0;
+        variant11 = 0;
+        break;
+      }
+    }
+    option12 = 1;
+    option13 = variant;
+    option14 = variant8;
+    option15 = variant9;
+    option16 = variant10;
+    option17 = variant11;
+  } else {
+    option12 = 0;
+    option13 = 0;
+    option14 = 0;
+    option15 = 0;
+    option16 = 0;
+    option17 = 0;
+  }
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_method_pkey_verify_message((self).__handle, option, option1, (uint8_t *) (*message).ptr, (*message).len, (uint8_t *) (*signature).ptr, (*signature).len, option12, option13, option14, option15, option16, option17, ptr);
+  openssl_component_pkey_result_bool_pkey_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (int32_t) *((uint8_t*) (ptr + 8));
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_pkey_pkey_error_t variant18;
+      variant18.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant18.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          variant18.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant18;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_pkey_method_pkey_encrypt(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_rsa_padding_t *padding, ssl_import_list_u8_t *plaintext, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  int32_t variant;
+  int32_t variant3;
+  int32_t variant4;
+  uint8_t * variant5;
+  size_t variant6;
+  switch ((int32_t) (*padding).tag) {
+    case 0: {
+      variant = 0;
+      variant3 = 0;
+      variant4 = 0;
+      variant5 = 0;
+      variant6 = 0;
+      break;
+    }
+    case 1: {
+      const openssl_component_pkey_oaep_params_t *payload0 = &(*padding).val.pkcs1_oaep;
+      variant = 1;
+      variant3 = (int32_t) (*payload0).hash;
+      variant4 = (int32_t) (*payload0).mgf1_hash;
+      variant5 = (uint8_t *) ((*payload0).label).ptr;
+      variant6 = ((*payload0).label).len;
+      break;
+    }
+    case 2: {
+      const openssl_component_pkey_pss_params_t *payload1 = &(*padding).val.pkcs1_pss;
+      variant = 2;
+      variant3 = (int32_t) (*payload1).hash;
+      variant4 = (int32_t) (*payload1).mgf1_hash;
+      variant5 = (uint8_t *) (*payload1).salt_len;
+      variant6 = 0;
+      break;
+    }
+    case 3: {
+      variant = 3;
+      variant3 = 0;
+      variant4 = 0;
+      variant5 = 0;
+      variant6 = 0;
+      break;
+    }
+  }
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_method_pkey_encrypt((self).__handle, variant, variant3, variant4, variant5, variant6, (uint8_t *) (*plaintext).ptr, (*plaintext).len, ptr);
+  openssl_component_pkey_result_list_u8_pkey_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_pkey_pkey_error_t variant7;
+      variant7.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant7.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          variant7.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant7;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_pkey_method_pkey_decrypt(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_rsa_padding_t *padding, ssl_import_list_u8_t *ciphertext, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  int32_t variant;
+  int32_t variant3;
+  int32_t variant4;
+  uint8_t * variant5;
+  size_t variant6;
+  switch ((int32_t) (*padding).tag) {
+    case 0: {
+      variant = 0;
+      variant3 = 0;
+      variant4 = 0;
+      variant5 = 0;
+      variant6 = 0;
+      break;
+    }
+    case 1: {
+      const openssl_component_pkey_oaep_params_t *payload0 = &(*padding).val.pkcs1_oaep;
+      variant = 1;
+      variant3 = (int32_t) (*payload0).hash;
+      variant4 = (int32_t) (*payload0).mgf1_hash;
+      variant5 = (uint8_t *) ((*payload0).label).ptr;
+      variant6 = ((*payload0).label).len;
+      break;
+    }
+    case 2: {
+      const openssl_component_pkey_pss_params_t *payload1 = &(*padding).val.pkcs1_pss;
+      variant = 2;
+      variant3 = (int32_t) (*payload1).hash;
+      variant4 = (int32_t) (*payload1).mgf1_hash;
+      variant5 = (uint8_t *) (*payload1).salt_len;
+      variant6 = 0;
+      break;
+    }
+    case 3: {
+      variant = 3;
+      variant3 = 0;
+      variant4 = 0;
+      variant5 = 0;
+      variant6 = 0;
+      break;
+    }
+  }
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_method_pkey_decrypt((self).__handle, variant, variant3, variant4, variant5, variant6, (uint8_t *) (*ciphertext).ptr, (*ciphertext).len, ptr);
+  openssl_component_pkey_result_list_u8_pkey_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_pkey_pkey_error_t variant7;
+      variant7.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant7.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          variant7.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant7;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_pkey_method_pkey_derive(openssl_component_pkey_borrow_pkey_t self, openssl_component_pkey_borrow_pkey_t peer, ssl_import_list_u8_t *ret, openssl_component_pkey_pkey_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_pkey_method_pkey_derive((self).__handle, (peer).__handle, ptr);
+  openssl_component_pkey_result_list_u8_pkey_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_pkey_pkey_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+openssl_component_pkey_own_pkey_t openssl_component_pkey_method_pkey_clone(openssl_component_pkey_borrow_pkey_t self) {
+  int32_t ret = __wasm_import_openssl_component_pkey_method_pkey_clone((self).__handle);
+  return (openssl_component_pkey_own_pkey_t) { ret };
+}
+
+bool openssl_component_x509_static_certificate_parse(ssl_import_list_u8_t *bytes, openssl_component_x509_encoding_t enc, openssl_component_x509_own_certificate_t *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_static_certificate_parse((uint8_t *) (*bytes).ptr, (*bytes).len, (int32_t) enc, ptr);
+  openssl_component_x509_result_own_certificate_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (openssl_component_x509_own_certificate_t) { *((int32_t*) (ptr + 8)) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_x509_static_certificate_parse_chain(ssl_import_list_u8_t *pem, openssl_component_x509_list_own_certificate_t *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_static_certificate_parse_chain((uint8_t *) (*pem).ptr, (*pem).len, ptr);
+  openssl_component_x509_result_list_own_certificate_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (openssl_component_x509_list_own_certificate_t) { (openssl_component_x509_own_certificate_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_x509_method_certificate_encode(openssl_component_x509_borrow_certificate_t self, openssl_component_x509_encoding_t enc, ssl_import_list_u8_t *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_method_certificate_encode((self).__handle, (int32_t) enc, ptr);
+  openssl_component_x509_result_list_u8_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+void openssl_component_x509_method_certificate_info(openssl_component_x509_borrow_certificate_t self, openssl_component_x509_certificate_info_t *ret) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(16+22*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_method_certificate_info((self).__handle, ptr);
+  openssl_component_x509_option_basic_constraints_t option1;
+  switch ((int32_t) *((uint8_t*) (ptr + (17*sizeof(void*))))) {
+    case 0: {
+      option1.is_some = false;
+      break;
+    }
+    case 1: {
+      option1.is_some = true;
+      ssl_import_option_u32_t option;
+      switch ((int32_t) *((uint8_t*) (ptr + (8+17*sizeof(void*))))) {
+        case 0: {
+          option.is_some = false;
+          break;
+        }
+        case 1: {
+          option.is_some = true;
+          option.val = (uint32_t) (*((int32_t*) (ptr + (12+17*sizeof(void*)))));
+          break;
+        }
+      }
+
+      option1.val = (openssl_component_x509_basic_constraints_t) {
+        (bool) (int32_t) *((uint8_t*) (ptr + (4+17*sizeof(void*)))),
+        (ssl_import_option_u32_t) option,
+      };
+      break;
+    }
+  }
+  openssl_component_x509_option_key_usage_t option2;
+  switch ((int32_t) *((uint8_t*) (ptr + (16+17*sizeof(void*))))) {
+    case 0: {
+      option2.is_some = false;
+      break;
+    }
+    case 1: {
+      option2.is_some = true;
+      option2.val = (int32_t) *((uint16_t*) (ptr + (18+17*sizeof(void*))));
+      break;
+    }
+  }
+  *ret = (openssl_component_x509_certificate_info_t) {
+    (uint32_t) (uint32_t) (*((int32_t*) (ptr + 0))),
+    (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) },
+    (openssl_component_x509_name_t) (openssl_component_x509_name_t) { (openssl_component_x509_name_entry_t*)(*((uint8_t **) (ptr + (3*sizeof(void*))))), (*((size_t*) (ptr + (4*sizeof(void*))))) },
+    (openssl_component_x509_name_t) (openssl_component_x509_name_t) { (openssl_component_x509_name_entry_t*)(*((uint8_t **) (ptr + (5*sizeof(void*))))), (*((size_t*) (ptr + (6*sizeof(void*))))) },
+    (openssl_component_x509_validity_t) (openssl_component_x509_validity_t) {
+      (openssl_component_x509_timestamp_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (7*sizeof(void*))))), (*((size_t*) (ptr + (8*sizeof(void*))))) },
+      (openssl_component_x509_timestamp_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (9*sizeof(void*))))), (*((size_t*) (ptr + (10*sizeof(void*))))) },
+    },
+    (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (11*sizeof(void*))))), (*((size_t*) (ptr + (12*sizeof(void*))))) },
+    (openssl_component_x509_list_general_name_t) (openssl_component_x509_list_general_name_t) { (openssl_component_x509_general_name_t*)(*((uint8_t **) (ptr + (13*sizeof(void*))))), (*((size_t*) (ptr + (14*sizeof(void*))))) },
+    (openssl_component_x509_list_general_name_t) (openssl_component_x509_list_general_name_t) { (openssl_component_x509_general_name_t*)(*((uint8_t **) (ptr + (15*sizeof(void*))))), (*((size_t*) (ptr + (16*sizeof(void*))))) },
+    (openssl_component_x509_option_basic_constraints_t) option1,
+    (openssl_component_x509_option_key_usage_t) option2,
+    (openssl_component_x509_list_extended_key_usage_t) (openssl_component_x509_list_extended_key_usage_t) { (openssl_component_x509_extended_key_usage_t*)(*((uint8_t **) (ptr + (16+18*sizeof(void*))))), (*((size_t*) (ptr + (16+19*sizeof(void*))))) },
+    (ssl_import_list_u8_t) (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + (16+20*sizeof(void*))))), (*((size_t*) (ptr + (16+21*sizeof(void*))))) },
+  };
+}
+
+openssl_component_x509_own_pkey_t openssl_component_x509_method_certificate_public_key(openssl_component_x509_borrow_certificate_t self) {
+  int32_t ret = __wasm_import_openssl_component_x509_method_certificate_public_key((self).__handle);
+  return (openssl_component_x509_own_pkey_t) { ret };
+}
+
+bool openssl_component_x509_method_certificate_verify_signature(openssl_component_x509_borrow_certificate_t self, openssl_component_x509_borrow_pkey_t issuer, bool *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_method_certificate_verify_signature((self).__handle, (issuer).__handle, ptr);
+  openssl_component_x509_result_bool_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (int32_t) *((uint8_t*) (ptr + 8));
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+void openssl_component_x509_method_certificate_fingerprint(openssl_component_x509_borrow_certificate_t self, openssl_component_x509_hash_t alg, ssl_import_list_u8_t *ret) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(2*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_method_certificate_fingerprint((self).__handle, (int32_t) alg, ptr);
+  *ret = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) };
+}
+
+openssl_component_x509_own_certificate_t openssl_component_x509_method_certificate_clone(openssl_component_x509_borrow_certificate_t self) {
+  int32_t ret = __wasm_import_openssl_component_x509_method_certificate_clone((self).__handle);
+  return (openssl_component_x509_own_certificate_t) { ret };
+}
+
+bool openssl_component_x509_build_and_sign(openssl_component_x509_certificate_builder_input_t *input, openssl_component_x509_borrow_pkey_t signer, openssl_component_x509_own_certificate_t *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(24+17*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  *((size_t*)(ptr + sizeof(void*))) = ((*input).subject).len;
+  *((uint8_t **)(ptr + 0)) = (uint8_t *) ((*input).subject).ptr;
+  *((size_t*)(ptr + (3*sizeof(void*)))) = ((*input).issuer).len;
+  *((uint8_t **)(ptr + (2*sizeof(void*)))) = (uint8_t *) ((*input).issuer).ptr;
+  if (((*input).serial_hex).is_some) {
+    const ssl_import_string_t *payload0 = &((*input).serial_hex).val;
     *((int8_t*)(ptr + (4*sizeof(void*)))) = 1;
     *((size_t*)(ptr + (6*sizeof(void*)))) = (*payload0).len;
     *((uint8_t **)(ptr + (5*sizeof(void*)))) = (uint8_t *) (*payload0).ptr;
   } else {
     *((int8_t*)(ptr + (4*sizeof(void*)))) = 0;
   }
-  if (((*config).client_cert).is_some) {
-    const ssl_import_list_u8_t *payload2 = &((*config).client_cert).val;
-    *((int8_t*)(ptr + (7*sizeof(void*)))) = 1;
-    *((size_t*)(ptr + (9*sizeof(void*)))) = (*payload2).len;
-    *((uint8_t **)(ptr + (8*sizeof(void*)))) = (uint8_t *) (*payload2).ptr;
+  *((size_t*)(ptr + (8*sizeof(void*)))) = (((*input).validity).not_before).len;
+  *((uint8_t **)(ptr + (7*sizeof(void*)))) = (uint8_t *) (((*input).validity).not_before).ptr;
+  *((size_t*)(ptr + (10*sizeof(void*)))) = (((*input).validity).not_after).len;
+  *((uint8_t **)(ptr + (9*sizeof(void*)))) = (uint8_t *) (((*input).validity).not_after).ptr;
+  *((size_t*)(ptr + (12*sizeof(void*)))) = ((*input).subject_alt_names).len;
+  *((uint8_t **)(ptr + (11*sizeof(void*)))) = (uint8_t *) ((*input).subject_alt_names).ptr;
+  if (((*input).key_usage).is_some) {
+    const openssl_component_x509_key_usage_t *payload7 = &((*input).key_usage).val;
+    *((int8_t*)(ptr + (13*sizeof(void*)))) = 1;
+    *((int16_t*)(ptr + (2+13*sizeof(void*)))) = *payload7;
   } else {
-    *((int8_t*)(ptr + (7*sizeof(void*)))) = 0;
+    *((int8_t*)(ptr + (13*sizeof(void*)))) = 0;
   }
-  if (((*config).client_key).is_some) {
-    const ssl_import_list_u8_t *payload4 = &((*config).client_key).val;
-    *((int8_t*)(ptr + (10*sizeof(void*)))) = 1;
-    *((size_t*)(ptr + (12*sizeof(void*)))) = (*payload4).len;
-    *((uint8_t **)(ptr + (11*sizeof(void*)))) = (uint8_t *) (*payload4).ptr;
+  *((size_t*)(ptr + (15*sizeof(void*)))) = ((*input).extended_key_usage).len;
+  *((uint8_t **)(ptr + (14*sizeof(void*)))) = (uint8_t *) ((*input).extended_key_usage).ptr;
+  if (((*input).basic_constraints).is_some) {
+    const openssl_component_x509_basic_constraints_t *payload9 = &((*input).basic_constraints).val;
+    *((int8_t*)(ptr + (16*sizeof(void*)))) = 1;
+    *((int8_t*)(ptr + (4+16*sizeof(void*)))) = (*payload9).is_ca;
+    if (((*payload9).path_len).is_some) {
+      const uint32_t *payload11 = &((*payload9).path_len).val;
+      *((int8_t*)(ptr + (8+16*sizeof(void*)))) = 1;
+      *((int32_t*)(ptr + (12+16*sizeof(void*)))) = (int32_t) (*payload11);
+    } else {
+      *((int8_t*)(ptr + (8+16*sizeof(void*)))) = 0;
+    }
   } else {
-    *((int8_t*)(ptr + (10*sizeof(void*)))) = 0;
+    *((int8_t*)(ptr + (16*sizeof(void*)))) = 0;
   }
-  *((int8_t*)(ptr + (13*sizeof(void*)))) = (int32_t) (*config).verify_mode;
-  *((int8_t*)(ptr + (1+13*sizeof(void*)))) = (*config).check_hostname;
-  *((int8_t*)(ptr + (2+13*sizeof(void*)))) = (int32_t) (*config).min_version;
-  *((int8_t*)(ptr + (3+13*sizeof(void*)))) = (int32_t) (*config).max_version;
-  int32_t ret = __wasm_import_tegmentum_tls_context_constructor_client(ptr);
-  return (tegmentum_tls_context_own_client_t) { ret };
-}
-
-bool tegmentum_tls_context_method_client_push_tls_input(tegmentum_tls_context_borrow_client_t self, ssl_import_list_u8_t *bytes, uint64_t *ret, tegmentum_tls_context_tls_error_t *err) {
-  __attribute__((__aligned__(8)))
-  uint8_t ret_area[(16+2*sizeof(void*))];
-  uint8_t *ptr = (uint8_t *) &ret_area;
-  __wasm_import_tegmentum_tls_context_method_client_push_tls_input((self).__handle, (uint8_t *) (*bytes).ptr, (*bytes).len, ptr);
-  tegmentum_tls_context_result_u64_tls_error_t result;
-  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+  *((int32_t*)(ptr + (16+16*sizeof(void*)))) = ((*input).subject_key).__handle;
+  *((int8_t*)(ptr + (20+16*sizeof(void*)))) = (int32_t) (*input).signature_hash;
+  *((int32_t*)(ptr + (24+16*sizeof(void*)))) = (signer).__handle;
+  uint8_t *ptr12 = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_build_and_sign(ptr, ptr12);
+  openssl_component_x509_result_own_certificate_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr12 + 0))) {
     case 0: {
       result.is_err = false;
-      result.val.ok = (uint64_t) (*((int64_t*) (ptr + 8)));
+      result.val.ok = (openssl_component_x509_own_certificate_t) { *((int32_t*) (ptr12 + 8)) };
       break;
     }
     case 1: {
       result.is_err = true;
-      tegmentum_tls_context_tls_error_t variant;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr12 + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr12 + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_x509_static_csr_parse(ssl_import_list_u8_t *bytes, openssl_component_x509_encoding_t enc, openssl_component_x509_own_csr_t *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_static_csr_parse((uint8_t *) (*bytes).ptr, (*bytes).len, (int32_t) enc, ptr);
+  openssl_component_x509_result_own_csr_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (openssl_component_x509_own_csr_t) { *((int32_t*) (ptr + 8)) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
       variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
       switch ((int32_t) variant.tag) {
         case 0: {
           break;
         }
         case 1: {
-          variant.val.cert_verify_failed = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (8+1*sizeof(void*))))), (*((size_t*) (ptr + (8+2*sizeof(void*))))) };
           break;
         }
         case 2: {
-          variant.val.handshake_failed = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (8+1*sizeof(void*))))), (*((size_t*) (ptr + (8+2*sizeof(void*))))) };
           break;
         }
         case 3: {
-          variant.val.protocol = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (8+1*sizeof(void*))))), (*((size_t*) (ptr + (8+2*sizeof(void*))))) };
           break;
         }
         case 4: {
           break;
         }
         case 5: {
-          variant.val.invalid_config = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (8+1*sizeof(void*))))), (*((size_t*) (ptr + (8+2*sizeof(void*))))) };
           break;
         }
         case 6: {
-          variant.val.io = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (8+1*sizeof(void*))))), (*((size_t*) (ptr + (8+2*sizeof(void*))))) };
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
           break;
         }
       }
@@ -304,55 +3865,70 @@ bool tegmentum_tls_context_method_client_push_tls_input(tegmentum_tls_context_bo
   }
 }
 
-void tegmentum_tls_context_method_client_pull_tls_output(tegmentum_tls_context_borrow_client_t self, uint64_t max, ssl_import_list_u8_t *ret) {
-  __attribute__((__aligned__(sizeof(void*))))
-  uint8_t ret_area[(2*sizeof(void*))];
-  uint8_t *ptr = (uint8_t *) &ret_area;
-  __wasm_import_tegmentum_tls_context_method_client_pull_tls_output((self).__handle, (int64_t) (max), ptr);
-  *ret = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) };
-}
-
-bool tegmentum_tls_context_method_client_write_plaintext(tegmentum_tls_context_borrow_client_t self, ssl_import_list_u8_t *bytes, uint64_t *ret, tegmentum_tls_context_tls_error_t *err) {
+bool openssl_component_x509_method_csr_encode(openssl_component_x509_borrow_csr_t self, openssl_component_x509_encoding_t enc, ssl_import_list_u8_t *ret, openssl_component_x509_x509_error_t *err) {
   __attribute__((__aligned__(8)))
-  uint8_t ret_area[(16+2*sizeof(void*))];
+  uint8_t ret_area[24];
   uint8_t *ptr = (uint8_t *) &ret_area;
-  __wasm_import_tegmentum_tls_context_method_client_write_plaintext((self).__handle, (uint8_t *) (*bytes).ptr, (*bytes).len, ptr);
-  tegmentum_tls_context_result_u64_tls_error_t result;
+  __wasm_import_openssl_component_x509_method_csr_encode((self).__handle, (int32_t) enc, ptr);
+  openssl_component_x509_result_list_u8_x509_error_t result;
   switch ((int32_t) *((uint8_t*) (ptr + 0))) {
     case 0: {
       result.is_err = false;
-      result.val.ok = (uint64_t) (*((int64_t*) (ptr + 8)));
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
       break;
     }
     case 1: {
       result.is_err = true;
-      tegmentum_tls_context_tls_error_t variant;
+      openssl_component_x509_x509_error_t variant;
       variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
       switch ((int32_t) variant.tag) {
         case 0: {
           break;
         }
         case 1: {
-          variant.val.cert_verify_failed = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (8+1*sizeof(void*))))), (*((size_t*) (ptr + (8+2*sizeof(void*))))) };
           break;
         }
         case 2: {
-          variant.val.handshake_failed = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (8+1*sizeof(void*))))), (*((size_t*) (ptr + (8+2*sizeof(void*))))) };
           break;
         }
         case 3: {
-          variant.val.protocol = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (8+1*sizeof(void*))))), (*((size_t*) (ptr + (8+2*sizeof(void*))))) };
           break;
         }
         case 4: {
           break;
         }
         case 5: {
-          variant.val.invalid_config = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (8+1*sizeof(void*))))), (*((size_t*) (ptr + (8+2*sizeof(void*))))) };
           break;
         }
         case 6: {
-          variant.val.io = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (8+1*sizeof(void*))))), (*((size_t*) (ptr + (8+2*sizeof(void*))))) };
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
           break;
         }
       }
@@ -370,47 +3946,86 @@ bool tegmentum_tls_context_method_client_write_plaintext(tegmentum_tls_context_b
   }
 }
 
-bool tegmentum_tls_context_method_client_read_plaintext(tegmentum_tls_context_borrow_client_t self, uint64_t max, ssl_import_list_u8_t *ret, tegmentum_tls_context_tls_error_t *err) {
+void openssl_component_x509_method_csr_info(openssl_component_x509_borrow_csr_t self, openssl_component_x509_csr_info_t *ret) {
   __attribute__((__aligned__(sizeof(void*))))
   uint8_t ret_area[(4*sizeof(void*))];
   uint8_t *ptr = (uint8_t *) &ret_area;
-  __wasm_import_tegmentum_tls_context_method_client_read_plaintext((self).__handle, (int64_t) (max), ptr);
-  tegmentum_tls_context_result_list_u8_tls_error_t result;
+  __wasm_import_openssl_component_x509_method_csr_info((self).__handle, ptr);
+  *ret = (openssl_component_x509_csr_info_t) {
+    (openssl_component_x509_name_t) (openssl_component_x509_name_t) { (openssl_component_x509_name_entry_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) },
+    (openssl_component_x509_list_general_name_t) (openssl_component_x509_list_general_name_t) { (openssl_component_x509_general_name_t*)(*((uint8_t **) (ptr + (2*sizeof(void*))))), (*((size_t*) (ptr + (3*sizeof(void*))))) },
+  };
+}
+
+openssl_component_x509_own_pkey_t openssl_component_x509_method_csr_public_key(openssl_component_x509_borrow_csr_t self) {
+  int32_t ret = __wasm_import_openssl_component_x509_method_csr_public_key((self).__handle);
+  return (openssl_component_x509_own_pkey_t) { ret };
+}
+
+bool openssl_component_x509_method_csr_verify_signature(openssl_component_x509_borrow_csr_t self, bool *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_method_csr_verify_signature((self).__handle, ptr);
+  openssl_component_x509_result_bool_x509_error_t result;
   switch ((int32_t) *((uint8_t*) (ptr + 0))) {
     case 0: {
       result.is_err = false;
-      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      result.val.ok = (int32_t) *((uint8_t*) (ptr + 8));
       break;
     }
     case 1: {
       result.is_err = true;
-      tegmentum_tls_context_tls_error_t variant;
-      variant.tag = (int32_t) *((uint8_t*) (ptr + sizeof(void*)));
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
       switch ((int32_t) variant.tag) {
         case 0: {
           break;
         }
         case 1: {
-          variant.val.cert_verify_failed = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (2*sizeof(void*))))), (*((size_t*) (ptr + (3*sizeof(void*))))) };
           break;
         }
         case 2: {
-          variant.val.handshake_failed = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (2*sizeof(void*))))), (*((size_t*) (ptr + (3*sizeof(void*))))) };
           break;
         }
         case 3: {
-          variant.val.protocol = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (2*sizeof(void*))))), (*((size_t*) (ptr + (3*sizeof(void*))))) };
           break;
         }
         case 4: {
           break;
         }
         case 5: {
-          variant.val.invalid_config = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (2*sizeof(void*))))), (*((size_t*) (ptr + (3*sizeof(void*))))) };
           break;
         }
         case 6: {
-          variant.val.io = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (2*sizeof(void*))))), (*((size_t*) (ptr + (3*sizeof(void*))))) };
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
           break;
         }
       }
@@ -428,27 +4043,371 @@ bool tegmentum_tls_context_method_client_read_plaintext(tegmentum_tls_context_bo
   }
 }
 
-uint64_t tegmentum_tls_context_method_client_pending(tegmentum_tls_context_borrow_client_t self) {
-  int64_t ret = __wasm_import_tegmentum_tls_context_method_client_pending((self).__handle);
-  return (uint64_t) (ret);
-}
-
-tegmentum_tls_context_connection_state_t tegmentum_tls_context_method_client_state(tegmentum_tls_context_borrow_client_t self) {
-  int32_t ret = __wasm_import_tegmentum_tls_context_method_client_state((self).__handle);
-  return ret;
-}
-
-bool tegmentum_tls_context_method_client_handshake_complete(tegmentum_tls_context_borrow_client_t self) {
-  int32_t ret = __wasm_import_tegmentum_tls_context_method_client_handshake_complete((self).__handle);
-  return ret;
-}
-
-bool tegmentum_tls_context_method_client_close_notify(tegmentum_tls_context_borrow_client_t self, tegmentum_tls_context_tls_error_t *err) {
-  __attribute__((__aligned__(sizeof(void*))))
-  uint8_t ret_area[(4*sizeof(void*))];
+bool openssl_component_x509_static_csr_build_and_sign(openssl_component_x509_csr_info_t *info, openssl_component_x509_borrow_pkey_t key, openssl_component_x509_hash_t signature_hash, openssl_component_x509_own_csr_t *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
   uint8_t *ptr = (uint8_t *) &ret_area;
-  __wasm_import_tegmentum_tls_context_method_client_close_notify((self).__handle, ptr);
-  tegmentum_tls_context_result_void_tls_error_t result;
+  __wasm_import_openssl_component_x509_static_csr_build_and_sign((uint8_t *) ((*info).subject).ptr, ((*info).subject).len, (uint8_t *) ((*info).subject_alt_names).ptr, ((*info).subject_alt_names).len, (key).__handle, (int32_t) signature_hash, ptr);
+  openssl_component_x509_result_own_csr_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (openssl_component_x509_own_csr_t) { *((int32_t*) (ptr + 8)) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_x509_static_crl_parse(ssl_import_list_u8_t *bytes, openssl_component_x509_encoding_t enc, openssl_component_x509_own_crl_t *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_static_crl_parse((uint8_t *) (*bytes).ptr, (*bytes).len, (int32_t) enc, ptr);
+  openssl_component_x509_result_own_crl_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (openssl_component_x509_own_crl_t) { *((int32_t*) (ptr + 8)) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_x509_method_crl_encode(openssl_component_x509_borrow_crl_t self, openssl_component_x509_encoding_t enc, ssl_import_list_u8_t *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_method_crl_encode((self).__handle, (int32_t) enc, ptr);
+  openssl_component_x509_result_list_u8_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+void openssl_component_x509_method_crl_info(openssl_component_x509_borrow_crl_t self, openssl_component_x509_crl_info_t *ret) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(9*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_method_crl_info((self).__handle, ptr);
+  ssl_import_option_timestamp_t option;
+  switch ((int32_t) *((uint8_t*) (ptr + (4*sizeof(void*))))) {
+    case 0: {
+      option.is_some = false;
+      break;
+    }
+    case 1: {
+      option.is_some = true;
+      option.val = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (5*sizeof(void*))))), (*((size_t*) (ptr + (6*sizeof(void*))))) };
+      break;
+    }
+  }
+  *ret = (openssl_component_x509_crl_info_t) {
+    (openssl_component_x509_name_t) (openssl_component_x509_name_t) { (openssl_component_x509_name_entry_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) },
+    (openssl_component_x509_timestamp_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (2*sizeof(void*))))), (*((size_t*) (ptr + (3*sizeof(void*))))) },
+    (ssl_import_option_timestamp_t) option,
+    (openssl_component_x509_list_revoked_entry_t) (openssl_component_x509_list_revoked_entry_t) { (openssl_component_x509_revoked_entry_t*)(*((uint8_t **) (ptr + (7*sizeof(void*))))), (*((size_t*) (ptr + (8*sizeof(void*))))) },
+  };
+}
+
+bool openssl_component_x509_method_crl_verify_signature(openssl_component_x509_borrow_crl_t self, openssl_component_x509_borrow_pkey_t issuer, bool *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_method_crl_verify_signature((self).__handle, (issuer).__handle, ptr);
+  openssl_component_x509_result_bool_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (int32_t) *((uint8_t*) (ptr + 8));
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_x509_method_crl_is_revoked(openssl_component_x509_borrow_crl_t self, ssl_import_string_t *serial_hex) {
+  int32_t ret = __wasm_import_openssl_component_x509_method_crl_is_revoked((self).__handle, (uint8_t *) (*serial_hex).ptr, (*serial_hex).len);
+  return ret;
+}
+
+openssl_component_x509_own_store_t openssl_component_x509_constructor_store(void) {
+  int32_t ret = __wasm_import_openssl_component_x509_constructor_store();
+  return (openssl_component_x509_own_store_t) { ret };
+}
+
+bool openssl_component_x509_method_store_add_trusted(openssl_component_x509_borrow_store_t self, openssl_component_x509_borrow_certificate_t cert, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_method_store_add_trusted((self).__handle, (cert).__handle, ptr);
+  openssl_component_x509_result_void_x509_error_t result;
   switch ((int32_t) *((uint8_t*) (ptr + 0))) {
     case 0: {
       result.is_err = false;
@@ -456,33 +4415,56 @@ bool tegmentum_tls_context_method_client_close_notify(tegmentum_tls_context_borr
     }
     case 1: {
       result.is_err = true;
-      tegmentum_tls_context_tls_error_t variant;
-      variant.tag = (int32_t) *((uint8_t*) (ptr + sizeof(void*)));
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
       switch ((int32_t) variant.tag) {
         case 0: {
           break;
         }
         case 1: {
-          variant.val.cert_verify_failed = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (2*sizeof(void*))))), (*((size_t*) (ptr + (3*sizeof(void*))))) };
           break;
         }
         case 2: {
-          variant.val.handshake_failed = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (2*sizeof(void*))))), (*((size_t*) (ptr + (3*sizeof(void*))))) };
           break;
         }
         case 3: {
-          variant.val.protocol = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (2*sizeof(void*))))), (*((size_t*) (ptr + (3*sizeof(void*))))) };
           break;
         }
         case 4: {
           break;
         }
         case 5: {
-          variant.val.invalid_config = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (2*sizeof(void*))))), (*((size_t*) (ptr + (3*sizeof(void*))))) };
           break;
         }
         case 6: {
-          variant.val.io = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (2*sizeof(void*))))), (*((size_t*) (ptr + (3*sizeof(void*))))) };
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
           break;
         }
       }
@@ -499,73 +4481,1458 @@ bool tegmentum_tls_context_method_client_close_notify(tegmentum_tls_context_borr
   }
 }
 
-bool tegmentum_tls_context_method_client_peer_cert_der(tegmentum_tls_context_borrow_client_t self, ssl_import_list_u8_t *ret) {
-  __attribute__((__aligned__(sizeof(void*))))
-  uint8_t ret_area[(3*sizeof(void*))];
+bool openssl_component_x509_method_store_add_untrusted(openssl_component_x509_borrow_store_t self, openssl_component_x509_borrow_certificate_t cert, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
   uint8_t *ptr = (uint8_t *) &ret_area;
-  __wasm_import_tegmentum_tls_context_method_client_peer_cert_der((self).__handle, ptr);
-  ssl_import_option_list_u8_t option;
+  __wasm_import_openssl_component_x509_method_store_add_untrusted((self).__handle, (cert).__handle, ptr);
+  openssl_component_x509_result_void_x509_error_t result;
   switch ((int32_t) *((uint8_t*) (ptr + 0))) {
     case 0: {
-      option.is_some = false;
+      result.is_err = false;
       break;
     }
     case 1: {
-      option.is_some = true;
-      option.val = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
       break;
     }
   }
-  *ret = option.val;
-  return option.is_some;
+  if (!result.is_err) {
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
 }
 
-void tegmentum_tls_context_method_client_get_unverified_chain(tegmentum_tls_context_borrow_client_t self, ssl_import_list_list_u8_t *ret) {
-  __attribute__((__aligned__(sizeof(void*))))
-  uint8_t ret_area[(2*sizeof(void*))];
+bool openssl_component_x509_method_store_load_defaults(openssl_component_x509_borrow_store_t self, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
   uint8_t *ptr = (uint8_t *) &ret_area;
-  __wasm_import_tegmentum_tls_context_method_client_get_unverified_chain((self).__handle, ptr);
-  *ret = (ssl_import_list_list_u8_t) { (ssl_import_list_u8_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) };
-}
-
-void tegmentum_tls_context_method_client_get_verified_chain(tegmentum_tls_context_borrow_client_t self, ssl_import_list_list_u8_t *ret) {
-  __attribute__((__aligned__(sizeof(void*))))
-  uint8_t ret_area[(2*sizeof(void*))];
-  uint8_t *ptr = (uint8_t *) &ret_area;
-  __wasm_import_tegmentum_tls_context_method_client_get_verified_chain((self).__handle, ptr);
-  *ret = (ssl_import_list_list_u8_t) { (ssl_import_list_u8_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) };
-}
-
-bool tegmentum_tls_context_method_client_cipher(tegmentum_tls_context_borrow_client_t self, tegmentum_tls_context_cipher_info_t *ret) {
-  __attribute__((__aligned__(sizeof(void*))))
-  uint8_t ret_area[(6*sizeof(void*))];
-  uint8_t *ptr = (uint8_t *) &ret_area;
-  __wasm_import_tegmentum_tls_context_method_client_cipher((self).__handle, ptr);
-  tegmentum_tls_context_option_cipher_info_t option;
+  __wasm_import_openssl_component_x509_method_store_load_defaults((self).__handle, ptr);
+  openssl_component_x509_result_void_x509_error_t result;
   switch ((int32_t) *((uint8_t*) (ptr + 0))) {
     case 0: {
-      option.is_some = false;
+      result.is_err = false;
       break;
     }
     case 1: {
-      option.is_some = true;
-      option.val = (tegmentum_tls_context_cipher_info_t) {
-        (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) },
-        (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (3*sizeof(void*))))), (*((size_t*) (ptr + (4*sizeof(void*))))) },
-        (uint32_t) (uint32_t) (*((int32_t*) (ptr + (5*sizeof(void*))))),
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_x509_method_store_load_from_file(openssl_component_x509_borrow_store_t self, ssl_import_string_t *path, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_method_store_load_from_file((self).__handle, (uint8_t *) (*path).ptr, (*path).len, ptr);
+  openssl_component_x509_result_void_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_x509_method_store_add_crl(openssl_component_x509_borrow_store_t self, openssl_component_x509_borrow_crl_t crl, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_method_store_add_crl((self).__handle, (crl).__handle, ptr);
+  openssl_component_x509_result_void_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_x509_verify_chain(openssl_component_x509_borrow_store_t store, openssl_component_x509_borrow_certificate_t leaf, openssl_component_x509_list_borrow_certificate_t *extra_intermediates, openssl_component_x509_verify_options_t *opts, openssl_component_x509_list_own_certificate_t *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(8+13*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  *((int32_t*)(ptr + 0)) = (store).__handle;
+  *((int32_t*)(ptr + 4)) = (leaf).__handle;
+  *((size_t*)(ptr + (8+1*sizeof(void*)))) = (*extra_intermediates).len;
+  *((uint8_t **)(ptr + 8)) = (uint8_t *) (*extra_intermediates).ptr;
+  if (((*opts).hostname).is_some) {
+    const ssl_import_string_t *payload0 = &((*opts).hostname).val;
+    *((int8_t*)(ptr + (8+2*sizeof(void*)))) = 1;
+    *((size_t*)(ptr + (8+4*sizeof(void*)))) = (*payload0).len;
+    *((uint8_t **)(ptr + (8+3*sizeof(void*)))) = (uint8_t *) (*payload0).ptr;
+  } else {
+    *((int8_t*)(ptr + (8+2*sizeof(void*)))) = 0;
+  }
+  if (((*opts).ip).is_some) {
+    const ssl_import_string_t *payload2 = &((*opts).ip).val;
+    *((int8_t*)(ptr + (8+5*sizeof(void*)))) = 1;
+    *((size_t*)(ptr + (8+7*sizeof(void*)))) = (*payload2).len;
+    *((uint8_t **)(ptr + (8+6*sizeof(void*)))) = (uint8_t *) (*payload2).ptr;
+  } else {
+    *((int8_t*)(ptr + (8+5*sizeof(void*)))) = 0;
+  }
+  if (((*opts).purpose).is_some) {
+    const openssl_component_x509_extended_key_usage_t *payload4 = &((*opts).purpose).val;
+    *((int8_t*)(ptr + (8+8*sizeof(void*)))) = 1;
+    *((int8_t*)(ptr + (9+8*sizeof(void*)))) = (int32_t) *payload4;
+  } else {
+    *((int8_t*)(ptr + (8+8*sizeof(void*)))) = 0;
+  }
+  if (((*opts).at).is_some) {
+    const openssl_component_x509_timestamp_t *payload6 = &((*opts).at).val;
+    *((int8_t*)(ptr + (8+9*sizeof(void*)))) = 1;
+    *((size_t*)(ptr + (8+11*sizeof(void*)))) = (*payload6).len;
+    *((uint8_t **)(ptr + (8+10*sizeof(void*)))) = (uint8_t *) (*payload6).ptr;
+  } else {
+    *((int8_t*)(ptr + (8+9*sizeof(void*)))) = 0;
+  }
+  *((int8_t*)(ptr + (8+12*sizeof(void*)))) = (*opts).partial_chain;
+  *((int8_t*)(ptr + (9+12*sizeof(void*)))) = (*opts).crl_check;
+  *((int8_t*)(ptr + (10+12*sizeof(void*)))) = (*opts).crl_check_all;
+  uint8_t *ptr7 = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_verify_chain(ptr, ptr7);
+  openssl_component_x509_result_list_own_certificate_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr7 + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (openssl_component_x509_list_own_certificate_t) { (openssl_component_x509_own_certificate_t*)(*((uint8_t **) (ptr7 + 8))), (*((size_t*) (ptr7 + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr7 + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr7 + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_x509_pkcs12_parse(ssl_import_list_u8_t *bytes, ssl_import_list_u8_t *passphrase, openssl_component_x509_pkcs12_contents_t *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(24+2*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_pkcs12_parse((uint8_t *) (*bytes).ptr, (*bytes).len, (uint8_t *) (*passphrase).ptr, (*passphrase).len, ptr);
+  openssl_component_x509_result_pkcs12_contents_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      openssl_component_x509_option_own_pkey_t option;
+      switch ((int32_t) *((uint8_t*) (ptr + 8))) {
+        case 0: {
+          option.is_some = false;
+          break;
+        }
+        case 1: {
+          option.is_some = true;
+          option.val = (openssl_component_x509_own_pkey_t) { *((int32_t*) (ptr + 12)) };
+          break;
+        }
+      }
+      openssl_component_x509_option_own_certificate_t option0;
+      switch ((int32_t) *((uint8_t*) (ptr + 16))) {
+        case 0: {
+          option0.is_some = false;
+          break;
+        }
+        case 1: {
+          option0.is_some = true;
+          option0.val = (openssl_component_x509_own_certificate_t) { *((int32_t*) (ptr + 20)) };
+          break;
+        }
+      }
+
+      result.val.ok = (openssl_component_x509_pkcs12_contents_t) {
+        (openssl_component_x509_option_own_pkey_t) option,
+        (openssl_component_x509_option_own_certificate_t) option0,
+        (openssl_component_x509_list_own_certificate_t) (openssl_component_x509_list_own_certificate_t) { (openssl_component_x509_own_certificate_t*)(*((uint8_t **) (ptr + 24))), (*((size_t*) (ptr + (24+1*sizeof(void*))))) },
       };
       break;
     }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
   }
-  *ret = option.val;
-  return option.is_some;
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
 }
 
-bool tegmentum_tls_context_method_client_channel_binding(tegmentum_tls_context_borrow_client_t self, ssl_import_string_t *cb_type, ssl_import_list_u8_t *ret) {
+bool openssl_component_x509_pkcs12_build(openssl_component_x509_pkcs12_build_input_t *input, ssl_import_list_u8_t *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  int32_t option;
+  uint8_t * option1;
+  size_t option2;
+  if (((*input).friendly_name).is_some) {
+    const ssl_import_string_t *payload0 = &((*input).friendly_name).val;
+    option = 1;
+    option1 = (uint8_t *) (*payload0).ptr;
+    option2 = (*payload0).len;
+  } else {
+    option = 0;
+    option1 = 0;
+    option2 = 0;
+  }
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_pkcs12_build(option, option1, option2, ((*input).key).__handle, ((*input).cert).__handle, (uint8_t *) ((*input).extra_certs).ptr, ((*input).extra_certs).len, (uint8_t *) ((*input).passphrase).ptr, ((*input).passphrase).len, ptr);
+  openssl_component_x509_result_list_u8_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_x509_cms_sign(ssl_import_list_u8_t *content, openssl_component_x509_borrow_pkey_t signer, openssl_component_x509_borrow_certificate_t cert, openssl_component_x509_list_borrow_certificate_t *intermediates, bool detached, openssl_component_x509_encoding_t enc, ssl_import_list_u8_t *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_cms_sign((uint8_t *) (*content).ptr, (*content).len, (signer).__handle, (cert).__handle, (uint8_t *) (*intermediates).ptr, (*intermediates).len, detached, (int32_t) enc, ptr);
+  openssl_component_x509_result_list_u8_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_x509_cms_verify(ssl_import_list_u8_t *cms, openssl_component_x509_borrow_store_t store, ssl_import_list_u8_t *maybe_detached_content, openssl_component_x509_encoding_t enc, ssl_import_option_list_u8_t *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(16+2*sizeof(void*))];
+  ssl_import_option_list_u8_t detached_content;
+  detached_content.is_some = maybe_detached_content != NULL;if (maybe_detached_content) {
+    detached_content.val = *maybe_detached_content;
+  }
+  int32_t option;
+  uint8_t * option1;
+  size_t option2;
+  if ((detached_content).is_some) {
+    const ssl_import_list_u8_t *payload0 = &(detached_content).val;
+    option = 1;
+    option1 = (uint8_t *) (*payload0).ptr;
+    option2 = (*payload0).len;
+  } else {
+    option = 0;
+    option1 = 0;
+    option2 = 0;
+  }
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_cms_verify((uint8_t *) (*cms).ptr, (*cms).len, (store).__handle, option, option1, option2, (int32_t) enc, ptr);
+  openssl_component_x509_result_option_list_u8_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      ssl_import_option_list_u8_t option3;
+      switch ((int32_t) *((uint8_t*) (ptr + 8))) {
+        case 0: {
+          option3.is_some = false;
+          break;
+        }
+        case 1: {
+          option3.is_some = true;
+          option3.val = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + (8+1*sizeof(void*))))), (*((size_t*) (ptr + (8+2*sizeof(void*))))) };
+          break;
+        }
+      }
+
+      result.val.ok = option3;
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_x509_cms_encrypt(ssl_import_list_u8_t *content, openssl_component_x509_list_borrow_certificate_t *recipients, ssl_import_string_t *cipher, openssl_component_x509_encoding_t enc, ssl_import_list_u8_t *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_cms_encrypt((uint8_t *) (*content).ptr, (*content).len, (uint8_t *) (*recipients).ptr, (*recipients).len, (uint8_t *) (*cipher).ptr, (*cipher).len, (int32_t) enc, ptr);
+  openssl_component_x509_result_list_u8_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_x509_cms_decrypt(ssl_import_list_u8_t *cms, openssl_component_x509_borrow_pkey_t recipient, openssl_component_x509_borrow_certificate_t recipient_cert, openssl_component_x509_encoding_t enc, ssl_import_list_u8_t *ret, openssl_component_x509_x509_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[24];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_x509_cms_decrypt((uint8_t *) (*cms).ptr, (*cms).len, (recipient).__handle, (recipient_cert).__handle, (int32_t) enc, ptr);
+  openssl_component_x509_result_list_u8_x509_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_x509_x509_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          break;
+        }
+        case 10: {
+          break;
+        }
+        case 11: {
+          break;
+        }
+        case 12: {
+          break;
+        }
+        case 13: {
+          break;
+        }
+        case 14: {
+          break;
+        }
+        case 15: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_tls_static_client_connect(ssl_import_string_t *host, uint16_t port, openssl_component_tls_client_config_t *config, openssl_component_tls_own_client_t *ret, openssl_component_tls_tls_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(24+37*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  *((size_t*)(ptr + sizeof(void*))) = (*host).len;
+  *((uint8_t **)(ptr + 0)) = (uint8_t *) (*host).ptr;
+  *((int16_t*)(ptr + (2*sizeof(void*)))) = (int32_t) (port);
+  *((int8_t*)(ptr + (3*sizeof(void*)))) = (int32_t) ((*config).protocols).min;
+  *((int8_t*)(ptr + (1+3*sizeof(void*)))) = (int32_t) ((*config).protocols).max;
+  *((int8_t*)(ptr + (2+3*sizeof(void*)))) = (int32_t) (*config).verify;
+  if (((*config).trust).is_some) {
+    const openssl_component_tls_own_store_t *payload0 = &((*config).trust).val;
+    *((int8_t*)(ptr + (4+3*sizeof(void*)))) = 1;
+    *((int32_t*)(ptr + (8+3*sizeof(void*)))) = (*payload0).__handle;
+  } else {
+    *((int8_t*)(ptr + (4+3*sizeof(void*)))) = 0;
+  }
+  if (((*config).verify_options).is_some) {
+    const openssl_component_tls_verify_options_t *payload2 = &((*config).verify_options).val;
+    *((int8_t*)(ptr + (8+4*sizeof(void*)))) = 1;
+    if (((*payload2).hostname).is_some) {
+      const ssl_import_string_t *payload4 = &((*payload2).hostname).val;
+      *((int8_t*)(ptr + (8+5*sizeof(void*)))) = 1;
+      *((size_t*)(ptr + (8+7*sizeof(void*)))) = (*payload4).len;
+      *((uint8_t **)(ptr + (8+6*sizeof(void*)))) = (uint8_t *) (*payload4).ptr;
+    } else {
+      *((int8_t*)(ptr + (8+5*sizeof(void*)))) = 0;
+    }
+    if (((*payload2).ip).is_some) {
+      const ssl_import_string_t *payload6 = &((*payload2).ip).val;
+      *((int8_t*)(ptr + (8+8*sizeof(void*)))) = 1;
+      *((size_t*)(ptr + (8+10*sizeof(void*)))) = (*payload6).len;
+      *((uint8_t **)(ptr + (8+9*sizeof(void*)))) = (uint8_t *) (*payload6).ptr;
+    } else {
+      *((int8_t*)(ptr + (8+8*sizeof(void*)))) = 0;
+    }
+    if (((*payload2).purpose).is_some) {
+      const openssl_component_x509_extended_key_usage_t *payload8 = &((*payload2).purpose).val;
+      *((int8_t*)(ptr + (8+11*sizeof(void*)))) = 1;
+      *((int8_t*)(ptr + (9+11*sizeof(void*)))) = (int32_t) *payload8;
+    } else {
+      *((int8_t*)(ptr + (8+11*sizeof(void*)))) = 0;
+    }
+    if (((*payload2).at).is_some) {
+      const openssl_component_x509_timestamp_t *payload10 = &((*payload2).at).val;
+      *((int8_t*)(ptr + (8+12*sizeof(void*)))) = 1;
+      *((size_t*)(ptr + (8+14*sizeof(void*)))) = (*payload10).len;
+      *((uint8_t **)(ptr + (8+13*sizeof(void*)))) = (uint8_t *) (*payload10).ptr;
+    } else {
+      *((int8_t*)(ptr + (8+12*sizeof(void*)))) = 0;
+    }
+    *((int8_t*)(ptr + (8+15*sizeof(void*)))) = (*payload2).partial_chain;
+    *((int8_t*)(ptr + (9+15*sizeof(void*)))) = (*payload2).crl_check;
+    *((int8_t*)(ptr + (10+15*sizeof(void*)))) = (*payload2).crl_check_all;
+  } else {
+    *((int8_t*)(ptr + (8+4*sizeof(void*)))) = 0;
+  }
+  if (((*config).server_name).is_some) {
+    const ssl_import_string_t *payload12 = &((*config).server_name).val;
+    *((int8_t*)(ptr + (8+16*sizeof(void*)))) = 1;
+    *((size_t*)(ptr + (8+18*sizeof(void*)))) = (*payload12).len;
+    *((uint8_t **)(ptr + (8+17*sizeof(void*)))) = (uint8_t *) (*payload12).ptr;
+  } else {
+    *((int8_t*)(ptr + (8+16*sizeof(void*)))) = 0;
+  }
+  if (((*config).client_cert).is_some) {
+    const openssl_component_tls_own_certificate_t *payload14 = &((*config).client_cert).val;
+    *((int8_t*)(ptr + (8+19*sizeof(void*)))) = 1;
+    *((int32_t*)(ptr + (12+19*sizeof(void*)))) = (*payload14).__handle;
+  } else {
+    *((int8_t*)(ptr + (8+19*sizeof(void*)))) = 0;
+  }
+  if (((*config).client_key).is_some) {
+    const openssl_component_tls_own_pkey_t *payload16 = &((*config).client_key).val;
+    *((int8_t*)(ptr + (16+19*sizeof(void*)))) = 1;
+    *((int32_t*)(ptr + (20+19*sizeof(void*)))) = (*payload16).__handle;
+  } else {
+    *((int8_t*)(ptr + (16+19*sizeof(void*)))) = 0;
+  }
+  if (((*config).alpn).is_some) {
+    const openssl_component_tls_alpn_offer_t *payload18 = &((*config).alpn).val;
+    *((int8_t*)(ptr + (24+19*sizeof(void*)))) = 1;
+    *((size_t*)(ptr + (24+21*sizeof(void*)))) = ((*payload18).protocols).len;
+    *((uint8_t **)(ptr + (24+20*sizeof(void*)))) = (uint8_t *) ((*payload18).protocols).ptr;
+  } else {
+    *((int8_t*)(ptr + (24+19*sizeof(void*)))) = 0;
+  }
+  if (((*config).ciphers).is_some) {
+    const openssl_component_tls_cipher_preferences_t *payload20 = &((*config).ciphers).val;
+    *((int8_t*)(ptr + (24+22*sizeof(void*)))) = 1;
+    if (((*payload20).tls13).is_some) {
+      const ssl_import_string_t *payload22 = &((*payload20).tls13).val;
+      *((int8_t*)(ptr + (24+23*sizeof(void*)))) = 1;
+      *((size_t*)(ptr + (24+25*sizeof(void*)))) = (*payload22).len;
+      *((uint8_t **)(ptr + (24+24*sizeof(void*)))) = (uint8_t *) (*payload22).ptr;
+    } else {
+      *((int8_t*)(ptr + (24+23*sizeof(void*)))) = 0;
+    }
+    if (((*payload20).tls12).is_some) {
+      const ssl_import_string_t *payload24 = &((*payload20).tls12).val;
+      *((int8_t*)(ptr + (24+26*sizeof(void*)))) = 1;
+      *((size_t*)(ptr + (24+28*sizeof(void*)))) = (*payload24).len;
+      *((uint8_t **)(ptr + (24+27*sizeof(void*)))) = (uint8_t *) (*payload24).ptr;
+    } else {
+      *((int8_t*)(ptr + (24+26*sizeof(void*)))) = 0;
+    }
+  } else {
+    *((int8_t*)(ptr + (24+22*sizeof(void*)))) = 0;
+  }
+  if (((*config).groups).is_some) {
+    const ssl_import_string_t *payload26 = &((*config).groups).val;
+    *((int8_t*)(ptr + (24+29*sizeof(void*)))) = 1;
+    *((size_t*)(ptr + (24+31*sizeof(void*)))) = (*payload26).len;
+    *((uint8_t **)(ptr + (24+30*sizeof(void*)))) = (uint8_t *) (*payload26).ptr;
+  } else {
+    *((int8_t*)(ptr + (24+29*sizeof(void*)))) = 0;
+  }
+  *((int8_t*)(ptr + (24+32*sizeof(void*)))) = (*config).enable_early_data;
+  if (((*config).resume_session).is_some) {
+    const ssl_import_list_u8_t *payload28 = &((*config).resume_session).val;
+    *((int8_t*)(ptr + (24+33*sizeof(void*)))) = 1;
+    *((size_t*)(ptr + (24+35*sizeof(void*)))) = (*payload28).len;
+    *((uint8_t **)(ptr + (24+34*sizeof(void*)))) = (uint8_t *) (*payload28).ptr;
+  } else {
+    *((int8_t*)(ptr + (24+33*sizeof(void*)))) = 0;
+  }
+  *((int8_t*)(ptr + (24+36*sizeof(void*)))) = (*config).keylog;
+  uint8_t *ptr29 = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_static_client_connect(ptr, ptr29);
+  openssl_component_tls_result_own_client_tls_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr29 + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (openssl_component_tls_own_client_t) { *((int32_t*) (ptr29 + 8)) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_tls_tls_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr29 + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.verify_failed = (openssl_component_tls_verify_failure_t) {
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr29 + 16))),
+            (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr29 + (16+1*sizeof(void*))))), (*((size_t*) (ptr29 + (16+2*sizeof(void*))))) },
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr29 + (16+3*sizeof(void*))))),
+          };
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr29 + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_tls_method_client_write(openssl_component_tls_borrow_client_t self, ssl_import_list_u8_t *data, uint32_t *ret, openssl_component_tls_tls_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(16+4*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_client_write((self).__handle, (uint8_t *) (*data).ptr, (*data).len, ptr);
+  openssl_component_tls_result_u32_tls_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (uint32_t) (*((int32_t*) (ptr + 8)));
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_tls_tls_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.verify_failed = (openssl_component_tls_verify_failure_t) {
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + 16))),
+            (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (16+1*sizeof(void*))))), (*((size_t*) (ptr + (16+2*sizeof(void*))))) },
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + (16+3*sizeof(void*))))),
+          };
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_tls_method_client_read(openssl_component_tls_borrow_client_t self, uint32_t max_bytes, ssl_import_list_u8_t *ret, openssl_component_tls_tls_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(16+4*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_client_read((self).__handle, (int32_t) (max_bytes), ptr);
+  openssl_component_tls_result_list_u8_tls_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_tls_tls_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.verify_failed = (openssl_component_tls_verify_failure_t) {
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + 16))),
+            (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (16+1*sizeof(void*))))), (*((size_t*) (ptr + (16+2*sizeof(void*))))) },
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + (16+3*sizeof(void*))))),
+          };
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_tls_method_client_write_early(openssl_component_tls_borrow_client_t self, ssl_import_list_u8_t *data, uint32_t *ret, openssl_component_tls_tls_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(16+4*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_client_write_early((self).__handle, (uint8_t *) (*data).ptr, (*data).len, ptr);
+  openssl_component_tls_result_u32_tls_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (uint32_t) (*((int32_t*) (ptr + 8)));
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_tls_tls_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.verify_failed = (openssl_component_tls_verify_failure_t) {
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + 16))),
+            (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (16+1*sizeof(void*))))), (*((size_t*) (ptr + (16+2*sizeof(void*))))) },
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + (16+3*sizeof(void*))))),
+          };
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_tls_method_client_early_data_accepted(openssl_component_tls_borrow_client_t self) {
+  int32_t ret = __wasm_import_openssl_component_tls_method_client_early_data_accepted((self).__handle);
+  return ret;
+}
+
+void openssl_component_tls_method_client_peer(openssl_component_tls_borrow_client_t self, openssl_component_tls_peer_info_t *ret) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(15*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_client_peer((self).__handle, ptr);
+  ssl_import_option_string_t option;
+  switch ((int32_t) *((uint8_t*) (ptr + (3*sizeof(void*))))) {
+    case 0: {
+      option.is_some = false;
+      break;
+    }
+    case 1: {
+      option.is_some = true;
+      option.val = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (4*sizeof(void*))))), (*((size_t*) (ptr + (5*sizeof(void*))))) };
+      break;
+    }
+  }
+  ssl_import_option_string_t option0;
+  switch ((int32_t) *((uint8_t*) (ptr + (6*sizeof(void*))))) {
+    case 0: {
+      option0.is_some = false;
+      break;
+    }
+    case 1: {
+      option0.is_some = true;
+      option0.val = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (7*sizeof(void*))))), (*((size_t*) (ptr + (8*sizeof(void*))))) };
+      break;
+    }
+  }
+  ssl_import_option_string_t option1;
+  switch ((int32_t) *((uint8_t*) (ptr + (12*sizeof(void*))))) {
+    case 0: {
+      option1.is_some = false;
+      break;
+    }
+    case 1: {
+      option1.is_some = true;
+      option1.val = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (13*sizeof(void*))))), (*((size_t*) (ptr + (14*sizeof(void*))))) };
+      break;
+    }
+  }
+  *ret = (openssl_component_tls_peer_info_t) {
+    (openssl_component_tls_protocol_t) (int32_t) *((uint8_t*) (ptr + 0)),
+    (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) },
+    (ssl_import_option_string_t) option,
+    (ssl_import_option_string_t) option0,
+    (openssl_component_tls_list_own_certificate_t) (openssl_component_tls_list_own_certificate_t) { (openssl_component_tls_own_certificate_t*)(*((uint8_t **) (ptr + (9*sizeof(void*))))), (*((size_t*) (ptr + (10*sizeof(void*))))) },
+    (bool) (int32_t) *((uint8_t*) (ptr + (11*sizeof(void*)))),
+    (ssl_import_option_string_t) option1,
+  };
+}
+
+bool openssl_component_tls_method_client_session_ticket(openssl_component_tls_borrow_client_t self, ssl_import_list_u8_t *ret) {
   __attribute__((__aligned__(sizeof(void*))))
   uint8_t ret_area[(3*sizeof(void*))];
   uint8_t *ptr = (uint8_t *) &ret_area;
-  __wasm_import_tegmentum_tls_context_method_client_channel_binding((self).__handle, (uint8_t *) (*cb_type).ptr, (*cb_type).len, ptr);
+  __wasm_import_openssl_component_tls_method_client_session_ticket((self).__handle, ptr);
   ssl_import_option_list_u8_t option;
   switch ((int32_t) *((uint8_t*) (ptr + 0))) {
     case 0: {
@@ -582,20 +5949,420 @@ bool tegmentum_tls_context_method_client_channel_binding(tegmentum_tls_context_b
   return option.is_some;
 }
 
-void tegmentum_tls_context_method_client_alpn_selected(tegmentum_tls_context_borrow_client_t self, ssl_import_string_t *ret) {
+void openssl_component_tls_method_client_drain_keylog(openssl_component_tls_borrow_client_t self, ssl_import_list_string_t *ret) {
   __attribute__((__aligned__(sizeof(void*))))
   uint8_t ret_area[(2*sizeof(void*))];
   uint8_t *ptr = (uint8_t *) &ret_area;
-  __wasm_import_tegmentum_tls_context_method_client_alpn_selected((self).__handle, ptr);
-  *ret = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) };
+  __wasm_import_openssl_component_tls_method_client_drain_keylog((self).__handle, ptr);
+  *ret = (ssl_import_list_string_t) { (ssl_import_string_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) };
 }
 
-void tegmentum_tls_context_method_client_version(tegmentum_tls_context_borrow_client_t self, ssl_import_string_t *ret) {
+void openssl_component_tls_static_client_close(openssl_component_tls_own_client_t c) {
+  __wasm_import_openssl_component_tls_static_client_close((c).__handle);
+}
+
+bool openssl_component_tls_static_server_listener_bind(ssl_import_string_t *host, uint16_t port, openssl_component_tls_server_config_t *config, openssl_component_tls_own_server_listener_t *ret, openssl_component_tls_tls_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(8+23*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  *((size_t*)(ptr + sizeof(void*))) = (*host).len;
+  *((uint8_t **)(ptr + 0)) = (uint8_t *) (*host).ptr;
+  *((int16_t*)(ptr + (2*sizeof(void*)))) = (int32_t) (port);
+  *((int8_t*)(ptr + (3*sizeof(void*)))) = (int32_t) ((*config).protocols).min;
+  *((int8_t*)(ptr + (1+3*sizeof(void*)))) = (int32_t) ((*config).protocols).max;
+  *((int8_t*)(ptr + (2+3*sizeof(void*)))) = (int32_t) (*config).verify;
+  if (((*config).client_trust).is_some) {
+    const openssl_component_tls_own_store_t *payload0 = &((*config).client_trust).val;
+    *((int8_t*)(ptr + (4+3*sizeof(void*)))) = 1;
+    *((int32_t*)(ptr + (8+3*sizeof(void*)))) = (*payload0).__handle;
+  } else {
+    *((int8_t*)(ptr + (4+3*sizeof(void*)))) = 0;
+  }
+  *((size_t*)(ptr + (8+5*sizeof(void*)))) = ((*config).cert_chain).len;
+  *((uint8_t **)(ptr + (8+4*sizeof(void*)))) = (uint8_t *) ((*config).cert_chain).ptr;
+  *((int32_t*)(ptr + (8+6*sizeof(void*)))) = ((*config).key).__handle;
+  *((size_t*)(ptr + (8+8*sizeof(void*)))) = ((*config).sni_hosts).len;
+  *((uint8_t **)(ptr + (8+7*sizeof(void*)))) = (uint8_t *) ((*config).sni_hosts).ptr;
+  if (((*config).alpn).is_some) {
+    const openssl_component_tls_alpn_offer_t *payload2 = &((*config).alpn).val;
+    *((int8_t*)(ptr + (8+9*sizeof(void*)))) = 1;
+    *((size_t*)(ptr + (8+11*sizeof(void*)))) = ((*payload2).protocols).len;
+    *((uint8_t **)(ptr + (8+10*sizeof(void*)))) = (uint8_t *) ((*payload2).protocols).ptr;
+  } else {
+    *((int8_t*)(ptr + (8+9*sizeof(void*)))) = 0;
+  }
+  if (((*config).ciphers).is_some) {
+    const openssl_component_tls_cipher_preferences_t *payload4 = &((*config).ciphers).val;
+    *((int8_t*)(ptr + (8+12*sizeof(void*)))) = 1;
+    if (((*payload4).tls13).is_some) {
+      const ssl_import_string_t *payload6 = &((*payload4).tls13).val;
+      *((int8_t*)(ptr + (8+13*sizeof(void*)))) = 1;
+      *((size_t*)(ptr + (8+15*sizeof(void*)))) = (*payload6).len;
+      *((uint8_t **)(ptr + (8+14*sizeof(void*)))) = (uint8_t *) (*payload6).ptr;
+    } else {
+      *((int8_t*)(ptr + (8+13*sizeof(void*)))) = 0;
+    }
+    if (((*payload4).tls12).is_some) {
+      const ssl_import_string_t *payload8 = &((*payload4).tls12).val;
+      *((int8_t*)(ptr + (8+16*sizeof(void*)))) = 1;
+      *((size_t*)(ptr + (8+18*sizeof(void*)))) = (*payload8).len;
+      *((uint8_t **)(ptr + (8+17*sizeof(void*)))) = (uint8_t *) (*payload8).ptr;
+    } else {
+      *((int8_t*)(ptr + (8+16*sizeof(void*)))) = 0;
+    }
+  } else {
+    *((int8_t*)(ptr + (8+12*sizeof(void*)))) = 0;
+  }
+  if (((*config).groups).is_some) {
+    const ssl_import_string_t *payload10 = &((*config).groups).val;
+    *((int8_t*)(ptr + (8+19*sizeof(void*)))) = 1;
+    *((size_t*)(ptr + (8+21*sizeof(void*)))) = (*payload10).len;
+    *((uint8_t **)(ptr + (8+20*sizeof(void*)))) = (uint8_t *) (*payload10).ptr;
+  } else {
+    *((int8_t*)(ptr + (8+19*sizeof(void*)))) = 0;
+  }
+  *((int8_t*)(ptr + (8+22*sizeof(void*)))) = (int32_t) (*config).session_tickets;
+  *((int8_t*)(ptr + (9+22*sizeof(void*)))) = (*config).keylog;
+  uint8_t *ptr11 = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_static_server_listener_bind(ptr, ptr11);
+  openssl_component_tls_result_own_server_listener_tls_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr11 + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (openssl_component_tls_own_server_listener_t) { *((int32_t*) (ptr11 + 8)) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_tls_tls_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr11 + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.verify_failed = (openssl_component_tls_verify_failure_t) {
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr11 + 16))),
+            (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr11 + (16+1*sizeof(void*))))), (*((size_t*) (ptr11 + (16+2*sizeof(void*))))) },
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr11 + (16+3*sizeof(void*))))),
+          };
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr11 + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_tls_method_server_listener_accept(openssl_component_tls_borrow_server_listener_t self, openssl_component_tls_own_server_t *ret, openssl_component_tls_tls_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(16+4*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_server_listener_accept((self).__handle, ptr);
+  openssl_component_tls_result_own_server_tls_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (openssl_component_tls_own_server_t) { *((int32_t*) (ptr + 8)) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_tls_tls_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.verify_failed = (openssl_component_tls_verify_failure_t) {
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + 16))),
+            (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (16+1*sizeof(void*))))), (*((size_t*) (ptr + (16+2*sizeof(void*))))) },
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + (16+3*sizeof(void*))))),
+          };
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+uint16_t openssl_component_tls_method_server_listener_local_port(openssl_component_tls_borrow_server_listener_t self) {
+  int32_t ret = __wasm_import_openssl_component_tls_method_server_listener_local_port((self).__handle);
+  return (uint16_t) (ret);
+}
+
+void openssl_component_tls_static_server_listener_close(openssl_component_tls_own_server_listener_t l) {
+  __wasm_import_openssl_component_tls_static_server_listener_close((l).__handle);
+}
+
+bool openssl_component_tls_method_server_write(openssl_component_tls_borrow_server_t self, ssl_import_list_u8_t *data, uint32_t *ret, openssl_component_tls_tls_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(16+4*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_server_write((self).__handle, (uint8_t *) (*data).ptr, (*data).len, ptr);
+  openssl_component_tls_result_u32_tls_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (uint32_t) (*((int32_t*) (ptr + 8)));
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_tls_tls_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.verify_failed = (openssl_component_tls_verify_failure_t) {
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + 16))),
+            (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (16+1*sizeof(void*))))), (*((size_t*) (ptr + (16+2*sizeof(void*))))) },
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + (16+3*sizeof(void*))))),
+          };
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_tls_method_server_read(openssl_component_tls_borrow_server_t self, uint32_t max_bytes, ssl_import_list_u8_t *ret, openssl_component_tls_tls_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(16+4*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_server_read((self).__handle, (int32_t) (max_bytes), ptr);
+  openssl_component_tls_result_list_u8_tls_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_tls_tls_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.verify_failed = (openssl_component_tls_verify_failure_t) {
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + 16))),
+            (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (16+1*sizeof(void*))))), (*((size_t*) (ptr + (16+2*sizeof(void*))))) },
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + (16+3*sizeof(void*))))),
+          };
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+void openssl_component_tls_method_server_peer(openssl_component_tls_borrow_server_t self, openssl_component_tls_peer_info_t *ret) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(15*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_server_peer((self).__handle, ptr);
+  ssl_import_option_string_t option;
+  switch ((int32_t) *((uint8_t*) (ptr + (3*sizeof(void*))))) {
+    case 0: {
+      option.is_some = false;
+      break;
+    }
+    case 1: {
+      option.is_some = true;
+      option.val = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (4*sizeof(void*))))), (*((size_t*) (ptr + (5*sizeof(void*))))) };
+      break;
+    }
+  }
+  ssl_import_option_string_t option0;
+  switch ((int32_t) *((uint8_t*) (ptr + (6*sizeof(void*))))) {
+    case 0: {
+      option0.is_some = false;
+      break;
+    }
+    case 1: {
+      option0.is_some = true;
+      option0.val = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (7*sizeof(void*))))), (*((size_t*) (ptr + (8*sizeof(void*))))) };
+      break;
+    }
+  }
+  ssl_import_option_string_t option1;
+  switch ((int32_t) *((uint8_t*) (ptr + (12*sizeof(void*))))) {
+    case 0: {
+      option1.is_some = false;
+      break;
+    }
+    case 1: {
+      option1.is_some = true;
+      option1.val = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (13*sizeof(void*))))), (*((size_t*) (ptr + (14*sizeof(void*))))) };
+      break;
+    }
+  }
+  *ret = (openssl_component_tls_peer_info_t) {
+    (openssl_component_tls_protocol_t) (int32_t) *((uint8_t*) (ptr + 0)),
+    (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) },
+    (ssl_import_option_string_t) option,
+    (ssl_import_option_string_t) option0,
+    (openssl_component_tls_list_own_certificate_t) (openssl_component_tls_list_own_certificate_t) { (openssl_component_tls_own_certificate_t*)(*((uint8_t **) (ptr + (9*sizeof(void*))))), (*((size_t*) (ptr + (10*sizeof(void*))))) },
+    (bool) (int32_t) *((uint8_t*) (ptr + (11*sizeof(void*)))),
+    (ssl_import_option_string_t) option1,
+  };
+}
+
+void openssl_component_tls_method_server_drain_keylog(openssl_component_tls_borrow_server_t self, ssl_import_list_string_t *ret) {
   __attribute__((__aligned__(sizeof(void*))))
   uint8_t ret_area[(2*sizeof(void*))];
   uint8_t *ptr = (uint8_t *) &ret_area;
-  __wasm_import_tegmentum_tls_context_method_client_version((self).__handle, ptr);
-  *ret = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) };
+  __wasm_import_openssl_component_tls_method_server_drain_keylog((self).__handle, ptr);
+  *ret = (ssl_import_list_string_t) { (ssl_import_string_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) };
+}
+
+void openssl_component_tls_static_server_close(openssl_component_tls_own_server_t s) {
+  __wasm_import_openssl_component_tls_static_server_close((s).__handle);
 }
 
 // Ensure that the *_component_type.o object is linked in

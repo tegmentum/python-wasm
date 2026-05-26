@@ -1,0 +1,157 @@
+package openssl:component@0.1.0;
+
+// Symmetric ciphers (EVP_CIPHER): classic block modes + AEAD.
+
+interface cipher {
+    use error.{code};
+
+    /// Algorithm identifiers. wac rejects kebab segments that are
+    /// all-digit (e.g. `aes-128-cbc` has a pure-digit "128"), so we
+    /// fuse the key-size into the cipher-family word:
+    /// `aes128-cbc`, `camellia192-cbc`, `aria256-gcm`, etc.
+    enum algorithm {
+        // AES classic
+        aes128-ecb,
+        aes192-ecb,
+        aes256-ecb,
+        aes128-cbc,
+        aes192-cbc,
+        aes256-cbc,
+        aes128-ctr,
+        aes192-ctr,
+        aes256-ctr,
+        aes128-cfb,
+        aes192-cfb,
+        aes256-cfb,
+        aes128-ofb,
+        aes192-ofb,
+        aes256-ofb,
+        aes128-xts,
+        aes256-xts,
+        // AES AEAD
+        aes128-gcm,
+        aes192-gcm,
+        aes256-gcm,
+        aes128-ccm,
+        aes192-ccm,
+        aes256-ccm,
+        aes128-ocb,
+        aes192-ocb,
+        aes256-ocb,
+        // Stream + misc
+        chacha20,
+        chacha20-poly1305,
+        camellia128-cbc,
+        camellia192-cbc,
+        camellia256-cbc,
+        aria128-gcm,
+        aria192-gcm,
+        aria256-gcm,
+        sm4-cbc,
+        sm4-gcm,
+        // Legacy (kept for interop)
+        des-ede3-cbc,
+        rc4,
+    }
+
+    enum padding-mode {
+        none,
+        pkcs7,
+    }
+
+    variant cipher-error {
+        unsupported-algorithm,
+        bad-key-size,
+        bad-iv-size,
+        bad-tag-size,
+        bad-padding,
+        aead-required,
+        not-aead,
+        output-buffer-too-small,
+        tag-mismatch,
+        internal(code),
+    }
+
+    record algorithm-info {
+        key-size: u32,
+        iv-size: u32,
+        block-size: u32,
+        is-aead: bool,
+    }
+
+    info: func(alg: algorithm) -> result<algorithm-info, cipher-error>;
+
+    /// One-shot non-AEAD encrypt.
+    encrypt: func(
+        alg: algorithm,
+        key: list<u8>,
+        iv: option<list<u8>>,
+        padding: padding-mode,
+        plaintext: list<u8>,
+    ) -> result<list<u8>, cipher-error>;
+
+    /// One-shot non-AEAD decrypt.
+    decrypt: func(
+        alg: algorithm,
+        key: list<u8>,
+        iv: option<list<u8>>,
+        padding: padding-mode,
+        ciphertext: list<u8>,
+    ) -> result<list<u8>, cipher-error>;
+
+    record aead-sealed {
+        ciphertext: list<u8>,
+        tag: list<u8>,
+    }
+
+    /// One-shot AEAD seal.
+    seal: func(
+        alg: algorithm,
+        key: list<u8>,
+        nonce: list<u8>,
+        aad: list<u8>,
+        plaintext: list<u8>,
+        tag-len: u32,
+    ) -> result<aead-sealed, cipher-error>;
+
+    /// One-shot AEAD open.
+    open: func(
+        alg: algorithm,
+        key: list<u8>,
+        nonce: list<u8>,
+        aad: list<u8>,
+        ciphertext: list<u8>,
+        tag: list<u8>,
+    ) -> result<list<u8>, cipher-error>;
+
+    // Streaming interfaces --------------------------------------------------
+
+    resource encryptor {
+        constructor(
+            alg: algorithm,
+            key: list<u8>,
+            iv: option<list<u8>>,
+            padding: padding-mode,
+        );
+        /// Feed AAD (AEAD only; errors otherwise). Must precede update().
+        set-aad: func(aad: list<u8>) -> result<_, cipher-error>;
+        update: func(plaintext: list<u8>) -> result<list<u8>, cipher-error>;
+        /// For AEAD, also yields the tag.
+        finish: static func(ctx: encryptor)
+            -> result<tuple<list<u8>, option<list<u8>>>, cipher-error>;
+    }
+
+    resource decryptor {
+        constructor(
+            alg: algorithm,
+            key: list<u8>,
+            iv: option<list<u8>>,
+            padding: padding-mode,
+        );
+        set-aad: func(aad: list<u8>) -> result<_, cipher-error>;
+        /// For AEAD, call `set-tag` before `finish`.
+        set-tag: func(tag: list<u8>) -> result<_, cipher-error>;
+        update: func(ciphertext: list<u8>) -> result<list<u8>, cipher-error>;
+        finish: static func(ctx: decryptor) -> result<list<u8>, cipher-error>;
+    }
+}

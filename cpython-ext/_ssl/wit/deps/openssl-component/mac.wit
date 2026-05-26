@@ -1,0 +1,80 @@
+package openssl:component@0.1.0;
+
+// Message authentication codes (EVP_MAC).
+
+interface mac {
+    use error.{code};
+    use digest.{algorithm as hash};
+
+    /// Enum tags with trailing digit-only segments (e.g. `kmac-128`)
+    /// are rejected by wac's kebab-case check; use single-word form.
+    enum algorithm {
+        hmac,
+        cmac,
+        kmac128,
+        kmac256,
+        poly1305,
+        siphash,
+        gmac,
+    }
+
+    /// Cipher family for CMAC / GMAC keying.
+    enum block-cipher {
+        aes128,
+        aes192,
+        aes256,
+    }
+
+    variant mac-error {
+        unsupported-algorithm,
+        bad-key-size,
+        bad-nonce-size,
+        missing-parameter,
+        internal(code),
+    }
+
+    record hmac-params {
+        hash: hash,
+    }
+
+    record cmac-params {
+        cipher: block-cipher,
+    }
+
+    record kmac-params {
+        /// Optional domain-separation string.
+        customization: option<list<u8>>,
+        /// Desired output length in bytes.
+        output-len: u32,
+    }
+
+    record gmac-params {
+        cipher: block-cipher,
+        /// 12-byte nonce recommended.
+        nonce: list<u8>,
+    }
+
+    variant params {
+        hmac(hmac-params),
+        cmac(cmac-params),
+        kmac(kmac-params),
+        poly1305,
+        siphash,
+        gmac(gmac-params),
+    }
+
+    /// One-shot MAC.
+    one-shot: func(
+        alg: algorithm,
+        key: list<u8>,
+        data: list<u8>,
+        params: params,
+    ) -> result<list<u8>, mac-error>;
+
+    resource context {
+        constructor(alg: algorithm, key: list<u8>, params: params);
+        update: func(data: list<u8>) -> result<_, mac-error>;
+        finish: static func(ctx: context) -> result<list<u8>, mac-error>;
+        clone: func() -> context;
+    }
+}
