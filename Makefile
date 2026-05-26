@@ -38,6 +38,10 @@ endif
 build: fetch-deps
 	bash scripts/build-zlib.sh
 	$(OPENSSL_STEP)
+	# Wire every cpython-ext/ capability extension into the cpython build
+	# tree (symlinks + Setup.local). Idempotent. The deps/cpython tree is
+	# gitignored so these have to be (re-)applied locally on each clone.
+	bash scripts/wire-cpython-ext.sh
 	cd $(CPYTHON_DIR) && python3 Tools/wasm/wasi build \
 		--host-triple $(HOST_TRIPLE) \
 		--wasi-sdk $(WASI_SDK_DIR) \
