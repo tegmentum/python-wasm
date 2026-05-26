@@ -18,10 +18,29 @@ export HOME=/root
 export TERM=xterm
 export PS1='wm \w> '
 
-mkdir -p /run/py-offload
-echo "[init] python smoke test:" >/dev/ttyS0
-python3 -c 'import sys; print("python", sys.version.split()[0], "ok")' >/dev/ttyS0 2>&1
-echo "[init] launching py-offload mailbox worker on /run/py-offload" >/dev/ttyS0
+mkdir -p /run/py-offload /var/log
+
+# Foreground smoke test FIRST — `kill -0 $!` on a backgrounded child that
+# exec()'d an unrunnable binary returns true (the zombie pid still exists),
+# so we have to actually witness python execute before we can claim the
+# worker is up. If exec fails (e.g. wrong-arch ELF: v86 emulates x86-32,
+# a 64-bit python won't load), the kernel returns ENOEXEC and busybox sh
+# falls back to interpreting the binary as a shell script — the resulting
+# `/opt/python/bin/python3: line 1: ...` garbage is the diagnostic.
+if ! python3 -c 'import sys; print("py-smoke", sys.version_info[:3])' >/dev/ttyS0 2>&1; then
+    echo "[init] py-offload-FAILED — python3 won't execute (likely 32/64-bit arch mismatch); see /var/log/py-offload" >/dev/ttyS0
+    exec sh </dev/ttyS0 >/dev/ttyS0 2>&1
+fi
+
 python3 -m py_offload.mailbox /run/py-offload >>/var/log/py-offload 2>&1 &
-echo "[init] worker pid=$!" >/dev/ttyS0
+WORKER_PID=$!
+# Give the worker a moment to enter its mailbox polling loop. The snapshot
+# trigger watches for the exact py-offload-ready line below; capturing before
+# the worker is polling would restore into a state where requests sit forever.
+sleep 4
+if kill -0 "$WORKER_PID" 2>/dev/null; then
+    echo "[init] py-offload-ready pid=$WORKER_PID" >/dev/ttyS0
+else
+    echo "[init] py-offload-FAILED — worker exited; see /var/log/py-offload" >/dev/ttyS0
+fi
 exec sh </dev/ttyS0 >/dev/ttyS0 2>&1
