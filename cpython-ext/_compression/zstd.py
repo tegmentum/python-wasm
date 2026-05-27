@@ -47,7 +47,12 @@ __all__ = (
 )
 
 import enum
+import io
+import os
 import struct
+from builtins import open as _builtin_open
+from compression._common import _streams
+
 import _compress_cap
 
 
@@ -140,18 +145,17 @@ def finalize_dict(zstd_dict, samples, dict_size, level):
 
 def compress(data, level=COMPRESSION_LEVEL_DEFAULT, options=None, zstd_dict=None):
     """One-shot zstd compression, with optional dictionary and/or
-    advanced parameters (`options`)."""
+    advanced parameters (`options`). Any of the four shapes works:
+    no extras, options only, dict only, options + dict."""
     if not (1 <= level <= 22):
         raise ValueError(f"level out of range: {level}")
     if zstd_dict is not None and not isinstance(zstd_dict, ZstdDict):
         raise TypeError("zstd_dict must be a ZstdDict")
     params = _normalize_options(options)
-    # The cap currently splits advanced and with-dict paths. Both at once
-    # isn't a stdlib hot path; we route to advanced when options are given
-    # and reject the combo for now.
-    if params is not None and zstd_dict is not None:
-        _unsupported("compress(options=..., zstd_dict=...) — pick one")
     try:
+        if params is not None and zstd_dict is not None:
+            return _compress_cap.zstd_compress_advanced_with_dict(
+                bytes(data), zstd_dict.dict_content, level, params)
         if params is not None:
             return _compress_cap.zstd_compress_advanced(bytes(data), level, params)
         if zstd_dict is not None:
@@ -164,15 +168,16 @@ def compress(data, level=COMPRESSION_LEVEL_DEFAULT, options=None, zstd_dict=None
 
 def decompress(data, zstd_dict=None, options=None):
     """One-shot zstd decompression, with optional dictionary and/or
-    advanced parameters (`options`)."""
+    advanced parameters (`options`). Mirror of `compress`."""
     if zstd_dict is not None and not isinstance(zstd_dict, ZstdDict):
         raise TypeError("zstd_dict must be a ZstdDict")
     if not data:
         return b""
     params = _normalize_options(options)
-    if params is not None and zstd_dict is not None:
-        _unsupported("decompress(options=..., zstd_dict=...) — pick one")
     try:
+        if params is not None and zstd_dict is not None:
+            return _compress_cap.zstd_decompress_advanced_with_dict(
+                bytes(data), zstd_dict.dict_content, params)
         if params is not None:
             return _compress_cap.zstd_decompress_advanced(bytes(data), params)
         if zstd_dict is not None:
@@ -205,8 +210,6 @@ class ZstdCompressor:
         self._level = level
         self._dict = zstd_dict
         self._params = _normalize_options(options)
-        if self._params is not None and self._dict is not None:
-            _unsupported("ZstdCompressor(options=..., zstd_dict=...) — pick one")
         self._buf = bytearray()
         self._frame_done = False
         self.last_mode = self.FLUSH_FRAME  # stdlib attr — what mode last call used
@@ -234,6 +237,10 @@ class ZstdCompressor:
         if self._frame_done:
             return b""
         self._frame_done = True
+        if self._params is not None and self._dict is not None:
+            return _compress_cap.zstd_compress_advanced_with_dict(
+                bytes(self._buf), self._dict.dict_content,
+                self._level, self._params)
         if self._params is not None:
             return _compress_cap.zstd_compress_advanced(
                 bytes(self._buf), self._level, self._params)
@@ -251,8 +258,6 @@ class ZstdDecompressor:
             raise TypeError("zstd_dict must be a ZstdDict")
         self._dict = zstd_dict
         self._params = _normalize_options(options)
-        if self._params is not None and self._dict is not None:
-            _unsupported("ZstdDecompressor(options=..., zstd_dict=...) — pick one")
         self._buf = bytearray()
         self._eof = False
         self._unused = b""
@@ -276,7 +281,10 @@ class ZstdDecompressor:
         if not self._buf:
             return b""
         try:
-            if self._params is not None:
+            if self._params is not None and self._dict is not None:
+                full = _compress_cap.zstd_decompress_advanced_with_dict(
+                    bytes(self._buf), self._dict.dict_content, self._params)
+            elif self._params is not None:
                 full = _compress_cap.zstd_decompress_advanced(
                     bytes(self._buf), self._params)
             elif self._dict is not None:
@@ -450,14 +458,203 @@ def _normalize_options(options):
 
 
 # --------------------------------------------------------------------------
-# File-I/O stubs — defer to a future _zstdfile shim. Both names exist so
-# `from compression.zstd import open, ZstdFile` doesn't ImportError.
+# File I/O
+#
+# Buffered-then-one-shot wrapper on top of ZstdCompressor / ZstdDecompressor,
+# following the same pattern the bz2.py and lzma.py shims use here. On read,
+# the full file is decompressed into a BytesIO at open time; on write, all
+# writes are buffered and the frame is emitted on close. Adequate for the
+# typical "compress one file" workload; not memory-efficient for multi-GB
+# streams. Surface matches stdlib `compression.zstd.ZstdFile` /
+# `compression.zstd.open` so existing code paths work unchanged.
 # --------------------------------------------------------------------------
 
-class ZstdFile:
-    def __init__(self, *a, **kw):
-        _unsupported("ZstdFile() — file-I/O wrapper deferred")
+_MODE_CLOSED = 0
+_MODE_READ   = 1
+_MODE_WRITE  = 2
 
 
-def open(*a, **kw):
-    _unsupported("compression.zstd.open() — file-I/O wrapper deferred")
+class ZstdFile(_streams.BaseStream):
+    """A file-like object providing transparent zstd (de)compression.
+
+    Wraps either a file path or an existing file-like object. Binary-mode
+    only at this layer; text mode is added by `open()` via TextIOWrapper.
+    """
+
+    FLUSH_BLOCK = ZstdCompressor.FLUSH_BLOCK
+    FLUSH_FRAME = ZstdCompressor.FLUSH_FRAME
+
+    def __init__(self, file, mode="r", *,
+                 level=None, options=None, zstd_dict=None):
+        self._fp = None
+        self._close_fp = False
+        self._mode = _MODE_CLOSED
+        self._buffer = None
+
+        if not isinstance(mode, str):
+            raise ValueError("mode must be a str")
+        if options is not None and not isinstance(options, dict):
+            raise TypeError("options must be a dict or None")
+        bin_mode = mode.removesuffix("b")
+        if bin_mode == "r":
+            if level is not None:
+                raise TypeError("level is illegal in read mode")
+            self._mode = _MODE_READ
+            file_mode = "rb"
+        elif bin_mode in ("w", "a", "x"):
+            if level is not None and not isinstance(level, int):
+                raise TypeError("level must be int or None")
+            self._mode = _MODE_WRITE
+            file_mode = bin_mode + "b"
+            comp_level = COMPRESSION_LEVEL_DEFAULT if level is None else level
+            self._compressor = ZstdCompressor(
+                level=comp_level, options=options, zstd_dict=zstd_dict)
+        else:
+            raise ValueError(f"Invalid mode: {mode!r}")
+
+        if isinstance(file, (str, bytes, os.PathLike)):
+            self._fp = _builtin_open(file, file_mode)
+            self._close_fp = True
+        elif hasattr(file, "read") or hasattr(file, "write"):
+            self._fp = file
+        else:
+            raise TypeError("file must be str/bytes/path or file-like")
+
+        if self._mode == _MODE_READ:
+            raw = self._fp.read()
+            if raw:
+                self._buffer = io.BytesIO(decompress(raw,
+                                                     zstd_dict=zstd_dict,
+                                                     options=options))
+            else:
+                self._buffer = io.BytesIO(b"")
+
+    # ---- BaseStream contract --------------------------------------------
+
+    def close(self):
+        if self.closed:
+            return
+        try:
+            if self._mode == _MODE_WRITE:
+                self._fp.write(self._compressor.flush())
+                self._compressor = None
+            elif self._mode == _MODE_READ:
+                self._buffer = None
+        finally:
+            try:
+                if self._close_fp:
+                    self._fp.close()
+            finally:
+                self._fp = None
+                self._close_fp = False
+                self._mode = _MODE_CLOSED
+                super().close()
+
+    def writable(self):
+        self._check_not_closed()
+        return self._mode == _MODE_WRITE
+
+    def readable(self):
+        self._check_not_closed()
+        return self._mode == _MODE_READ
+
+    def seekable(self):
+        return self._mode == _MODE_READ
+
+    # ---- read API --------------------------------------------------------
+
+    def read(self, size=-1):
+        self._check_can_read()
+        return self._buffer.read(size)
+
+    def read1(self, size=-1):
+        self._check_can_read()
+        if size < 0:
+            size = io.DEFAULT_BUFFER_SIZE
+        return self._buffer.read(size)
+
+    def readinto(self, b):
+        self._check_can_read()
+        return self._buffer.readinto(b)
+
+    def readline(self, size=-1):
+        self._check_can_read()
+        return self._buffer.readline(size)
+
+    # ---- write API -------------------------------------------------------
+
+    def write(self, data):
+        self._check_can_write()
+        # ZstdCompressor.compress() buffers; the frame is flushed on close.
+        self._compressor.compress(data)
+        # Match stdlib: return number of *uncompressed* bytes accepted.
+        return _nbytes(data)
+
+    def flush(self, mode=None):
+        """No-op on read or after close; on write, drain the buffered
+        frame to the underlying file. Called both explicitly by user code
+        and implicitly by BaseStream.close(), so it has to be idempotent.
+
+        The buffered-then-one-shot model can't truly mid-flush a sub-frame
+        without ending the stream; FLUSH_FRAME closes this object's frame
+        and the next write starts a new one. For interactive use, leave
+        this to close() rather than calling explicitly.
+        """
+        if self._mode != _MODE_WRITE or self._fp is None:
+            return  # read mode, already closed, or close()-internal re-call
+        if self._compressor is None:
+            return  # already drained
+        if mode is None or mode == ZstdCompressor.FLUSH_FRAME:
+            self._fp.write(self._compressor.flush())
+            # Start a fresh frame on the next write
+            self._compressor = ZstdCompressor()
+
+    # ---- seek/tell (read mode only) -------------------------------------
+
+    def seek(self, offset, whence=io.SEEK_SET):
+        self._check_can_seek()
+        return self._buffer.seek(offset, whence)
+
+    def tell(self):
+        self._check_not_closed()
+        if self._mode == _MODE_READ:
+            return self._buffer.tell()
+        # In write mode, the "position" pre-flush is just the accumulated
+        # uncompressed input the cap will compress on flush. Stdlib reports
+        # this as the compressor's pledged input count; we approximate.
+        return 0
+
+
+def _nbytes(dat):
+    if isinstance(dat, (bytes, bytearray)):
+        return len(dat)
+    with memoryview(dat) as mv:
+        return mv.nbytes
+
+
+def open(file, mode="rb", *,
+         level=None, options=None, zstd_dict=None,
+         encoding=None, errors=None, newline=None):
+    """Open a zstd-compressed file in binary or text mode.
+
+    Mirrors stdlib `compression.zstd.open`. Text mode wraps the binary
+    ZstdFile in an io.TextIOWrapper.
+    """
+    if "t" in mode:
+        if "b" in mode:
+            raise ValueError(f"Invalid mode: {mode!r}")
+    else:
+        if encoding is not None:
+            raise ValueError("Argument 'encoding' not supported in binary mode")
+        if errors is not None:
+            raise ValueError("Argument 'errors' not supported in binary mode")
+        if newline is not None:
+            raise ValueError("Argument 'newline' not supported in binary mode")
+
+    zstd_mode = mode.replace("t", "")
+    binary_file = ZstdFile(file, zstd_mode,
+                           level=level, options=options, zstd_dict=zstd_dict)
+    if "t" in mode:
+        encoding = io.text_encoding(encoding)
+        return io.TextIOWrapper(binary_file, encoding, errors, newline)
+    return binary_file

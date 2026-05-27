@@ -55,6 +55,12 @@ extern void __wasm_import_tegmentum_compression_multiplexer_zstd_extras_compress
 __attribute__((__import_module__("tegmentum:compression-multiplexer/zstd-extras@0.1.0"), __import_name__("decompress-advanced")))
 extern void __wasm_import_tegmentum_compression_multiplexer_zstd_extras_decompress_advanced(uint8_t *, size_t, uint8_t *, size_t, uint8_t *);
 
+__attribute__((__import_module__("tegmentum:compression-multiplexer/zstd-extras@0.1.0"), __import_name__("compress-advanced-with-dict")))
+extern void __wasm_import_tegmentum_compression_multiplexer_zstd_extras_compress_advanced_with_dict(uint8_t *, size_t, int32_t, uint8_t *, size_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("tegmentum:compression-multiplexer/zstd-extras@0.1.0"), __import_name__("decompress-advanced-with-dict")))
+extern void __wasm_import_tegmentum_compression_multiplexer_zstd_extras_decompress_advanced_with_dict(uint8_t *, size_t, uint8_t *, size_t, int32_t, uint8_t *);
+
 // Canonical ABI intrinsics
 
 __attribute__((__weak__, __export_name__("cabi_realloc")))
@@ -474,6 +480,60 @@ bool tegmentum_compression_multiplexer_zstd_extras_decompress_advanced(compressi
   uint8_t ret_area[(3*sizeof(void*))];
   uint8_t *ptr = (uint8_t *) &ret_area;
   __wasm_import_tegmentum_compression_multiplexer_zstd_extras_decompress_advanced((uint8_t *) (*input).ptr, (*input).len, (uint8_t *) (*params).ptr, (*params).len, ptr);
+  tegmentum_compression_multiplexer_compression_dispatcher_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (compression_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (compression_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool tegmentum_compression_multiplexer_zstd_extras_compress_advanced_with_dict(compression_import_list_u8_t *input, int32_t level, tegmentum_compression_multiplexer_zstd_extras_list_zstd_param_t *params, tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t dict, compression_import_list_u8_t *ret, compression_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_compression_multiplexer_zstd_extras_compress_advanced_with_dict((uint8_t *) (*input).ptr, (*input).len, level, (uint8_t *) (*params).ptr, (*params).len, (dict).__handle, ptr);
+  tegmentum_compression_multiplexer_compression_dispatcher_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (compression_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (compression_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool tegmentum_compression_multiplexer_zstd_extras_decompress_advanced_with_dict(compression_import_list_u8_t *input, tegmentum_compression_multiplexer_zstd_extras_list_zstd_param_t *params, tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t dict, compression_import_list_u8_t *ret, compression_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_compression_multiplexer_zstd_extras_decompress_advanced_with_dict((uint8_t *) (*input).ptr, (*input).len, (uint8_t *) (*params).ptr, (*params).len, (dict).__handle, ptr);
   tegmentum_compression_multiplexer_compression_dispatcher_result_list_u8_string_t result;
   switch ((int32_t) *((uint8_t*) (ptr + 0))) {
     case 0: {

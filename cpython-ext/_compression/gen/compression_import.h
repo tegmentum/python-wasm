@@ -199,6 +199,16 @@ extern bool tegmentum_compression_multiplexer_zstd_extras_compress_advanced(comp
 // calls before decompressing. The common use case is
 // `ZSTD_d_windowLogMax` to bound memory on untrusted input.
 extern bool tegmentum_compression_multiplexer_zstd_extras_decompress_advanced(compression_import_list_u8_t *input, tegmentum_compression_multiplexer_zstd_extras_list_zstd_param_t *params, compression_import_list_u8_t *ret, compression_import_string_t *err);
+// Advanced compress + dictionary in one call. Equivalent to
+// `compress-advanced` plus a `ZSTD_CCtx_loadDictionary` before
+// the compress step. Lets callers tune both the codec parameters
+// AND use a trained dictionary on the same payload, which the
+// split `compress-advanced` / `compress-with-dict` paths can't
+// do in one call.
+extern bool tegmentum_compression_multiplexer_zstd_extras_compress_advanced_with_dict(compression_import_list_u8_t *input, int32_t level, tegmentum_compression_multiplexer_zstd_extras_list_zstd_param_t *params, tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t dict, compression_import_list_u8_t *ret, compression_import_string_t *err);
+// Advanced decompress + dictionary in one call. Mirror of
+// `compress-advanced-with-dict`.
+extern bool tegmentum_compression_multiplexer_zstd_extras_decompress_advanced_with_dict(compression_import_list_u8_t *input, tegmentum_compression_multiplexer_zstd_extras_list_zstd_param_t *params, tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t dict, compression_import_list_u8_t *ret, compression_import_string_t *err);
 
 // Helper Functions
 

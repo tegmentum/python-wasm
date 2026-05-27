@@ -483,6 +483,77 @@ static PyObject *zstd_decompress_advanced(PyObject *self, PyObject *args, PyObje
     return list_u8_to_bytes(&output);
 }
 
+/* Combined advanced + dict path. Single WIT call that constructs the
+ * temporary zstd-dict resource, applies params, loads the dict into the
+ * CCtx/DCtx, and runs compress2/decompressDCtx. */
+
+static PyObject *zstd_compress_advanced_with_dict(PyObject *self, PyObject *args, PyObject *kw)
+{
+    static char *kwl[] = {"data", "dict_bytes", "level", "params", NULL};
+    PyObject *data, *dict_bytes, *params_obj = Py_None;
+    int level = 3;
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "OO|iO:zstd_compress_advanced_with_dict",
+                                     kwl, &data, &dict_bytes, &level, &params_obj)) {
+        return NULL;
+    }
+    int ok = 0;
+    zd_own_t own = make_zstd_dict(dict_bytes, &ok);
+    if (!ok) return NULL;
+    compression_import_list_u8_t input;
+    if (bytes_to_list_u8(data, &input) < 0) {
+        tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop_own(own);
+        return NULL;
+    }
+    tegmentum_compression_multiplexer_zstd_extras_list_zstd_param_t params;
+    if (build_params_list(params_obj, &params) < 0) {
+        free(input.ptr);
+        tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop_own(own);
+        return NULL;
+    }
+    zd_borrow_t borrow =
+        tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict(own);
+    compression_import_list_u8_t output;
+    compression_import_string_t err;
+    bool is_ok = tegmentum_compression_multiplexer_zstd_extras_compress_advanced_with_dict(
+        &input, (int32_t) level, &params, borrow, &output, &err);
+    tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop_own(own);
+    if (!is_ok) return raise_from_wit("compress-advanced-with-dict failed", &err);
+    return list_u8_to_bytes(&output);
+}
+
+static PyObject *zstd_decompress_advanced_with_dict(PyObject *self, PyObject *args, PyObject *kw)
+{
+    static char *kwl[] = {"data", "dict_bytes", "params", NULL};
+    PyObject *data, *dict_bytes, *params_obj = Py_None;
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "OO|O:zstd_decompress_advanced_with_dict",
+                                     kwl, &data, &dict_bytes, &params_obj)) {
+        return NULL;
+    }
+    int ok = 0;
+    zd_own_t own = make_zstd_dict(dict_bytes, &ok);
+    if (!ok) return NULL;
+    compression_import_list_u8_t input;
+    if (bytes_to_list_u8(data, &input) < 0) {
+        tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop_own(own);
+        return NULL;
+    }
+    tegmentum_compression_multiplexer_zstd_extras_list_zstd_param_t params;
+    if (build_params_list(params_obj, &params) < 0) {
+        free(input.ptr);
+        tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop_own(own);
+        return NULL;
+    }
+    zd_borrow_t borrow =
+        tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict(own);
+    compression_import_list_u8_t output;
+    compression_import_string_t err;
+    bool is_ok = tegmentum_compression_multiplexer_zstd_extras_decompress_advanced_with_dict(
+        &input, &params, borrow, &output, &err);
+    tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop_own(own);
+    if (!is_ok) return raise_from_wit("decompress-advanced-with-dict failed", &err);
+    return list_u8_to_bytes(&output);
+}
+
 
 /* CRC32 / Adler32 ---------------------------------------------------------
  *
@@ -626,6 +697,12 @@ static PyMethodDef compression_methods[] = {
       "zstd_decompress_advanced(data: bytes,\n"
       "                          params: Iterable[tuple[int, int]] = None) -> bytes\n"
       "Decompress with libzstd advanced API: list of (ZSTD_dParameter id, value)."),
+    M("zstd_compress_advanced_with_dict",   zstd_compress_advanced_with_dict,
+      "zstd_compress_advanced_with_dict(data, dict_bytes, level=3, params=None) -> bytes\n"
+      "Advanced compress + dictionary in one call."),
+    M("zstd_decompress_advanced_with_dict", zstd_decompress_advanced_with_dict,
+      "zstd_decompress_advanced_with_dict(data, dict_bytes, params=None) -> bytes\n"
+      "Advanced decompress + dictionary in one call."),
     {NULL, NULL, 0, NULL}
 };
 

@@ -181,4 +181,23 @@ interface zstd-extras {
     decompress-advanced: func(input: list<u8>,
                               params: list<zstd-param>)
                        -> result<list<u8>, string>;
+
+    /// Advanced compress + dictionary in one call. Equivalent to
+    /// `compress-advanced` plus a `ZSTD_CCtx_loadDictionary` before
+    /// the compress step. Lets callers tune both the codec parameters
+    /// AND use a trained dictionary on the same payload, which the
+    /// split `compress-advanced` / `compress-with-dict` paths can't
+    /// do in one call.
+    compress-advanced-with-dict: func(input: list<u8>,
+                                      level: s32,
+                                      params: list<zstd-param>,
+                                      dict: borrow<zstd-dict>)
+                                -> result<list<u8>, string>;
+
+    /// Advanced decompress + dictionary in one call. Mirror of
+    /// `compress-advanced-with-dict`.
+    decompress-advanced-with-dict: func(input: list<u8>,
+                                        params: list<zstd-param>,
+                                        dict: borrow<zstd-dict>)
+                                  -> result<list<u8>, string>;
 }
