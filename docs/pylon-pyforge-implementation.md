@@ -1080,3 +1080,71 @@ The matching pylon-side work:
 No changes needed in `pylon-forge` itself for this — the
 manifest emitter is already consumer-agnostic; it just runs against
 each repo state and records what it finds.
+
+---
+
+## Phase 3 — retired
+
+The original Phase 3 (wheel resolver in pylon: `pylon resolver
+wheel-tag`, `pylon resolver compatible`, eventual `pylon install`,
+eventual `pylon wheel build`) is **retired**.
+
+Phase 3.0 (spec) + Phase 3.1 (resolver implementation + CLI verbs)
+landed in pylon-forge commit `9b88b5e` but were removed in commit
+`92cc12f`. The spec doc survives at
+`pylon-forge/docs/wheel-metadata-extension.md`, reframed as a
+convention pylon's manifests are designed to feed — not as pylon
+behavior.
+
+### Why
+
+Pylon-forge's domain is **substrate production**: sources,
+toolchains, builds, manifest identity, reproducibility. Resolution,
+filtering, and installation are **consumption** concerns and belong
+to whoever consumes (uv-wasm, pip, anything else). Phase 3.1 crossed
+that line.
+
+Two facts made the retirement concrete:
+
+1. **uv-wasm exists** (`~/git/uv-wasm`). It's a fully-componentized
+   uv with PubGrub resolution, PEP 691 + PEP 658 metadata over
+   wasi:http, wheel download + venv install (validated against
+   CPython 3.14 wasi). The wheel-consumption loop closes there, not
+   in pylon. Anything pylon's resolver did, uv-wasm should do better
+   because uv-wasm has the rest of the package-management machinery.
+
+2. **The pyforge-manifest is the right interface**. Tools that want
+   to honor `Required-Capability:` can read either the manifest
+   directly OR the runtime's self-introspection
+   (`sys.implementation._wasm_capabilities` — a small python-wasm-side
+   change, not pylon's responsibility). Pylon's job ends at producing
+   the manifest. Either path keeps pylon out of the resolver.
+
+### What stays
+
+* `pylon-forge/docs/wheel-metadata-extension.md` — convention doc.
+  Reframed to make clear pylon doesn't implement or enforce it; it's
+  there because pylon's manifest schema is designed to feed
+  conforming tools.
+
+### What was removed
+
+* `pylon-forge/src/pylon/resolver.py` (250 lines of wheel parser +
+  compatibility check + PEP 440 subset)
+* `pylon-forge/tests/test_resolver.py` (9 test cases)
+* `pylon resolver wheel-tag` + `pylon resolver compatible` CLI verbs
+
+### Forward path (not pylon's work)
+
+If forge-aware wheel filtering matters, the right place to build it
+is uv-wasm:
+
+* python-wasm exposes `sys.implementation._wasm_capabilities` via
+  a small C extension that walks the running component's WIT imports.
+* uv-wasm's `find-python` introspection reads that and surfaces it
+  in the `py-interpreter` record.
+* uv-wasm's PubGrub candidate filter adds a `Required-Capability`
+  check against the interpreter's capability set.
+
+None of those changes belong in pylon-forge. Tracked in
+`~/git/uv-wasm` if/when that work moves.
