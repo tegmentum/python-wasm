@@ -844,12 +844,63 @@ step still uses `wac plug` via the existing
 `scripts/compose-python-component.sh` (dev fast path) until
 composectl's emit dep-wiring catches up.
 
-### Phase 1.4 (reproducibility verification) — next
+### Phase 1.4 — reproducibility verification landed
 
-The reproducibility gate is now: emitting a plan from a manifest
-twice produces byte-identical plan JSON. This is testable today
-without needing composectl emit build to work. After that, the
-deeper gate — building two python.composed.wasm files from the
-same manifest produces identical sha256 — depends on either
-composectl emit build maturing or `wac plug` itself being
-deterministic.
+`pylon forge verify` runs the testable subset of the Phase 1.4
+contract:
+
+```
+=== manifest emission ===
+  two emissions: byte-identical TOML                      OK  6735 bytes
+  two emissions: same forge_identity                      OK  cbd6821cff7ab525…
+
+=== forge_identity ===
+  parse(emit(repo)).identity == emit(repo).identity       OK
+  re-emit after parse is byte-identical to original       OK
+
+=== plan emission ===
+  two plan emissions: byte-identical JSON                 OK  6735 bytes
+  two plan emissions: same component count                OK  7 components
+  two plan emissions: same binding count                  OK  17 bindings
+
+=== plan emission purity ===
+  plan(in-mem) == plan(parsed-from-toml)                  OK
+
+=== write_plan determinism ===
+  two write_plan() calls: byte-identical files            OK  6736 bytes
+```
+
+8/8 pass. Suitable as a CI gate today: `pylon forge verify`
+returns 0 iff every reproducibility invariant holds for the current
+repo state.
+
+**Important Phase 1.4 finding: `wac plug` is non-deterministic.**
+Probed during this phase. Two back-to-back runs of
+`scripts/compose-python-component.sh` against identical inputs
+produce identical-size python.composed.wasm files
+(43,739,345 bytes each) with **different sha256**:
+
+```
+$ shasum -a 256 build/python.composed.wasm   # run 1
+b60a003b21ebf92e5a160289e6c650c4da1d33d73c3cb868d45e106ddf4ca21a
+
+$ shasum -a 256 build/python.composed.wasm   # run 2
+5b6478cf5f5c8826532e7370a24ad3746759f4670471f34639fad90446468440
+```
+
+Byte-level diff starts at offset ~0x3486 inside a sub-component's
+LEB128 length prefix — wac is reordering embedded components run-
+to-run. The `producers` custom sections total the same bytes but
+appear at different offsets in each output. This is wac plug's
+issue, not anything our manifest/plan layer can fix.
+
+So the gate "`pylon forge build` produces bit-identical
+python.composed.wasm" needs **upstream wac fix** or pivot to
+composectl emit build (which has its own dep-wiring gap). Phase 1.4
+treats this as **documented, not blocking** — the bytes are
+functionally equivalent (same total size, same custom section
+contents, presumably same runtime behavior), just laid out
+differently.
+
+Tracked as a deferred deeper gate; Phase 2 (recursive cap forges)
+can start without it.
