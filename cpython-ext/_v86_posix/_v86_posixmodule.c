@@ -373,9 +373,21 @@ static int parse_stdio(int v, v86_posix_process_stdio_spec_t *out, const char *w
 }
 
 /* Convert a Python sequence-of-str into a wit list<string>. Caller-owned;
- * free with v86_posix_import_list_string_t cleanup. */
+ * free with v86_posix_import_list_string_t cleanup.
+ *
+ * A bare str is rejected up front: Python strings *are* sequences (each
+ * char is a 1-char str), so without this check `spawn(prog, 'abc')` would
+ * silently expand to args=['a', 'b', 'c'] — almost never what the caller
+ * wants, and subprocess.Popen rejects the same shape with TypeError.
+ * Mirror that contract here. */
 static int seq_to_list_string(PyObject *seq, v86_posix_import_list_string_t *out)
 {
+    if (PyUnicode_Check(seq) || PyBytes_Check(seq)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "args must be a sequence of strings, not a single string "
+                        "(pass [\"arg1\", \"arg2\", …] not \"arg1 arg2 …\")");
+        return -1;
+    }
     PyObject *fast = PySequence_Fast(seq, "expected a sequence");
     if (fast == NULL) {
         return -1;

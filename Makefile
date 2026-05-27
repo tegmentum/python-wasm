@@ -168,6 +168,14 @@ test-ssl-capability: python-composed
 test-ssl-network: python-composed
 	@NETWORK=1 bash scripts/test-ssl-network.sh
 
+# Componentize-python plan, Tier 1 v86: end-to-end smoke of _v86_posix +
+# v86-posix-stub through the composed python.wasm. Asserts the module +
+# exception hierarchy + spawn → GuestNotReadyError contract (the stub's
+# only behavior — see crates/v86-posix-stub in the v86 repo).
+.PHONY: test-v86-posix-extension
+test-v86-posix-extension: python-composed
+	@bash scripts/test-v86-posix-extension.sh
+
 # Componentize-python plan, Phase 4: generate the composectl plan that pins
 # python.wasm + capability multiplexers by CAS digest. Reproducibility target;
 # wac (python-composed) is the dev fast-path until composectl's emit dep-wiring

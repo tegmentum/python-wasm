@@ -47,10 +47,11 @@ declare -a EXTS=(
     "_xxhash|_xxhash|_xxhashmodule.c|xxhash_import.c|xxhash_import_component_type.o"
     "_ssl|_ssl_capability|_ssl_capability_module.c|ssl_import.c|ssl_import_component_type.o"
     "_sqlite_capability|_sqlite_cap|_sqlite_capability_module.c|sqlite_import.c|sqlite_import_component_type.o"
-    # _v86_posix is deferred — its v86:posix/process import has no plugged-in
-    # implementation in compose-python-component.sh (no v86 component built
-    # yet). Re-enable once a v86:posix-providing component exists.
-    # "_v86_posix|_v86_posix|_v86_posixmodule.c|v86_posix_import.c|v86_posix_import_component_type.o"
+    # _v86_posix: the v86:posix/process import is plugged in by
+    # compose-python-component.sh via V86_POSIX_COMPONENT (default:
+    # v86-posix-stub — every spawn returns guest-not-ready until v86-
+    # component proper grows the real impl). See docs/tier1-v86-integration.md.
+    "_v86_posix|_v86_posix|_v86_posixmodule.c|v86_posix_import.c|v86_posix_import_component_type.o"
 )
 
 SETUP_LOCAL="$CPYTHON_DIR/Modules/Setup.local"
@@ -100,6 +101,15 @@ for entry in "${EXTS[@]}"; do
     # existing symlink atomically; replace_all on ln isn't a thing.
     ln -sfn "$ext_path" "$CPYTHON_DIR/Modules/$modname"
     echo "  + symlink: Modules/$modname -> cpython-ext/$srcdir"
+
+    # Pre-create the build-tree output dirs for each wasm cross-build that
+    # exists. Tools/wasm/wasi build doesn't mkdir these on demand; on a
+    # fresh extension the first build aborts with:
+    #   unable to open output file 'Modules/<modname>/gen/<x>.o': No such file or directory
+    # Doing it here is idempotent and a one-liner per cross-build.
+    for cross_dir in "$CPYTHON_DIR"/cross-build/wasm*/Modules; do
+        [ -d "$cross_dir" ] && mkdir -p "$cross_dir/$modname/gen"
+    done
 
     # Append the Setup.local line.
     printf '%s %s/%s %s/gen/%s %s/gen/%s -I$(srcdir)/Modules/%s/gen\n' \

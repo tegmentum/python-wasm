@@ -21,9 +21,13 @@ MUX_CRYPTO_HASH="${CRYPTO_HASH_MULTIPLEXER_WASM:-$HOME/git/crypto-hash-multiplex
 MUX_HASHING="${HASHING_MULTIPLEXER_WASM:-$HOME/git/hashing-multiplexer/target/wasm32-wasip2/release/hashing_multiplexer.wasm}"
 OPENSSL_COMPONENT="${OPENSSL_COMPONENT_WASM:-$HOME/git/openssl-wasm/build/openssl-component.wasm}"
 SQLITE_COMPONENT="${SQLITE_COMPONENT_WASM:-$HOME/git/sqlite-wasm/build/sqlite-core.wasm}"
+# Tier 1 (v86): defaults to the v86-posix-stub artifact (every spawn returns
+# guest-not-ready). Swap V86_POSIX_COMPONENT to the real v86-component build
+# once it exports v86:posix/process — same contract, different digest.
+V86_POSIX_COMPONENT="${V86_POSIX_COMPONENT_WASM:-$HOME/git/v86/target/wasm32-wasip2/release/v86_posix_stub.wasm}"
 
 [ -f "$PYW" ] || { echo "compose-python-component: $PYW not found — run 'make build' first." >&2; exit 1; }
-for f in "$MUX_COMPRESSION" "$MUX_CRYPTO_HASH" "$MUX_HASHING" "$OPENSSL_COMPONENT" "$SQLITE_COMPONENT"; do
+for f in "$MUX_COMPRESSION" "$MUX_CRYPTO_HASH" "$MUX_HASHING" "$OPENSSL_COMPONENT" "$SQLITE_COMPONENT" "$V86_POSIX_COMPONENT"; do
     [ -f "$f" ] || { echo "compose-python-component: capability not found: $f" >&2; exit 1; }
 done
 command -v wac >/dev/null 2>&1 || { echo "compose-python-component: 'wac' (wac-cli) is required on PATH." >&2; exit 1; }
@@ -35,6 +39,7 @@ wac plug "$PYW" \
     --plug "$MUX_HASHING" \
     --plug "$OPENSSL_COMPONENT" \
     --plug "$SQLITE_COMPONENT" \
+    --plug "$V86_POSIX_COMPONENT" \
     -o "$OUT"
 echo "==> $(du -h "$OUT" | cut -f1) $OUT"
 
