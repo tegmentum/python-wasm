@@ -904,3 +904,88 @@ differently.
 
 Tracked as a deferred deeper gate; Phase 2 (recursive cap forges)
 can start without it.
+
+### Phase 2.0 — Cap manifest schema + emitter (landed)
+
+Parallel to Phase 0: cheapest validation of the cap-side schema is
+a manifest emitter against an existing built cap repo. Run it,
+check that the round-trip holds, document the gaps.
+
+pylon-forge commit `b7b7cc3` lands:
+
+* `src/pylon/cap_manifest.py` — CapManifest dataclass tree:
+  `[cap]` (package, version, source_url, source_sha256),
+  `[cap.toolchain]` (rust + cargo-component + wit-bindgen +
+  wit-bindgen-rt + wasi-sdk versions/digests),
+  `[cap.build]` (build_system, target, profile, features),
+  `[[cap.wit.exports]]`, `[artifact]`. Same `forge_identity =
+  sha256(canonical TOML with field cleared)` pattern as the
+  python-side manifest.
+
+* `src/pylon/cap_emitter.py` — introspects a cap repo. Discovers
+  source identity from `.git/HEAD`, build system from which build
+  file exists (Cargo.toml / CMakeLists.txt / Makefile), toolchain
+  versions by running `rustc --version`, `cargo-component
+  --version`, `wit-bindgen --version` against the cargo-installed
+  binaries, `wit_bindgen_rt` pin from the wasm-target dependencies
+  block of Cargo.toml, package + version from the built artifact's
+  WIT exports (preferred over Cargo.toml's version string because
+  Cargo.toml may lag).
+
+* `pylon cap emit-manifest <repo>` + `pylon cap validate
+  <manifest>` CLI verbs.
+
+* `manifests/caps/compression-multiplexer.toml` — first canonical
+  cap manifest checked in.
+
+### Phase 2.0 retrospective — schema gaps surfaced
+
+1. **`wasi_sdk_*` fields are empty for cargo-component caps.**
+   wasi-sdk is a build-time tool the cap doesn't directly
+   reference — it's a property of whoever's running
+   `cargo-component build`. For CMake / Make caps (sqlite-wasm,
+   openssl-wasm) the SDK is explicit. Either move wasi-sdk
+   identity into a cap-side config (it's an env-level knob) or
+   accept empty `wasi_sdk_*` for cargo-component builds.
+
+2. **`source_url` for a local checkout is non-portable.** Records
+   `git+local:/Users/.../compression-multiplexer@<commit>` which
+   won't resolve on a different machine. For Phase 2.1's build
+   orchestrator the resolver needs a fetch URL (ssh://, https://).
+   A cap-side `.pylon-cap.toml` (new — doesn't exist yet) could
+   declare the canonical upstream URL; emitter merges that with
+   the locally-discovered commit sha.
+
+3. **`features` from `Cargo.toml` doesn't necessarily match
+   build-time features.** The emitter records `default` features
+   only. If a cap is normally built with extra features (e.g.
+   `cargo component build --features zdict_builder`), the manifest
+   needs the actual build invocation, not the `default` set.
+   compression-multiplexer specifically: it WAS built with
+   `zdict_builder` enabled (Phase 1 zstd-extras work), but the
+   default features list is empty so the emitter shows `[]`. The
+   manifest under-describes the build.
+
+   Fix: a cap-side `.pylon-cap.toml` declares "this is how I'm
+   built", same pattern as python-wasm's `.pylon.toml`. Defer
+   until Phase 2.1 needs the actual build invocation.
+
+4. **`artifact.path` is repo-relative.** Good for human
+   readability; less good when the manifest travels across hosts
+   that don't have this repo checked out. Phase 2.1's build
+   orchestrator computes this from the manifest, so it's
+   informational. Acceptable.
+
+5. **Multi-artifact caps aren't modeled.** sqlite-wasm builds
+   `sqlite-core.wasm` + `sqlite-cli.wasm` + `sqlite.wasm`. One
+   cap repo, multiple wasm artifacts. Current schema picks the
+   first match; downstream consumers (python-wasm) want
+   `sqlite-core.wasm` specifically. Either model `[[artifacts]]`
+   as an array, or require the consumer's `.pylon.toml` to declare
+   which artifact it consumes (the path it already gives is the
+   answer). The python-wasm `.pylon.toml` already does — so the
+   cap manifest is the under-described layer.
+
+These five items go into the Phase 2.1 design. None are
+load-bearing for Phase 2.0's "validate the schema with one
+real cap" goal.
