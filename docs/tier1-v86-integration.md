@@ -71,9 +71,10 @@ yet — this section is a sketch of the next concrete step):
   imports `v86:posix/process` and exposes a small private surface to
   Python (`spawn(opts) -> Process`, methods mirroring the WIT resource).
   Pattern matches the existing `cpython-ext/_compression`, `_crypto_hash`,
-  `_ssl`, `_xxhash` extensions: each is `componentize-py`-ish C glue
-  around a WIT import, plus a `Lib/<stdlib>.py` shim that exposes the
-  CPython-stdlib-compatible API.
+  `_ssl`, `_xxhash` extensions (Pattern A — cpython-ext static linkage):
+  each is hand-written C glue around a wit-bindgen-c-generated WIT import,
+  plus a `Lib/<stdlib>.py` shim that exposes the CPython-stdlib-compatible
+  API. See `docs/componentize-python.md`.
 - A `Lib/_v86_subprocess.py` (or a patch to `Lib/subprocess.py`) that
   routes `Popen` through `_v86_posix.spawn` when running under a build
   that has the capability imported and `v86:posix/process` available.

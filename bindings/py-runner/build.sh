@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# DEPRECATED — componentize-py is retired (see bindings/DEPRECATED.md).
+# The Pattern A forge bakes _compression + Lib/zlib.py into python.composed.wasm
+# directly; this runner is no longer the path. Kept for historical reference; not
+# wired into CI. See docs/componentize-python.md.
+#
 # Build the py-runner: a wasi:cli/command-shaped CPython component (built with
 # componentize-py) whose extra import is the compression-dispatcher capability.
 # Composed with the compression-multiplexer via wac, the result is a runnable

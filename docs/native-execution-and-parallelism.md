@@ -15,8 +15,11 @@ compose under the component model.
 > `hashing-components`). The local prototype that reinvented this (the
 > `componentctl` driver, the `catalog/` index, and the bespoke
 > `components/hash*` + `tegmentum:hash` WIT) has been removed. `python-wasm`'s
-> lane is **Python consumption**: componentize-py bindings over those
-> capabilities, and the `offload` contract for the native/parallel tiers. The
+> lane is **Python consumption**: Pattern A cpython-ext static linkage
+> over those capabilities (see `docs/componentize-python.md`), and the
+> `offload` contract for the native/parallel tiers. (Earlier
+> componentize-py bindings under `bindings/` are retired — see
+> `bindings/DEPRECATED.md`.) The
 > §4.3 `registry`/`router` sketch is retained but is to be **reconciled with
 > `composectl`** rather than grown into a parallel orchestrator.
 

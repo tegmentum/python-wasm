@@ -281,10 +281,10 @@ truly-identical shape. The plan does not depend on it (explicit design).
 |---|---|
 | `scripts/build-zlib.sh` | Deleted; compression via component. |
 | `scripts/build-openssl.sh` | Retired post-Phase 3; otherwise transitional. |
-| `bindings/pyhash` | Marked transitional; future demo uses the new pattern. |
-| `bindings/pyzlib` | Marked transitional; superseded by `_compression`. |
-| `bindings/py-runner` | Migrates to use the new pattern (Phase 4+). |
-| componentize-py dep | Removed from the critical path. May stay for ad-hoc binding demos but not load-bearing. |
+| `bindings/pyhash` | Retired (see `bindings/DEPRECATED.md`); replaced by `cpython-ext/_xxhash` + `_crypto_hash`. |
+| `bindings/pyzlib` | Retired (see `bindings/DEPRECATED.md`); replaced by `cpython-ext/_compression` + `Lib/zlib.py` shim. |
+| `bindings/py-runner` | Retired (see `bindings/DEPRECATED.md`); the forge IS the runner — capabilities are baked in. |
+| componentize-py dep | Fully retired. The Pattern A model (cpython-ext static linkage) is the canonical path for Python to consume tegmentum capabilities. No new bindings should use componentize-py. |
 
 ## Cross-cutting concerns
 

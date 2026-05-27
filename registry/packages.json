@@ -1,13 +1,13 @@
 {
   "schema": "tegmentum:py-offload/registry@0.1.0 (wit/py-package.wit)",
-  "note": "Materialized python-package catalog: package name -> serving backends (composectl content digests) + offload-able entries. The single python-facing source of truth a driver consults before building a composectl plan; composition/exec stay in composectl.",
+  "note": "Materialized python-package catalog: package name -> serving backends + offload-able entries. For Pattern A (cpython-ext static linkage), the worker IS the composed python.wasm forge artifact (a single worker serves many entries) — env = sha256(python.composed.wasm). For native-tier offload, env = sha256 of the composectl-composed v86 worker artifact. composectl handles composition/exec; this catalog is the single python-facing source of truth a driver consults before building a plan.",
   "packages": [
     {
       "dist": {
         "name": "zlib",
         "version": "0.1.0",
         "backends": [
-          { "tier": "in-wasm", "env": "728d09d3ceb6a926e3f476741c37efa05e80bfe4a6d7a5a9519512cb00332dc1" }
+          { "tier": "in-wasm", "env": "a0006ecbc58cb8a20989ee7f7cdbe46cc1c86043823bfaeb56320213331ca937" }
         ]
       },
       "entries": [
@@ -17,11 +17,13 @@
         { "entry": "zlib:adler32",    "doc": "Adler-32 checksum.", "codecs": ["msgpack", "json"] }
       ],
       "source": {
-        "binding": "bindings/pyzlib",
-        "module": "pyzlib (installed as the stdlib-style `zlib`)",
+        "pattern": "A (cpython-ext static linkage)",
+        "extension": "cpython-ext/_compression",
+        "shim": "cpython-ext/_compression/zlib.py (installed as Lib/zlib.py at forge-build time)",
         "capability": "tegmentum:compression-multiplexer/compression-dispatcher@0.1.0",
-        "artifact": "bindings/pyzlib/composed.wasm",
-        "artifact_bytes": 21683278
+        "artifact": "build/python.composed.wasm",
+        "artifact_bytes": 43845890,
+        "note": "Backend env is sha256(python.composed.wasm) for the current browser forge build. The same artifact also serves hashlib, ssl, sqlite3, and xxhash entries — Pattern A means the interpreter is the worker. When the python.composed.wasm artifact is rebuilt (new wasi-sdk, new cap, new CPython), this env shifts and the entry must be re-registered. Add a v86-tier backend by digesting the v86 variant's python.composed.wasm when built."
       }
     }
   ]
