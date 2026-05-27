@@ -143,6 +143,9 @@ install-python-shims:
 	@cp $(PROJECT_DIR)/cpython-ext/_sqlite_capability/sqlite3.py \
 	    $(PROJECT_DIR)/deps/cpython/Lib/sqlite3/__init__.py
 	@echo "installed: deps/cpython/Lib/sqlite3/__init__.py  (Tier B: routes to _sqlite_cap via sqlite:wasm capability)"
+	@cp $(PROJECT_DIR)/cpython-ext/_v86_posix/subprocess.py \
+	    $(PROJECT_DIR)/deps/cpython/Lib/subprocess.py
+	@echo "installed: deps/cpython/Lib/subprocess.py  (Tier C: routes Popen/run through _v86_posix.spawn via v86:posix/process)"
 
 # Componentize-python plan, Phase 1: end-to-end smoke test of the composed
 # component + _compression extension + multiplexer.

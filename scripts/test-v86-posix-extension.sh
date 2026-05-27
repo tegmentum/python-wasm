@@ -98,8 +98,60 @@ for bad in [(123, []), ('/bin/sh', 'not-a-list'), ('/bin/sh', [123])]:
 print('argument validation          :', 'OK' if arg_failures == 0 else 'FAIL')
 failures += arg_failures
 
+# 5) subprocess shim — Popen/run should route through _v86_posix
+import subprocess, errno
+sub_failures = 0
+
+# 5a) Module exports look right (shim replaced stdlib subprocess)
+for name in ('Popen', 'run', 'call', 'check_call', 'PIPE', 'DEVNULL', 'STDOUT',
+             'CompletedProcess', 'CalledProcessError', 'SubprocessError',
+             'TimeoutExpired', 'list2cmdline'):
+    if not hasattr(subprocess, name):
+        print(f'subprocess missing: {name}: FAIL'); sub_failures += 1
+if subprocess.PIPE != -1 or subprocess.DEVNULL != -3 or subprocess.STDOUT != -2:
+    print('subprocess constants mismatch: FAIL'); sub_failures += 1
+
+# 5b) Popen routes to spawn → guest-not-ready → OSError(ENOTSUP)
+try:
+    subprocess.Popen(['/bin/true'])
+    print('Popen returned without raising: FAIL'); sub_failures += 1
+except OSError as e:
+    if e.errno == errno.ENOTSUP:
+        print('Popen -> OSError(ENOTSUP)    : OK')
+    else:
+        print(f'Popen -> OSError(errno={e.errno}): FAIL'); sub_failures += 1
+except Exception as e:
+    print(f'Popen -> unexpected {type(e).__name__}: {e}: FAIL'); sub_failures += 1
+
+# 5c) subprocess.run wraps Popen, same error shape
+try:
+    subprocess.run(['/bin/true'])
+    print('run returned without raising: FAIL'); sub_failures += 1
+except OSError as e:
+    if e.errno == errno.ENOTSUP:
+        print('run -> OSError(ENOTSUP)      : OK')
+    else:
+        print(f'run -> OSError(errno={e.errno}): FAIL'); sub_failures += 1
+
+# 5d) PIPE-stdio Popen should NOT raise at construction (PIPE means 'wire it
+# up at the WIT level'), but Popen.stdout/.stderr accessors are deferred.
+# In this stub-backed setup spawn fails first with ENOTSUP, same as above.
+# Just verify the error mapping doesn't crash for capture-output=False run.
+try:
+    subprocess.run(['/bin/true'], stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL)
+    print('run(stdout=DEVNULL) returned without raising: FAIL'); sub_failures += 1
+except OSError as e:
+    if e.errno == errno.ENOTSUP:
+        print('run(DEVNULL stdio)           : OK (routes to spawn)')
+    else:
+        print(f'run(DEVNULL stdio) -> OSError(errno={e.errno}): FAIL'); sub_failures += 1
+
+print('subprocess shim              :', 'OK' if sub_failures == 0 else 'FAIL')
+failures += sub_failures
+
 # Final tally
 sys.exit(failures)
 " \
-    && echo "OK: _v86_posix + v86-posix-stub end-to-end through python.composed.wasm." \
+    && echo "OK: _v86_posix + subprocess shim + v86-posix-stub end-to-end through python.composed.wasm." \
     || { echo "FAIL: extension or composition broken." >&2; exit 1; }
