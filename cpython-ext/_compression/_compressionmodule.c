@@ -285,6 +285,43 @@ static PyObject *zstd_dict_id(PyObject *self, PyObject *args, PyObject *kw)
     return PyLong_FromUnsignedLong((unsigned long) id);
 }
 
+/* Build a list_list_u8 from a Python iterable of bytes-like. Caller owns
+ * the returned struct's .ptr (free via free(); each .ptr[i].ptr is similarly
+ * malloc'd). On error returns out.ptr=NULL with Python error set. */
+static int build_samples_list(PyObject *samples_obj, compression_import_list_list_u8_t *out)
+{
+    out->ptr = NULL;
+    out->len = 0;
+    PyObject *fast = PySequence_Fast(samples_obj, "samples must be iterable");
+    if (fast == NULL) return -1;
+    Py_ssize_t n = PySequence_Fast_GET_SIZE(fast);
+    if (n == 0) {
+        Py_DECREF(fast);
+        PyErr_SetString(PyExc_ValueError, "no samples provided");
+        return -1;
+    }
+    out->ptr = (compression_import_list_u8_t *)
+        malloc((size_t) n * sizeof(compression_import_list_u8_t));
+    if (out->ptr == NULL) {
+        Py_DECREF(fast);
+        PyErr_NoMemory();
+        return -1;
+    }
+    out->len = (size_t) n;
+    for (Py_ssize_t i = 0; i < n; i++) {
+        PyObject *item = PySequence_Fast_GET_ITEM(fast, i);  /* borrowed */
+        if (bytes_to_list_u8(item, &out->ptr[i]) < 0) {
+            for (Py_ssize_t j = 0; j < i; j++) free(out->ptr[j].ptr);
+            free(out->ptr);
+            out->ptr = NULL;
+            Py_DECREF(fast);
+            return -1;
+        }
+    }
+    Py_DECREF(fast);
+    return 0;
+}
+
 static PyObject *zstd_train_dict(PyObject *self, PyObject *args, PyObject *kw)
 {
     static char *kwl[] = {"samples", "dict_size", NULL};
@@ -294,42 +331,155 @@ static PyObject *zstd_train_dict(PyObject *self, PyObject *args, PyObject *kw)
                                      kwl, &samples_obj, &dict_size)) {
         return NULL;
     }
-    /* samples is an iterable of bytes-like; flatten into a list_list_u8. */
-    PyObject *fast = PySequence_Fast(samples_obj, "samples must be iterable");
-    if (fast == NULL) return NULL;
-    Py_ssize_t n = PySequence_Fast_GET_SIZE(fast);
-    if (n == 0) {
-        Py_DECREF(fast);
-        PyErr_SetString(PyExc_ValueError, "train-dict: no samples provided");
-        return NULL;
-    }
     compression_import_list_list_u8_t samples;
-    samples.ptr = (compression_import_list_u8_t *)
-        malloc((size_t) n * sizeof(compression_import_list_u8_t));
-    if (samples.ptr == NULL) {
-        Py_DECREF(fast);
-        return PyErr_NoMemory();
-    }
-    samples.len = (size_t) n;
-    /* Copy each sample. On any failure, free what we've allocated so far. */
-    for (Py_ssize_t i = 0; i < n; i++) {
-        PyObject *item = PySequence_Fast_GET_ITEM(fast, i);  /* borrowed */
-        if (bytes_to_list_u8(item, &samples.ptr[i]) < 0) {
-            for (Py_ssize_t j = 0; j < i; j++) free(samples.ptr[j].ptr);
-            free(samples.ptr);
-            Py_DECREF(fast);
-            return NULL;
-        }
-    }
-    Py_DECREF(fast);
+    if (build_samples_list(samples_obj, &samples) < 0) return NULL;
     compression_import_list_u8_t output;
     compression_import_string_t err;
     bool is_ok = tegmentum_compression_multiplexer_zstd_extras_train_dict(
         &samples, (uint32_t) dict_size, &output, &err);
-    /* samples buffer is consumed by the canonical ABI on success; on failure
-     * the WIT impl frees its lifted view. Either way, we don't free .ptr
-     * elements after the call. */
+    /* samples buffer is consumed by the canonical ABI; do not free here. */
     if (!is_ok) return raise_from_wit("train-dict failed", &err);
+    return list_u8_to_bytes(&output);
+}
+
+static PyObject *zstd_finalize_dict(PyObject *self, PyObject *args, PyObject *kw)
+{
+    static char *kwl[] = {"dict_content", "samples", "dict_size", "level", NULL};
+    PyObject *dict_content_obj, *samples_obj;
+    unsigned int dict_size;
+    int level;
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "OOIi:zstd_finalize_dict",
+                                     kwl, &dict_content_obj, &samples_obj,
+                                     &dict_size, &level)) {
+        return NULL;
+    }
+    compression_import_list_u8_t dict_content;
+    if (bytes_to_list_u8(dict_content_obj, &dict_content) < 0) return NULL;
+    compression_import_list_list_u8_t samples;
+    if (build_samples_list(samples_obj, &samples) < 0) {
+        free(dict_content.ptr);
+        return NULL;
+    }
+    compression_import_list_u8_t output;
+    compression_import_string_t err;
+    bool is_ok = tegmentum_compression_multiplexer_zstd_extras_finalize_dict(
+        &dict_content, &samples, (uint32_t) dict_size, (int32_t) level,
+        &output, &err);
+    if (!is_ok) return raise_from_wit("finalize-dict failed", &err);
+    return list_u8_to_bytes(&output);
+}
+
+static PyObject *zstd_get_frame_size(PyObject *self, PyObject *args, PyObject *kw)
+{
+    static char *kwl[] = {"frame", NULL};
+    PyObject *frame_obj;
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "O:zstd_get_frame_size",
+                                     kwl, &frame_obj)) {
+        return NULL;
+    }
+    compression_import_list_u8_t frame;
+    if (bytes_to_list_u8(frame_obj, &frame) < 0) return NULL;
+    uint64_t size;
+    compression_import_string_t err;
+    bool is_ok = tegmentum_compression_multiplexer_zstd_extras_get_frame_size(
+        &frame, &size, &err);
+    if (!is_ok) return raise_from_wit("get-frame-size failed", &err);
+    return PyLong_FromUnsignedLongLong((unsigned long long) size);
+}
+
+/* Build a list<zstd-param> from a Python iterable of (int, int) pairs.
+ * Caller owns .ptr (free() it; the WIT call consumes the lift on success). */
+static int build_params_list(PyObject *params_obj,
+                             tegmentum_compression_multiplexer_zstd_extras_list_zstd_param_t *out)
+{
+    out->ptr = NULL;
+    out->len = 0;
+    if (params_obj == Py_None) return 0;  /* empty list is fine */
+    PyObject *fast = PySequence_Fast(params_obj, "params must be iterable");
+    if (fast == NULL) return -1;
+    Py_ssize_t n = PySequence_Fast_GET_SIZE(fast);
+    if (n == 0) {
+        Py_DECREF(fast);
+        return 0;
+    }
+    out->ptr = (tegmentum_compression_multiplexer_zstd_extras_zstd_param_t *)
+        malloc((size_t) n *
+               sizeof(tegmentum_compression_multiplexer_zstd_extras_zstd_param_t));
+    if (out->ptr == NULL) {
+        Py_DECREF(fast);
+        PyErr_NoMemory();
+        return -1;
+    }
+    out->len = (size_t) n;
+    for (Py_ssize_t i = 0; i < n; i++) {
+        PyObject *item = PySequence_Fast_GET_ITEM(fast, i);  /* borrowed */
+        PyObject *id_obj = PyTuple_GetItem(item, 0);
+        PyObject *val_obj = PyTuple_GetItem(item, 1);
+        if (id_obj == NULL || val_obj == NULL) {
+            free(out->ptr);
+            out->ptr = NULL;
+            Py_DECREF(fast);
+            return -1;
+        }
+        long id_l = PyLong_AsLong(id_obj);
+        long val_l = PyLong_AsLong(val_obj);
+        if (PyErr_Occurred()) {
+            free(out->ptr);
+            out->ptr = NULL;
+            Py_DECREF(fast);
+            return -1;
+        }
+        out->ptr[i].id    = (uint32_t) id_l;
+        out->ptr[i].value = (int32_t) val_l;
+    }
+    Py_DECREF(fast);
+    return 0;
+}
+
+static PyObject *zstd_compress_advanced(PyObject *self, PyObject *args, PyObject *kw)
+{
+    static char *kwl[] = {"data", "level", "params", NULL};
+    PyObject *data, *params_obj = Py_None;
+    int level = 3;
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "O|iO:zstd_compress_advanced",
+                                     kwl, &data, &level, &params_obj)) {
+        return NULL;
+    }
+    compression_import_list_u8_t input;
+    if (bytes_to_list_u8(data, &input) < 0) return NULL;
+    tegmentum_compression_multiplexer_zstd_extras_list_zstd_param_t params;
+    if (build_params_list(params_obj, &params) < 0) {
+        free(input.ptr);
+        return NULL;
+    }
+    compression_import_list_u8_t output;
+    compression_import_string_t err;
+    bool is_ok = tegmentum_compression_multiplexer_zstd_extras_compress_advanced(
+        &input, (int32_t) level, &params, &output, &err);
+    if (!is_ok) return raise_from_wit("compress-advanced failed", &err);
+    return list_u8_to_bytes(&output);
+}
+
+static PyObject *zstd_decompress_advanced(PyObject *self, PyObject *args, PyObject *kw)
+{
+    static char *kwl[] = {"data", "params", NULL};
+    PyObject *data, *params_obj = Py_None;
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "O|O:zstd_decompress_advanced",
+                                     kwl, &data, &params_obj)) {
+        return NULL;
+    }
+    compression_import_list_u8_t input;
+    if (bytes_to_list_u8(data, &input) < 0) return NULL;
+    tegmentum_compression_multiplexer_zstd_extras_list_zstd_param_t params;
+    if (build_params_list(params_obj, &params) < 0) {
+        free(input.ptr);
+        return NULL;
+    }
+    compression_import_list_u8_t output;
+    compression_import_string_t err;
+    bool is_ok = tegmentum_compression_multiplexer_zstd_extras_decompress_advanced(
+        &input, &params, &output, &err);
+    if (!is_ok) return raise_from_wit("decompress-advanced failed", &err);
     return list_u8_to_bytes(&output);
 }
 
@@ -461,6 +611,21 @@ static PyMethodDef compression_methods[] = {
     M("zstd_train_dict",           zstd_train_dict,
       "zstd_train_dict(samples: Iterable[bytes], dict_size: int) -> bytes\n"
       "Train a zstd dictionary from samples."),
+    M("zstd_finalize_dict",        zstd_finalize_dict,
+      "zstd_finalize_dict(dict_content: bytes, samples: Iterable[bytes],\n"
+      "                    dict_size: int, level: int) -> bytes\n"
+      "Refine a custom-content dictionary with sample statistics."),
+    M("zstd_get_frame_size",       zstd_get_frame_size,
+      "zstd_get_frame_size(frame: bytes) -> int\n"
+      "Size of the first zstd frame in `frame` (libzstd ZSTD_findFrameCompressedSize)."),
+    M("zstd_compress_advanced",    zstd_compress_advanced,
+      "zstd_compress_advanced(data: bytes, level: int = 3,\n"
+      "                        params: Iterable[tuple[int, int]] = None) -> bytes\n"
+      "Compress with libzstd advanced API: list of (ZSTD_cParameter id, value)."),
+    M("zstd_decompress_advanced",  zstd_decompress_advanced,
+      "zstd_decompress_advanced(data: bytes,\n"
+      "                          params: Iterable[tuple[int, int]] = None) -> bytes\n"
+      "Decompress with libzstd advanced API: list of (ZSTD_dParameter id, value)."),
     {NULL, NULL, 0, NULL}
 };
 

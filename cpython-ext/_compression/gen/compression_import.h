@@ -79,10 +79,34 @@ typedef struct tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t 
   int32_t __handle;
 } tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t;
 
+// A (parameter-id, value) pair for the advanced API. The id is
+// the libzstd `ZSTD_cParameter` / `ZSTD_dParameter` enum value
+// (numerically stable across libzstd versions; e.g.
+// ZSTD_c_compressionLevel=100, ZSTD_c_windowLog=101, …,
+// ZSTD_d_windowLogMax=100). Value range depends on parameter;
+// out-of-range either clamps or errors per libzstd's bounds.
+typedef struct tegmentum_compression_multiplexer_zstd_extras_zstd_param_t {
+  uint32_t   id;
+  int32_t   value;
+} tegmentum_compression_multiplexer_zstd_extras_zstd_param_t;
+
 typedef struct {
   compression_import_list_u8_t *ptr;
   size_t len;
 } compression_import_list_list_u8_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    uint64_t ok;
+    compression_import_string_t err;
+  } val;
+} tegmentum_compression_multiplexer_zstd_extras_result_u64_string_t;
+
+typedef struct {
+  tegmentum_compression_multiplexer_zstd_extras_zstd_param_t *ptr;
+  size_t len;
+} tegmentum_compression_multiplexer_zstd_extras_list_zstd_param_t;
 
 // Imported Functions from `tegmentum:compression-multiplexer/compression-dispatcher@0.1.0`
 // Create a new compressor
@@ -148,6 +172,33 @@ extern bool tegmentum_compression_multiplexer_zstd_extras_decompress_with_dict(c
 // 
 // Errors if samples are empty or unsuitable for training.
 extern bool tegmentum_compression_multiplexer_zstd_extras_train_dict(compression_import_list_list_u8_t *samples, uint32_t dict_size, compression_import_list_u8_t *ret, compression_import_string_t *err);
+// Refine a custom content dictionary into a proper zstd dictionary,
+// adding statistics computed from samples (libzstd's
+// `ZDICT_finalizeDictionary`). Returns the finalized dictionary
+// bytes ready to wrap with `zstd-dict.new`.
+// 
+// Useful when you have a hand-curated dict body (typical bytes from
+// your domain) and want to wrap it in the standard dict format with
+// frequency tables tuned for your samples.
+extern bool tegmentum_compression_multiplexer_zstd_extras_finalize_dict(compression_import_list_u8_t *dict_content, compression_import_list_list_u8_t *samples, uint32_t dict_size, int32_t level, compression_import_list_u8_t *ret, compression_import_string_t *err);
+// Return the compressed size of the *first* frame in `frame` —
+// libzstd's `ZSTD_findFrameCompressedSize`. Used by callers that
+// process streams of concatenated frames (rare; usually
+// `decompress` over the whole buffer is what you want).
+extern bool tegmentum_compression_multiplexer_zstd_extras_get_frame_size(compression_import_list_u8_t *frame, uint64_t *ret, compression_import_string_t *err);
+// Advanced compress: applies a list of `ZSTD_CCtx_setParameter`
+// calls before compressing. `level` is convenient sugar for
+// the common compression_level param; it's applied last so it
+// takes precedence over a same-named entry in `params`.
+// 
+// Use this when you need to set knobs the basic
+// `compression-dispatcher.compressor` doesn't expose:
+// `windowLog`, `checksumFlag`, `contentSizeFlag`, `strategy`, etc.
+extern bool tegmentum_compression_multiplexer_zstd_extras_compress_advanced(compression_import_list_u8_t *input, int32_t level, tegmentum_compression_multiplexer_zstd_extras_list_zstd_param_t *params, compression_import_list_u8_t *ret, compression_import_string_t *err);
+// Advanced decompress: applies a list of `ZSTD_DCtx_setParameter`
+// calls before decompressing. The common use case is
+// `ZSTD_d_windowLogMax` to bound memory on untrusted input.
+extern bool tegmentum_compression_multiplexer_zstd_extras_decompress_advanced(compression_import_list_u8_t *input, tegmentum_compression_multiplexer_zstd_extras_list_zstd_param_t *params, compression_import_list_u8_t *ret, compression_import_string_t *err);
 
 // Helper Functions
 
@@ -178,6 +229,10 @@ extern void tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop_borrow(
 extern tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict(tegmentum_compression_multiplexer_zstd_extras_own_zstd_dict_t handle);
 
 void compression_import_list_list_u8_free(compression_import_list_list_u8_t *ptr);
+
+void tegmentum_compression_multiplexer_zstd_extras_result_u64_string_free(tegmentum_compression_multiplexer_zstd_extras_result_u64_string_t *ptr);
+
+void tegmentum_compression_multiplexer_zstd_extras_list_zstd_param_free(tegmentum_compression_multiplexer_zstd_extras_list_zstd_param_t *ptr);
 
 // Sets the string `ret` to reference the input string `s` without copying it
 void compression_import_string_set(compression_import_string_t *ret, const char*s);

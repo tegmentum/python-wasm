@@ -131,4 +131,54 @@ interface zstd-extras {
     /// Errors if samples are empty or unsuitable for training.
     train-dict: func(samples: list<list<u8>>, dict-size: u32)
                -> result<list<u8>, string>;
+
+    /// Refine a custom content dictionary into a proper zstd dictionary,
+    /// adding statistics computed from samples (libzstd's
+    /// `ZDICT_finalizeDictionary`). Returns the finalized dictionary
+    /// bytes ready to wrap with `zstd-dict.new`.
+    ///
+    /// Useful when you have a hand-curated dict body (typical bytes from
+    /// your domain) and want to wrap it in the standard dict format with
+    /// frequency tables tuned for your samples.
+    finalize-dict: func(dict-content: list<u8>,
+                        samples: list<list<u8>>,
+                        dict-size: u32,
+                        level: s32) -> result<list<u8>, string>;
+
+    /// Return the compressed size of the *first* frame in `frame` —
+    /// libzstd's `ZSTD_findFrameCompressedSize`. Used by callers that
+    /// process streams of concatenated frames (rare; usually
+    /// `decompress` over the whole buffer is what you want).
+    get-frame-size: func(frame: list<u8>) -> result<u64, string>;
+
+    /// A (parameter-id, value) pair for the advanced API. The id is
+    /// the libzstd `ZSTD_cParameter` / `ZSTD_dParameter` enum value
+    /// (numerically stable across libzstd versions; e.g.
+    /// ZSTD_c_compressionLevel=100, ZSTD_c_windowLog=101, …,
+    /// ZSTD_d_windowLogMax=100). Value range depends on parameter;
+    /// out-of-range either clamps or errors per libzstd's bounds.
+    record zstd-param {
+        id: u32,
+        value: s32,
+    }
+
+    /// Advanced compress: applies a list of `ZSTD_CCtx_setParameter`
+    /// calls before compressing. `level` is convenient sugar for
+    /// the common compression_level param; it's applied last so it
+    /// takes precedence over a same-named entry in `params`.
+    ///
+    /// Use this when you need to set knobs the basic
+    /// `compression-dispatcher.compressor` doesn't expose:
+    /// `windowLog`, `checksumFlag`, `contentSizeFlag`, `strategy`, etc.
+    compress-advanced: func(input: list<u8>,
+                            level: s32,
+                            params: list<zstd-param>)
+                     -> result<list<u8>, string>;
+
+    /// Advanced decompress: applies a list of `ZSTD_DCtx_setParameter`
+    /// calls before decompressing. The common use case is
+    /// `ZSTD_d_windowLogMax` to bound memory on untrusted input.
+    decompress-advanced: func(input: list<u8>,
+                              params: list<zstd-param>)
+                       -> result<list<u8>, string>;
 }
