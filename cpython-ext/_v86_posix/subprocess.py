@@ -242,13 +242,79 @@ def _v86_to_subprocess_error(exc: BaseException, args: Any) -> BaseException:
     return exc
 
 
+class _StdinBuffer:
+    """Phase 3c: deferred-spawn stdin pseudo-stream.
+
+    `Popen(stdin=PIPE)` returns immediately without spawning; the
+    caller writes bytes here, and `close()` triggers the parent's
+    `_ensure_spawned()` which routes through the Phase 3b v2 shell-
+    redirect wrapper with the buffered bytes as the file content.
+
+    Looks file-like enough for the `subprocess.Popen.stdin.write(b'…')
+    + p.stdin.close()` shape callers expect, but it's NOT a real
+    `wasi:io/streams::output_stream` — closing it is what wires it
+    through to the child.
+    """
+
+    def __init__(self, popen: "Popen") -> None:
+        self._popen = popen
+        self._buf = bytearray()
+        self._closed = False
+
+    def write(self, data: bytes) -> int:
+        if self._closed:
+            raise ValueError("I/O operation on closed file")
+        # Accept bytes-like inputs uniformly.
+        view = bytes(data)
+        self._buf.extend(view)
+        return len(view)
+
+    def flush(self) -> None:
+        pass  # we're a buffer; nothing to flush until close
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        # close() is the spawn trigger — the buffered bytes become the
+        # child's stdin via the Phase 3b v2 shell-redirect wrapper.
+        self._popen._ensure_spawned()
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    def writable(self) -> bool:
+        return True
+
+    def readable(self) -> bool:
+        return False
+
+    def fileno(self) -> int:
+        raise OSError("buffer has no host file descriptor")
+
+    # Context-manager protocol — callers may `with p.stdin: …`
+    def __enter__(self) -> "_StdinBuffer":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
+
 class Popen:
     """Subprocess managed by `_v86_posix.spawn`.
 
     Constructor accepts the subprocess.Popen signature; many of the
-    knobs are not yet wired (stdin/out/err other than INHERIT/DEVNULL,
-    encoding, text mode, …). Unsupported knobs raise NotImplementedError
-    at construction time rather than silently dropping data.
+    knobs are not yet wired (encoding, text mode, etc.). Unsupported
+    knobs raise NotImplementedError at construction time rather than
+    silently dropping data.
+
+    Phase 3c: when `stdin=PIPE`, spawn is **deferred** — the Popen
+    returns without launching a child; `self.stdin` is a buffer-backed
+    pseudo-stream. Closing it (or any lifecycle method like `wait`,
+    `communicate`, `pid` access) triggers the real spawn via the
+    Phase 3b v2 shell-redirect wrapper with the buffered bytes as
+    the child's stdin file.
     """
 
     def __init__(self,
@@ -285,43 +351,123 @@ class Popen:
             raise NotImplementedError("pass_fds is not supported")
         if text or encoding is not None or universal_newlines:
             raise NotImplementedError(
-                "text mode / encoding / universal_newlines require stdio "
-                "stream wrapping (TBD); use bytes-mode via PIPE+communicate "
-                "once that lands")
+                "text mode / encoding / universal_newlines require a stdio "
+                "stream wrapping refactor; use bytes-mode via PIPE+communicate")
 
         self.args = args
         program, argv = _normalise_args(args, shell)
         if executable is not None:
             program = executable
 
-        env_pairs = list(env.items()) if env is not None else []
-        stdin_kind = _to_stdio_spec(stdin)
-        stdout_kind = _to_stdio_spec(stdout)
-        stderr_kind = _to_stdio_spec(stderr)
+        # Cache everything _do_spawn will need.
+        self._program = program
+        self._argv = argv
+        self._env_pairs: list[tuple[str, str]] = (
+            list(env.items()) if env is not None else []
+        )
+        self._cwd = cwd
+        self._stdin_kind = _to_stdio_spec(stdin)
+        self._stdout_kind = _to_stdio_spec(stdout)
+        self._stderr_kind = _to_stdio_spec(stderr)
+        self._stdout_was_pipe = (stdout == PIPE)
+        self._stderr_was_pipe = (stderr == PIPE)
+        self._stdin_was_pipe = (stdin == PIPE)
+
+        self.returncode: int | None = None
+        self._process = None
+        self.stdin = None
+        self.stdout = None
+        self.stderr = None
+        self._stdin_tmpfile: str | None = None
+
+        if self._stdin_was_pipe:
+            # Defer spawn. Caller writes to self.stdin; closing triggers
+            # _ensure_spawned which routes through the shell-wrapper
+            # path with the buffered bytes.
+            self.stdin = _StdinBuffer(self)
+        else:
+            self._do_spawn(stdin_bytes=None)
+
+    def _do_spawn(self, stdin_bytes: bytes | None) -> None:
+        """Call `_v86_posix.spawn`. If `stdin_bytes` is given, wraps argv
+        in the Phase 3b v2 shell-redirect so the child sees those bytes
+        as stdin via a regular file (sidesteps the wasmtime
+        wasi:filesystem-on-FIFO blocker).
+        """
+        program = self._program
+        argv = self._argv
+        stdin_kind = self._stdin_kind
+
+        if stdin_bytes is not None:
+            # Write the buffered bytes to a unique sibling file in the
+            # mailbox dir; the wrapper script opens it via
+            # $POSIX_MAILBOX_DIR/$rel-name + execs the user's command.
+            mailbox_wasm = os.environ.get(
+                "V86_POSIX_MAILBOX_DIR", "/workspace/posix-mailbox")
+            nonce = os.urandom(8).hex()
+            rel_name = f".stdin-{nonce}.dat"
+            abs_path = f"{mailbox_wasm}/{rel_name}"
+            try:
+                with open(abs_path, "wb") as f:
+                    f.write(stdin_bytes)
+            except OSError as exc:
+                raise OSError(
+                    errno.ENOENT,
+                    f"could not write stdin tempfile {abs_path}: {exc}",
+                ) from None
+            self._stdin_tmpfile = abs_path
+            wrapper_script = (
+                'IN="$POSIX_MAILBOX_DIR/$1"; shift; exec "$@" 0<"$IN"'
+            )
+            argv = ["/bin/sh", "-c", wrapper_script, "--", rel_name, *argv]
+            program = "/bin/sh"
+            # Override stdin_kind — wrapper's <"$IN" redirect supersedes
+            # whatever was inherited.
+            stdin_kind = _v86_posix.STDIO_INHERIT
 
         try:
             self._process = _v86_posix.spawn(
                 program,
                 argv,
-                env_pairs,
-                cwd,
+                self._env_pairs,
+                self._cwd,
                 stdin_kind,
-                stdout_kind,
-                stderr_kind,
+                self._stdout_kind,
+                self._stderr_kind,
             )
         except _v86_posix.SpawnError as exc:
-            raise _v86_to_subprocess_error(exc, args) from None
+            raise _v86_to_subprocess_error(exc, self.args) from None
 
-        self.returncode: int | None = None
-        # Public stdin/stdout/stderr — populated when the corresponding
-        # stdio was PIPE. take_std* returns None if it wasn't, so this
-        # is a safe one-shot.
-        self.stdin = self._process.take_stdin() if stdin == PIPE else None
-        self.stdout = self._process.take_stdout() if stdout == PIPE else None
-        self.stderr = self._process.take_stderr() if stderr == PIPE else None
+        # Take stdout/stderr streams now that the child is running.
+        if self._stdout_was_pipe:
+            self.stdout = self._process.take_stdout()
+        if self._stderr_was_pipe:
+            self.stderr = self._process.take_stderr()
+
+    def _ensure_spawned(self) -> None:
+        """Trigger the deferred spawn if it hasn't happened yet.
+
+        Called from `stdin.close()` (the natural trigger) and from any
+        lifecycle method that needs the child to exist. Empty stdin
+        buffer turns into an empty stdin file → child sees EOF
+        immediately on read.
+        """
+        if self._process is not None:
+            return
+        if isinstance(self.stdin, _StdinBuffer):
+            stdin_bytes = bytes(self.stdin._buf)
+        else:
+            stdin_bytes = b""
+        self._do_spawn(stdin_bytes=stdin_bytes)
 
     @property
-    def pid(self) -> int:
+    def pid(self) -> int | None:
+        # stdlib pid is set after Popen.__init__. With deferred spawn
+        # we make pid trigger the spawn — preserves the contract for
+        # the common case where the caller checks pid as a diagnostic.
+        # Buffered bytes (if any) are committed at that point.
+        if self._process is None:
+            self._ensure_spawned()
         return self._process.pid()
 
     def _translate_status(self, status: tuple[str, int]) -> int:
@@ -335,6 +481,10 @@ class Popen:
     def poll(self) -> int | None:
         if self.returncode is not None:
             return self.returncode
+        if self._process is None:
+            # No child yet — caller hasn't closed stdin. Report
+            # 'still running' to match the Popen contract.
+            return None
         status = self._process.try_wait()
         if status is None:
             return None
@@ -344,13 +494,13 @@ class Popen:
     def wait(self, timeout: float | None = None) -> int:
         if self.returncode is not None:
             return self.returncode
+        # If we never spawned, do it now so wait has something to wait
+        # for. Empty stdin → immediate EOF for any reader.
+        if self._process is None:
+            self._ensure_spawned()
         if timeout is None:
             self.returncode = self._translate_status(self._process.wait())
             return self.returncode
-        # Poll-with-sleep: try_wait every `tick` until timeout. Coarse,
-        # but adequate while spawn dispatches to a stub that finishes
-        # instantly or never; revisit if/when the real impl wants tight
-        # timing.
         deadline = time.monotonic() + timeout
         tick = 0.05
         while True:
@@ -363,29 +513,30 @@ class Popen:
             time.sleep(min(tick, max(0.0, deadline - time.monotonic())))
 
     def send_signal(self, sig: int) -> None:
+        if self._process is None:
+            # No child yet — silent no-op. Matches the "send_signal on
+            # already-dead child is silent" stdlib pattern, and the
+            # natural user expectation that `kill()` cleans up a Popen
+            # they're abandoning before stdin.close().
+            return
         try:
             self._process.signal(int(sig))
         except _v86_posix.NoSuchProcessError:
-            # subprocess.send_signal silently no-ops on an already-dead
-            # child to avoid races; match that.
             pass
 
     def terminate(self) -> None:
-        # SIGTERM
         self.send_signal(15)
 
     def kill(self) -> None:
-        # SIGKILL
         self.send_signal(9)
 
     def communicate(self, input: bytes | None = None,
                     timeout: float | None = None) -> tuple[bytes | None, bytes | None]:
-        """Send `input` to stdin (if piped), read stdout/stderr to EOF, wait.
+        """Send `input` to stdin (if PIPE), read stdout/stderr to EOF, wait.
 
-        Returns `(stdout_bytes, stderr_bytes)` where each is `None` if the
-        corresponding stream was not piped, else `bytes`. Honours `timeout`
-        on the final `wait` (the stream reads are blocking — a tight timeout
-        on a stream that takes ages would be missed).
+        With deferred spawn, the input bytes are merged into the
+        buffered stdin and committed when stdin.close() triggers the
+        real spawn. From then on this is the Phase 2 capture-only path.
         """
         try:
             if input is not None:
@@ -398,6 +549,11 @@ class Popen:
                     self.stdin.close()
             elif self.stdin is not None:
                 self.stdin.close()
+            # At this point _ensure_spawned has fired (via stdin.close).
+            # If neither input nor existing stdin was provided AND we
+            # haven't spawned (no stdin=PIPE case), spawn happened in
+            # __init__ already; either way self.stdout/self.stderr are
+            # populated for the corresponding PIPE flags.
             stdout_data = self.stdout.read() if self.stdout is not None else None
             stderr_data = self.stderr.read() if self.stderr is not None else None
         finally:
@@ -408,12 +564,24 @@ class Popen:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        if self.returncode is None:
-            try:
-                self.wait()
-            except Exception:
-                self.kill()
-                self.wait()
+        # If exiting without ever spawning (e.g. exception in caller
+        # before stdin.close), still spawn-then-wait so the helper
+        # doesn't end up with a dangling expectation, and clean up
+        # the tmpfile.
+        try:
+            if self.returncode is None:
+                try:
+                    self.wait()
+                except Exception:
+                    self.kill()
+                    self.wait()
+        finally:
+            if self._stdin_tmpfile is not None:
+                try:
+                    os.unlink(self._stdin_tmpfile)
+                except OSError:
+                    pass
+                self._stdin_tmpfile = None
 
 
 # ---------------------------------------------------------------------------
@@ -458,15 +626,12 @@ def run(args: Sequence[str] | str, *,
         **kwargs: Any) -> CompletedProcess:
     """subprocess.run analog with capture_output + input support.
 
-    For `input=…`, we side-step the Phase-3b-v1 FIFO blocker by wrapping
-    the child in a `/bin/sh -c 'exec "$@" < $FILE' -- file prog args …`
-    shell redirect: write the input bytes to a sibling file in the mailbox
-    dir + reference it via $POSIX_MAILBOX_DIR/<rel> in the wrapper. The
-    helper redirects the child as usual; no FIFO involved. Limitations:
-    the input must fit in a regular file (no streaming during execution),
-    and `Popen(stdin=PIPE).stdin.write()` is still unsupported (that
-    interactive shape needs the deferred-spawn shim refactor; tracked in
-    docs/tier1-v86-integration.md).
+    `input=…` is routed via `Popen(stdin=PIPE).communicate(input=…)`,
+    which under the Phase 3c deferred-spawn shim ends up using the
+    same shell-redirect wrapper trick Phase 3b v2 introduced: bytes
+    written to the buffered stdin become a regular file in the
+    mailbox dir, and the child is wrapped in a tiny `sh -c` that
+    `0<$file` redirects from it. No FIFOs, no live streaming.
     """
     if capture_output:
         if "stdout" in kwargs or "stderr" in kwargs:
@@ -475,13 +640,12 @@ def run(args: Sequence[str] | str, *,
         kwargs["stdout"] = PIPE
         kwargs["stderr"] = PIPE
 
-    if input is not None:
-        return _run_with_input(args, input=input, check=check,
-                               timeout=timeout, **kwargs)
+    if input is not None and "stdin" not in kwargs:
+        kwargs["stdin"] = PIPE
 
     with Popen(args, **kwargs) as p:
         try:
-            stdout_data, stderr_data = p.communicate(input=None, timeout=timeout)
+            stdout_data, stderr_data = p.communicate(input=input, timeout=timeout)
             rc = p.wait()
         except TimeoutExpired:
             p.kill()
@@ -493,88 +657,6 @@ def run(args: Sequence[str] | str, *,
     if check:
         completed.check_returncode()
     return completed
-
-
-def _run_with_input(args: Sequence[str] | str, *,
-                    input: bytes,
-                    check: bool,
-                    timeout: float | None,
-                    **kwargs: Any) -> CompletedProcess:
-    """Shell-redirect-wrapper variant of `run` that handles input=… without
-    needing a real PIPE on stdin. See `run` docstring for the why."""
-    # Mailbox dir from the wasm-side view. Same dir is exposed in the
-    # helper's env as $POSIX_MAILBOX_DIR — the wrapper script below uses
-    # that so the path resolves identically on whatever side the helper
-    # is running (in-guest at /workspace/posix-mailbox, on the host at
-    # whatever --dir mount the test harness arranged).
-    mailbox_wasm = os.environ.get("V86_POSIX_MAILBOX_DIR", "/workspace/posix-mailbox")
-
-    # Per-call unique stem so concurrent runs don't collide. Use os.urandom
-    # rather than uuid because uuid pulls _uuid and the system-call layer
-    # we'd prefer to avoid here.
-    nonce = os.urandom(8).hex()
-    rel_name = f".stdin-{nonce}.dat"
-    abs_path = f"{mailbox_wasm}/{rel_name}"
-    try:
-        with open(abs_path, "wb") as f:
-            f.write(input)
-    except OSError as e:
-        raise OSError(
-            errno.ENOENT,
-            f"Could not write stdin tempfile {abs_path}: {e}",
-        ) from None
-
-    # Normalise the program path / argv pair the way Popen would.
-    if kwargs.get("shell"):
-        # shell=True + input is the same as wrapping shell with shell —
-        # collapse one layer: the caller's string command becomes argv[0]
-        # of the inner sh -c, plus a redirect.
-        if not isinstance(args, str):
-            raise TypeError("shell=True requires a string command")
-        inner_args = ["/bin/sh", "-c", args]
-        kwargs.pop("shell")
-    elif isinstance(args, str):
-        inner_args = [args]
-    else:
-        inner_args = list(args)
-
-    # The wrapper script:
-    #   * picks the rel-name off $1 and shifts it out of "$@",
-    #   * opens "$POSIX_MAILBOX_DIR/$IN" for stdin,
-    #   * execs the user's command with the rest of "$@".
-    # All POSIX sh — no bash-isms.
-    wrapper_script = (
-        'IN="$POSIX_MAILBOX_DIR/$1"; shift; exec "$@" 0<"$IN"'
-    )
-    wrapped_args = ["/bin/sh", "-c", wrapper_script, "--", rel_name, *inner_args]
-
-    # Drop stdin from kwargs — the shell redirect handles it; spawn sees
-    # stdin=INHERIT and the redirect overrides whatever was inherited.
-    kwargs.pop("stdin", None)
-
-    try:
-        with Popen(wrapped_args, **kwargs) as p:
-            try:
-                stdout_data, stderr_data = p.communicate(input=None, timeout=timeout)
-                rc = p.wait()
-            except TimeoutExpired:
-                p.kill()
-                raise
-            except Exception:
-                p.kill()
-                raise
-        # The CompletedProcess records the ORIGINAL args, not the
-        # wrapped form — callers will reach for .args to log / diagnose
-        # and expect to see what they passed in.
-        completed = CompletedProcess(args, rc, stdout_data, stderr_data)
-        if check:
-            completed.check_returncode()
-        return completed
-    finally:
-        try:
-            os.unlink(abs_path)
-        except OSError:
-            pass
 
 
 def check_output(args: Sequence[str] | str, *, input: bytes | None = None,
