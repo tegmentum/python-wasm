@@ -752,8 +752,104 @@ the schema's data layer is sound, the CAS can ingest a full forge
 artifact bundle, and `pylon forge build` (Phase 1.3) can build on
 a known-good substrate.
 
-**Phase 1.3 (build orchestrator) is the remaining keystone.** This
-is the genuine 2-3 week chunk: drive `configure → wire-cpython-ext
-→ Tools/wasm/wasi build → install shim overlay → wac plug` from
-the manifest, resolving every input via CAS. Phase 1.4 (bit-identical
-reproducibility verification) gates the move to Phase 2.
+### Pivot: composectl is the substrate
+
+Mid-Phase-1.3, discovered that
+`~/git/webassembly-component-orchestration` is a substantial Rust
+implementation of `sys:compose@1.0.0` providing `composectl` with
+`blob put/get/has/list`, `plan validate/info`, `emit build`, `exec`,
+`reflect`, `trust`, `secrets`, `metrics`. python-wasm already
+integrates via `scripts/build-composectl-plan.sh` → `plans/python-
+browser.json` + `plans/python-v86.json`. The Makefile's
+`composectl-plan` target was waiting for "composectl's emit
+dep-wiring fixed upstream" before becoming the production path.
+
+So pylon-forge's CAS (Phase 1.1) + populate-cas (Phase 1.2) +
+ComposeStage (planned Phase 1.3 work) **substantially duplicate**
+composectl's existing primitives. Rather than maintain two parallel
+implementations, pylon **pivots to delegation**:
+
+  * **pylon owns the Python-specific identity layer.**
+    pyforge-manifest captures ABI tags, build flags, stdlib_overlay,
+    capability-set requirements — things composectl's plan format
+    doesn't model and shouldn't (they're cross-cutting CPython
+    concerns, not WIT-component-graph concerns).
+  * **composectl owns the WIT/component layer.** Blobs, plans,
+    deterministic composition, attestation.
+  * **pylon translates pyforge-manifest → composectl plan,** then
+    delegates the staging + composition to composectl.
+
+New layering:
+
+```
+   pyforge-manifest.toml               <- pylon's authored truth
+        │ pylon plan
+        ▼
+   composectl plan (JSON)              <- delegated to composectl
+        │ composectl blob put × N
+        │ composectl emit build (when upstream gap closed)
+        ▼
+   python.composed.wasm
+```
+
+Code reshape in pylon-forge (commit `dec88c5`):
+
+* Removed `src/pylon/cas.py` (composectl blob store is the truth).
+* Removed `src/pylon/populate.py` (composectl blob put does this).
+* Removed `src/pylon/build.py`'s `ComposeStage` (composectl emit
+  build is the truth, even with the upstream gap).
+* Added `src/pylon/composectl.py` — thin subprocess wrapper around
+  the composectl binary (find_composectl, blob_put, plan_validate,
+  emit_build).
+* Added `src/pylon/plan.py` — translates pyforge-manifest →
+  composectl plan dict + collects source paths for each component.
+* `pylon forge plan` + `pylon forge build` CLI verbs. The latter
+  stages blobs + emits + validates; `--emit` opts into composectl
+  emit build (off by default per the upstream gap).
+
+Cost: ~370 lines of CAS + populate-cas built in commit `6648782`
+turned out to be parallel-implementation work. Lesson saved in
+memory note `composectl-is-the-substrate.md` so future sessions
+don't repeat it.
+
+### Phase 1.3 (pivoted) — composectl delegation landed
+
+`pylon forge build manifests/python-wasm-current.toml` against the
+canonical manifest:
+
+```
+composectl: /Users/zacharywhitley/git/webassembly-component-orchestration/target/release/composectl
+manifest:   manifests/python-wasm-current.toml
+repo:       /Users/zacharywhitley/git/python-wasm
+plan_out:   /Users/zacharywhitley/git/python-wasm/plans/python-pylon.json
+
+  + emitted plan: /Users/zacharywhitley/git/python-wasm/plans/python-pylon.json
+  + staging blobs (in composectl's per-repo store at .../.compose/blobs)
+      root        d2ff4c728f68975b…  python.wasm
+      openssl     5bed74a40b863bd1…  openssl-component.wasm
+      sqlite      95912ce2609df102…  sqlite-core.wasm
+      crypto-hash c63eb22349a6166c…  crypto_hash_multiplexer.wasm
+      hashing     c665cbd9c9c2fe9f…  hashing_multiplexer.wasm
+      compression ccd2928985b65fe4…  compression_multiplexer.wasm
+      v86         f974d021eba63c93…  v86_posix_stub.wasm
+  + plan validates
+
+OK
+```
+
+The emitted plan is shape-compatible with the existing
+`scripts/build-composectl-plan.sh` output (same `version`/`root`/
+`components`/`bindings`/`policy` JSON schema). The actual compose
+step still uses `wac plug` via the existing
+`scripts/compose-python-component.sh` (dev fast path) until
+composectl's emit dep-wiring catches up.
+
+### Phase 1.4 (reproducibility verification) — next
+
+The reproducibility gate is now: emitting a plan from a manifest
+twice produces byte-identical plan JSON. This is testable today
+without needing composectl emit build to work. After that, the
+deeper gate — building two python.composed.wasm files from the
+same manifest produces identical sha256 — depends on either
+composectl emit build maturing or `wac plug` itself being
+deterministic.
