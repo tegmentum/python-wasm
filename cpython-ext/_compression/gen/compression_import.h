@@ -14,14 +14,22 @@ typedef struct compression_import_string_t {
   size_t len;
 } compression_import_string_t;
 
+// Compression algorithm selection
 typedef uint8_t tegmentum_compression_multiplexer_compression_dispatcher_algorithm_t;
 
+// No compression (pass-through)
 #define TEGMENTUM_COMPRESSION_MULTIPLEXER_COMPRESSION_DISPATCHER_ALGORITHM_STORE 0
+// DEFLATE compression (RFC 1951)
 #define TEGMENTUM_COMPRESSION_MULTIPLEXER_COMPRESSION_DISPATCHER_ALGORITHM_DEFLATE 1
+// BZIP2 compression
 #define TEGMENTUM_COMPRESSION_MULTIPLEXER_COMPRESSION_DISPATCHER_ALGORITHM_BZIP2 2
+// LZMA compression
 #define TEGMENTUM_COMPRESSION_MULTIPLEXER_COMPRESSION_DISPATCHER_ALGORITHM_LZMA 3
+// Zstandard compression
 #define TEGMENTUM_COMPRESSION_MULTIPLEXER_COMPRESSION_DISPATCHER_ALGORITHM_ZSTD 4
+// LZ4 compression (extremely fast)
 #define TEGMENTUM_COMPRESSION_MULTIPLEXER_COMPRESSION_DISPATCHER_ALGORITHM_LZ4 5
+// OpenZL compression (Meta's format-aware compression)
 #define TEGMENTUM_COMPRESSION_MULTIPLEXER_COMPRESSION_DISPATCHER_ALGORITHM_OPENZL 6
 
 typedef struct tegmentum_compression_multiplexer_compression_dispatcher_own_compressor_t {
@@ -63,13 +71,83 @@ typedef struct {
   compression_import_string_t val;
 } compression_import_option_string_t;
 
+typedef struct tegmentum_compression_multiplexer_zstd_extras_own_zstd_dict_t {
+  int32_t __handle;
+} tegmentum_compression_multiplexer_zstd_extras_own_zstd_dict_t;
+
+typedef struct tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t {
+  int32_t __handle;
+} tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t;
+
+typedef struct {
+  compression_import_list_u8_t *ptr;
+  size_t len;
+} compression_import_list_list_u8_t;
+
 // Imported Functions from `tegmentum:compression-multiplexer/compression-dispatcher@0.1.0`
+// Create a new compressor
+// 
+// Arguments:
+// - algo: The compression algorithm to use
+// - level: Compression level (0-9)
+//   - 0: No compression (store only) or fastest
+//   - 1-3: Fast compression
+//   - 4-6: Balanced (default: 6)
+//   - 7-9: Maximum compression
+// 
+// Errors:
+// - "unsupported-algorithm" if algorithm is not available
+// - "invalid-level" if level is out of range for algorithm
 extern tegmentum_compression_multiplexer_compression_dispatcher_own_compressor_t tegmentum_compression_multiplexer_compression_dispatcher_constructor_compressor(tegmentum_compression_multiplexer_compression_dispatcher_algorithm_t algo, uint8_t level);
+// Compress data
+// 
+// Returns compressed data or error message
 extern bool tegmentum_compression_multiplexer_compression_dispatcher_method_compressor_compress(tegmentum_compression_multiplexer_compression_dispatcher_borrow_compressor_t self, compression_import_list_u8_t *input, compression_import_list_u8_t *ret, compression_import_string_t *err);
+// Create a new decompressor
+// 
+// The algorithm must match what was used for compression
 extern tegmentum_compression_multiplexer_compression_dispatcher_own_decompressor_t tegmentum_compression_multiplexer_compression_dispatcher_constructor_decompressor(tegmentum_compression_multiplexer_compression_dispatcher_algorithm_t algo);
+// Decompress data
+// 
+// Returns decompressed data or error message
 extern bool tegmentum_compression_multiplexer_compression_dispatcher_method_decompressor_decompress(tegmentum_compression_multiplexer_compression_dispatcher_borrow_decompressor_t self, compression_import_list_u8_t *input, compression_import_list_u8_t *ret, compression_import_string_t *err);
+// Get list of supported algorithms
+// 
+// Returns algorithms available in this multiplexer instance
 extern void tegmentum_compression_multiplexer_compression_dispatcher_supported_algorithms(tegmentum_compression_multiplexer_compression_dispatcher_list_algorithm_t *ret);
+// Get algorithm information
+// 
+// Returns human-readable description of the algorithm
 extern bool tegmentum_compression_multiplexer_compression_dispatcher_algorithm_info(tegmentum_compression_multiplexer_compression_dispatcher_algorithm_t algo, compression_import_string_t *ret);
+
+// Imported Functions from `tegmentum:compression-multiplexer/zstd-extras@0.1.0`
+// Wrap a raw zstd dictionary. Accepts the output of
+// `train-dict` or a dictionary loaded from disk.
+extern tegmentum_compression_multiplexer_zstd_extras_own_zstd_dict_t tegmentum_compression_multiplexer_zstd_extras_constructor_zstd_dict(compression_import_list_u8_t *bytes);
+// Get the dictionary's 4-byte ID (the dictID embedded in the
+// dictionary header by libzstd). Returns 0 for "raw content"
+// dictionaries that don't carry an ID.
+extern uint32_t tegmentum_compression_multiplexer_zstd_extras_method_zstd_dict_id(tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t self);
+// Get a copy of the raw dictionary bytes. Useful for serialization
+// or for passing the dictionary to a different process.
+extern void tegmentum_compression_multiplexer_zstd_extras_method_zstd_dict_as_bytes(tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t self, compression_import_list_u8_t *ret);
+// One-shot compress with a dictionary. `level` is the standard zstd
+// compression level (1-22; 3 is the libzstd default).
+extern bool tegmentum_compression_multiplexer_zstd_extras_compress_with_dict(compression_import_list_u8_t *input, tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t dict, int32_t level, compression_import_list_u8_t *ret, compression_import_string_t *err);
+// One-shot decompress with a dictionary. The dictionary must match
+// the one used at compression time (verified via dictID for non-raw
+// dicts).
+extern bool tegmentum_compression_multiplexer_zstd_extras_decompress_with_dict(compression_import_list_u8_t *input, tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t dict, compression_import_list_u8_t *ret, compression_import_string_t *err);
+// Train a dictionary from a collection of samples. Returns the raw
+// dictionary bytes; wrap with `zstd-dict.new` to use.
+// 
+// Arguments:
+// - samples: the training data, typically 10-100x dict-size in total
+// - dict-size: target dictionary size in bytes (e.g. 16384 for a
+//   compact dict, 110000 for maximum quality)
+// 
+// Errors if samples are empty or unsuitable for training.
+extern bool tegmentum_compression_multiplexer_zstd_extras_train_dict(compression_import_list_list_u8_t *samples, uint32_t dict_size, compression_import_list_u8_t *ret, compression_import_string_t *err);
 
 // Helper Functions
 
@@ -92,6 +170,14 @@ void tegmentum_compression_multiplexer_compression_dispatcher_result_list_u8_str
 void tegmentum_compression_multiplexer_compression_dispatcher_list_algorithm_free(tegmentum_compression_multiplexer_compression_dispatcher_list_algorithm_t *ptr);
 
 void compression_import_option_string_free(compression_import_option_string_t *ptr);
+
+extern void tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop_own(tegmentum_compression_multiplexer_zstd_extras_own_zstd_dict_t handle);
+
+extern void tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop_borrow(tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t handle);
+
+extern tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict(tegmentum_compression_multiplexer_zstd_extras_own_zstd_dict_t handle);
+
+void compression_import_list_list_u8_free(compression_import_list_list_u8_t *ptr);
 
 // Sets the string `ret` to reference the input string `s` without copying it
 void compression_import_string_set(compression_import_string_t *ret, const char*s);

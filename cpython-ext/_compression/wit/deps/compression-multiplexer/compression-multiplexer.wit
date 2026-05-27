@@ -1,32 +1,134 @@
-// Vendored to match the freshly-rebuilt compression-multiplexer (wasi-sdk 33,
-// wit-bindgen 0.44). The enum now includes lz4 alongside the original six;
-// wac matches by structural interface identity (enum variant count is part
-// of that), so this vendored copy MUST match the mux's actual enum or
-// plugging fails with "compressor: instance export has the wrong type".
-// pyzlib + _compression only use DEFLATE; lz4 is included for shape only.
+// Compression Multiplexer WIT Interface
+//
+// This component provides a unified compression dispatcher that routes
+// requests to multiple compression algorithms.
+
 package tegmentum:compression-multiplexer@0.1.0;
 
+/// Compression dispatcher interface
+///
+/// This interface allows Layer 2 components (ZIP, TAR, etc.) to select
+/// compression algorithms at runtime instead of being locked to a single
+/// algorithm at build time.
 interface compression-dispatcher {
+    /// Compression algorithm selection
     enum algorithm {
+        /// No compression (pass-through)
         store,
+        /// DEFLATE compression (RFC 1951)
         deflate,
+        /// BZIP2 compression
         bzip2,
+        /// LZMA compression
         lzma,
+        /// Zstandard compression
         zstd,
+        /// LZ4 compression (extremely fast)
         lz4,
+        /// OpenZL compression (Meta's format-aware compression)
         openzl,
     }
 
+    /// Compressor resource
     resource compressor {
+        /// Create a new compressor
+        ///
+        /// Arguments:
+        /// - algo: The compression algorithm to use
+        /// - level: Compression level (0-9)
+        ///   - 0: No compression (store only) or fastest
+        ///   - 1-3: Fast compression
+        ///   - 4-6: Balanced (default: 6)
+        ///   - 7-9: Maximum compression
+        ///
+        /// Errors:
+        /// - "unsupported-algorithm" if algorithm is not available
+        /// - "invalid-level" if level is out of range for algorithm
         constructor(algo: algorithm, level: u8);
+
+        /// Compress data
+        ///
+        /// Returns compressed data or error message
         compress: func(input: list<u8>) -> result<list<u8>, string>;
     }
 
+    /// Decompressor resource
     resource decompressor {
+        /// Create a new decompressor
+        ///
+        /// The algorithm must match what was used for compression
         constructor(algo: algorithm);
+
+        /// Decompress data
+        ///
+        /// Returns decompressed data or error message
         decompress: func(input: list<u8>) -> result<list<u8>, string>;
     }
 
+    /// Get list of supported algorithms
+    ///
+    /// Returns algorithms available in this multiplexer instance
     supported-algorithms: func() -> list<algorithm>;
+
+    /// Get algorithm information
+    ///
+    /// Returns human-readable description of the algorithm
     algorithm-info: func(algo: algorithm) -> option<string>;
+}
+
+/// Zstandard-specific extras — dictionary support and dictionary training.
+///
+/// Lives in a separate interface (not on `compression-dispatcher`) because
+/// these operations don't generalize across algorithms; dictionaries are a
+/// zstd-only concept and would be dead exports for bzip2/lzma/etc.
+///
+/// Consumers that don't need dict support can ignore this interface
+/// entirely; the `compression-dispatcher` covers vanilla compress/decompress
+/// for all algorithms including zstd.
+interface zstd-extras {
+    /// A loaded or trained zstd dictionary. Wraps the raw dictionary bytes
+    /// plus the implementation's prepared CDict/DDict state.
+    ///
+    /// Dictionaries are typically 16 KB to 100 KB and amortize well across
+    /// many compress() calls on related data (the same wire-format JSON
+    /// records, the same kind of source files, …), so callers usually
+    /// construct one and reuse it for many compress-with-dict calls.
+    resource zstd-dict {
+        /// Wrap a raw zstd dictionary. Accepts the output of
+        /// `train-dict` or a dictionary loaded from disk.
+        constructor(bytes: list<u8>);
+
+        /// Get the dictionary's 4-byte ID (the dictID embedded in the
+        /// dictionary header by libzstd). Returns 0 for "raw content"
+        /// dictionaries that don't carry an ID.
+        id: func() -> u32;
+
+        /// Get a copy of the raw dictionary bytes. Useful for serialization
+        /// or for passing the dictionary to a different process.
+        as-bytes: func() -> list<u8>;
+    }
+
+    /// One-shot compress with a dictionary. `level` is the standard zstd
+    /// compression level (1-22; 3 is the libzstd default).
+    compress-with-dict: func(input: list<u8>,
+                             dict: borrow<zstd-dict>,
+                             level: s32) -> result<list<u8>, string>;
+
+    /// One-shot decompress with a dictionary. The dictionary must match
+    /// the one used at compression time (verified via dictID for non-raw
+    /// dicts).
+    decompress-with-dict: func(input: list<u8>,
+                               dict: borrow<zstd-dict>) -> result<list<u8>, string>;
+
+    /// Train a dictionary from a collection of samples. Returns the raw
+    /// dictionary bytes; wrap with `zstd-dict.new` to use.
+    ///
+    /// Arguments:
+    /// - samples: the training data, typically 10-100x dict-size in total
+    /// - dict-size: target dictionary size in bytes (e.g. 16384 for a
+    ///   compact dict, 110000 for maximum quality)
+    ///
+    /// Errors if samples are empty or unsuitable for training.
+    train-dict: func(samples: list<list<u8>>, dict-size: u32)
+               -> result<list<u8>, string>;
 }

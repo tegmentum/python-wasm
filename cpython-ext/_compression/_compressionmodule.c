@@ -185,6 +185,155 @@ ALIAS(deflate_compress,   deflate_raw)
 ALIAS(deflate_decompress, inflate_raw)
 #undef ALIAS
 
+/* Zstd dictionary support -------------------------------------------------
+ *
+ * Routes Python's `compression.zstd` dictionary API through the multiplexer's
+ * `zstd-extras` interface. Dict resources are constructed + dropped per call;
+ * keeping a Python-side handle on a prepared cap-side dict would require
+ * exposing the WIT resource as a Python type (PyType + capsule). The current
+ * "pass bytes" model is simpler and adequate for the typical compress-once /
+ * decompress-once flow — for high-volume reuse, callers can be promoted to
+ * the resource-handle pattern later without breaking source compat.
+ */
+
+typedef tegmentum_compression_multiplexer_zstd_extras_own_zstd_dict_t  zd_own_t;
+typedef tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t zd_borrow_t;
+
+/* Construct a zstd-dict from Python bytes, returning the owned handle.
+ * On failure leaves a Python exception set and returns the zero-valued
+ * handle (callers must check via PyErr_Occurred() before using). */
+static zd_own_t make_zstd_dict(PyObject *dict_bytes_obj, int *ok)
+{
+    zd_own_t zero = {0};
+    *ok = 0;
+    compression_import_list_u8_t dict_list;
+    if (bytes_to_list_u8(dict_bytes_obj, &dict_list) < 0) return zero;
+    zd_own_t own = tegmentum_compression_multiplexer_zstd_extras_constructor_zstd_dict(&dict_list);
+    *ok = 1;
+    return own;
+}
+
+static PyObject *zstd_compress_with_dict(PyObject *self, PyObject *args, PyObject *kw)
+{
+    static char *kwl[] = {"data", "dict_bytes", "level", NULL};
+    PyObject *data, *dict_bytes;
+    int level = 3;
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "OO|i:zstd_compress_with_dict",
+                                     kwl, &data, &dict_bytes, &level)) {
+        return NULL;
+    }
+    int ok = 0;
+    zd_own_t own = make_zstd_dict(dict_bytes, &ok);
+    if (!ok) return NULL;
+    compression_import_list_u8_t input;
+    if (bytes_to_list_u8(data, &input) < 0) {
+        tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop_own(own);
+        return NULL;
+    }
+    zd_borrow_t borrow =
+        tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict(own);
+    compression_import_list_u8_t output;
+    compression_import_string_t err;
+    bool is_ok = tegmentum_compression_multiplexer_zstd_extras_compress_with_dict(
+        &input, borrow, (int32_t) level, &output, &err);
+    tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop_own(own);
+    if (!is_ok) return raise_from_wit("compress-with-dict failed", &err);
+    return list_u8_to_bytes(&output);
+}
+
+static PyObject *zstd_decompress_with_dict(PyObject *self, PyObject *args, PyObject *kw)
+{
+    static char *kwl[] = {"data", "dict_bytes", NULL};
+    PyObject *data, *dict_bytes;
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "OO:zstd_decompress_with_dict",
+                                     kwl, &data, &dict_bytes)) {
+        return NULL;
+    }
+    int ok = 0;
+    zd_own_t own = make_zstd_dict(dict_bytes, &ok);
+    if (!ok) return NULL;
+    compression_import_list_u8_t input;
+    if (bytes_to_list_u8(data, &input) < 0) {
+        tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop_own(own);
+        return NULL;
+    }
+    zd_borrow_t borrow =
+        tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict(own);
+    compression_import_list_u8_t output;
+    compression_import_string_t err;
+    bool is_ok = tegmentum_compression_multiplexer_zstd_extras_decompress_with_dict(
+        &input, borrow, &output, &err);
+    tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop_own(own);
+    if (!is_ok) return raise_from_wit("decompress-with-dict failed", &err);
+    return list_u8_to_bytes(&output);
+}
+
+static PyObject *zstd_dict_id(PyObject *self, PyObject *args, PyObject *kw)
+{
+    static char *kwl[] = {"dict_bytes", NULL};
+    PyObject *dict_bytes;
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "O:zstd_dict_id", kwl, &dict_bytes)) {
+        return NULL;
+    }
+    int ok = 0;
+    zd_own_t own = make_zstd_dict(dict_bytes, &ok);
+    if (!ok) return NULL;
+    zd_borrow_t borrow =
+        tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict(own);
+    uint32_t id = tegmentum_compression_multiplexer_zstd_extras_method_zstd_dict_id(borrow);
+    tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop_own(own);
+    return PyLong_FromUnsignedLong((unsigned long) id);
+}
+
+static PyObject *zstd_train_dict(PyObject *self, PyObject *args, PyObject *kw)
+{
+    static char *kwl[] = {"samples", "dict_size", NULL};
+    PyObject *samples_obj;
+    unsigned int dict_size;
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "OI:zstd_train_dict",
+                                     kwl, &samples_obj, &dict_size)) {
+        return NULL;
+    }
+    /* samples is an iterable of bytes-like; flatten into a list_list_u8. */
+    PyObject *fast = PySequence_Fast(samples_obj, "samples must be iterable");
+    if (fast == NULL) return NULL;
+    Py_ssize_t n = PySequence_Fast_GET_SIZE(fast);
+    if (n == 0) {
+        Py_DECREF(fast);
+        PyErr_SetString(PyExc_ValueError, "train-dict: no samples provided");
+        return NULL;
+    }
+    compression_import_list_list_u8_t samples;
+    samples.ptr = (compression_import_list_u8_t *)
+        malloc((size_t) n * sizeof(compression_import_list_u8_t));
+    if (samples.ptr == NULL) {
+        Py_DECREF(fast);
+        return PyErr_NoMemory();
+    }
+    samples.len = (size_t) n;
+    /* Copy each sample. On any failure, free what we've allocated so far. */
+    for (Py_ssize_t i = 0; i < n; i++) {
+        PyObject *item = PySequence_Fast_GET_ITEM(fast, i);  /* borrowed */
+        if (bytes_to_list_u8(item, &samples.ptr[i]) < 0) {
+            for (Py_ssize_t j = 0; j < i; j++) free(samples.ptr[j].ptr);
+            free(samples.ptr);
+            Py_DECREF(fast);
+            return NULL;
+        }
+    }
+    Py_DECREF(fast);
+    compression_import_list_u8_t output;
+    compression_import_string_t err;
+    bool is_ok = tegmentum_compression_multiplexer_zstd_extras_train_dict(
+        &samples, (uint32_t) dict_size, &output, &err);
+    /* samples buffer is consumed by the canonical ABI on success; on failure
+     * the WIT impl frees its lifted view. Either way, we don't free .ptr
+     * elements after the call. */
+    if (!is_ok) return raise_from_wit("train-dict failed", &err);
+    return list_u8_to_bytes(&output);
+}
+
+
 /* CRC32 / Adler32 ---------------------------------------------------------
  *
  * Pure compute (no WIT call). Co-located here so the zlib.py shim has C-speed
@@ -301,6 +450,17 @@ static PyMethodDef compression_methods[] = {
     M("adler32", cap_adler32,
       "adler32(data: bytes, value: int = 1) -> int\n"
       "Adler-32 (RFC 1950). C-speed; matches libz."),
+    /* Zstd dictionary support — routes to the zstd-extras WIT interface. */
+    M("zstd_compress_with_dict",   zstd_compress_with_dict,
+      "zstd_compress_with_dict(data: bytes, dict_bytes: bytes, level: int = 3) -> bytes"),
+    M("zstd_decompress_with_dict", zstd_decompress_with_dict,
+      "zstd_decompress_with_dict(data: bytes, dict_bytes: bytes) -> bytes"),
+    M("zstd_dict_id",              zstd_dict_id,
+      "zstd_dict_id(dict_bytes: bytes) -> int\n"
+      "Read the embedded dict ID; 0 for raw dicts."),
+    M("zstd_train_dict",           zstd_train_dict,
+      "zstd_train_dict(samples: Iterable[bytes], dict_size: int) -> bytes\n"
+      "Train a zstd dictionary from samples."),
     {NULL, NULL, 0, NULL}
 };
 

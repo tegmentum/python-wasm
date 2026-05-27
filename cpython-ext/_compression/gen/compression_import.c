@@ -23,6 +23,26 @@ extern void __wasm_import_tegmentum_compression_multiplexer_compression_dispatch
 __attribute__((__import_module__("tegmentum:compression-multiplexer/compression-dispatcher@0.1.0"), __import_name__("algorithm-info")))
 extern void __wasm_import_tegmentum_compression_multiplexer_compression_dispatcher_algorithm_info(int32_t, uint8_t *);
 
+// Imported Functions from `tegmentum:compression-multiplexer/zstd-extras@0.1.0`
+
+__attribute__((__import_module__("tegmentum:compression-multiplexer/zstd-extras@0.1.0"), __import_name__("[constructor]zstd-dict")))
+extern int32_t __wasm_import_tegmentum_compression_multiplexer_zstd_extras_constructor_zstd_dict(uint8_t *, size_t);
+
+__attribute__((__import_module__("tegmentum:compression-multiplexer/zstd-extras@0.1.0"), __import_name__("[method]zstd-dict.id")))
+extern int32_t __wasm_import_tegmentum_compression_multiplexer_zstd_extras_method_zstd_dict_id(int32_t);
+
+__attribute__((__import_module__("tegmentum:compression-multiplexer/zstd-extras@0.1.0"), __import_name__("[method]zstd-dict.as-bytes")))
+extern void __wasm_import_tegmentum_compression_multiplexer_zstd_extras_method_zstd_dict_as_bytes(int32_t, uint8_t *);
+
+__attribute__((__import_module__("tegmentum:compression-multiplexer/zstd-extras@0.1.0"), __import_name__("compress-with-dict")))
+extern void __wasm_import_tegmentum_compression_multiplexer_zstd_extras_compress_with_dict(uint8_t *, size_t, int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("tegmentum:compression-multiplexer/zstd-extras@0.1.0"), __import_name__("decompress-with-dict")))
+extern void __wasm_import_tegmentum_compression_multiplexer_zstd_extras_decompress_with_dict(uint8_t *, size_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("tegmentum:compression-multiplexer/zstd-extras@0.1.0"), __import_name__("train-dict")))
+extern void __wasm_import_tegmentum_compression_multiplexer_zstd_extras_train_dict(uint8_t *, size_t, int32_t, uint8_t *);
+
 // Canonical ABI intrinsics
 
 __attribute__((__weak__, __export_name__("cabi_realloc")))
@@ -97,6 +117,32 @@ void tegmentum_compression_multiplexer_compression_dispatcher_list_algorithm_fre
 void compression_import_option_string_free(compression_import_option_string_t *ptr) {
   if (ptr->is_some) {
     compression_import_string_free(&ptr->val);
+  }
+}
+
+__attribute__((__import_module__("tegmentum:compression-multiplexer/zstd-extras@0.1.0"), __import_name__("[resource-drop]zstd-dict")))
+extern void __wasm_import_tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop(int32_t handle);
+
+void tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop_own(tegmentum_compression_multiplexer_zstd_extras_own_zstd_dict_t handle) {
+  __wasm_import_tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop(handle.__handle);
+}
+
+void tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop_borrow(tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t handle) {
+  __wasm_import_tegmentum_compression_multiplexer_zstd_extras_zstd_dict_drop(handle.__handle);
+}
+
+tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict(tegmentum_compression_multiplexer_zstd_extras_own_zstd_dict_t arg) {
+  return (tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t) { arg.__handle };
+}
+
+void compression_import_list_list_u8_free(compression_import_list_list_u8_t *ptr) {
+  size_t list_len = ptr->len;
+  if (list_len > 0) {
+    compression_import_list_u8_t *list_ptr = ptr->ptr;
+    for (size_t i = 0; i < list_len; i++) {
+      compression_import_list_u8_free(&list_ptr[i]);
+    }
+    free(list_ptr);
   }
 }
 
@@ -212,6 +258,105 @@ bool tegmentum_compression_multiplexer_compression_dispatcher_algorithm_info(teg
   }
   *ret = option.val;
   return option.is_some;
+}
+
+tegmentum_compression_multiplexer_zstd_extras_own_zstd_dict_t tegmentum_compression_multiplexer_zstd_extras_constructor_zstd_dict(compression_import_list_u8_t *bytes) {
+  int32_t ret = __wasm_import_tegmentum_compression_multiplexer_zstd_extras_constructor_zstd_dict((uint8_t *) (*bytes).ptr, (*bytes).len);
+  return (tegmentum_compression_multiplexer_zstd_extras_own_zstd_dict_t) { ret };
+}
+
+uint32_t tegmentum_compression_multiplexer_zstd_extras_method_zstd_dict_id(tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t self) {
+  int32_t ret = __wasm_import_tegmentum_compression_multiplexer_zstd_extras_method_zstd_dict_id((self).__handle);
+  return (uint32_t) (ret);
+}
+
+void tegmentum_compression_multiplexer_zstd_extras_method_zstd_dict_as_bytes(tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t self, compression_import_list_u8_t *ret) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(2*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_compression_multiplexer_zstd_extras_method_zstd_dict_as_bytes((self).__handle, ptr);
+  *ret = (compression_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) };
+}
+
+bool tegmentum_compression_multiplexer_zstd_extras_compress_with_dict(compression_import_list_u8_t *input, tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t dict, int32_t level, compression_import_list_u8_t *ret, compression_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_compression_multiplexer_zstd_extras_compress_with_dict((uint8_t *) (*input).ptr, (*input).len, (dict).__handle, level, ptr);
+  tegmentum_compression_multiplexer_compression_dispatcher_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (compression_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (compression_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool tegmentum_compression_multiplexer_zstd_extras_decompress_with_dict(compression_import_list_u8_t *input, tegmentum_compression_multiplexer_zstd_extras_borrow_zstd_dict_t dict, compression_import_list_u8_t *ret, compression_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_compression_multiplexer_zstd_extras_decompress_with_dict((uint8_t *) (*input).ptr, (*input).len, (dict).__handle, ptr);
+  tegmentum_compression_multiplexer_compression_dispatcher_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (compression_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (compression_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool tegmentum_compression_multiplexer_zstd_extras_train_dict(compression_import_list_list_u8_t *samples, uint32_t dict_size, compression_import_list_u8_t *ret, compression_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_compression_multiplexer_zstd_extras_train_dict((uint8_t *) (*samples).ptr, (*samples).len, (int32_t) (dict_size), ptr);
+  tegmentum_compression_multiplexer_compression_dispatcher_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (compression_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (compression_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
 }
 
 // Ensure that the *_component_type.o object is linked in
