@@ -217,11 +217,15 @@ static PyObject *process_pid(ProcessObject *self, PyObject *Py_UNUSED(args))
 
 static PyObject *process_signal(ProcessObject *self, PyObject *args)
 {
-    int signum;
-    if (!PyArg_ParseTuple(args, "i:signal", &signum)) {
+    /* Take signum as unsigned long so we accept the full u32 range
+     * without sign-extension surprises. (int)UINT32_MAX wraps to -1
+     * making any `signum > (int)UINT32_MAX` check always-true — the
+     * earlier shape rejected every signal call as overflow. */
+    unsigned long signum;
+    if (!PyArg_ParseTuple(args, "k:signal", &signum)) {
         return NULL;
     }
-    if (signum < 0 || signum > (int) UINT32_MAX) {
+    if (signum > UINT32_MAX) {
         PyErr_SetString(PyExc_OverflowError, "signum out of range");
         return NULL;
     }
