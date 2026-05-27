@@ -1,0 +1,84 @@
+# Consumer-side declarations for the pylon-forge manifest emitter.
+#
+# pylon-forge is repo-agnostic: it knows how to introspect CPython
+# substrate identity but NOT about any specific capability repo or
+# shim file. This file tells pylon what python-wasm's specific
+# capability set + Lib/ overlay looks like.
+#
+# pylon reads this from <repo>/.pylon.toml at emit-manifest time and
+# uses it to populate the manifest's [[components]] + [[stdlib_overlay]]
+# sections. Without this file, pylon would still produce a manifest —
+# just without the human-readable purposes and without explicit local
+# path discovery (it would have to fall back to inspecting the bare
+# python.wasm + the running compose script, which is brittle).
+
+# ---------------------------------------------------------------------------
+# Capability components — the .wasm files plugged into python.composed.wasm.
+#
+# Each entry maps a logical name (used as the composectl plan ID) to a
+# build-path. The path can use $HOME, ~ , and any env var with the
+# `${VAR:-default}` shell expansion shape. pylon walks them at
+# emit-manifest time, sha256s each, and records both the digest + path
+# in the manifest's [[components]] section.
+# ---------------------------------------------------------------------------
+
+[[capabilities]]
+id     = "compression"
+path   = "${COMPRESSION_MULTIPLEXER_WASM:-$HOME/git/compression-multiplexer/target/wasm32-wasip2/release/compression_multiplexer.wasm}"
+
+[[capabilities]]
+id     = "crypto-hash"
+path   = "${CRYPTO_HASH_MULTIPLEXER_WASM:-$HOME/git/crypto-hash-multiplexer/target/wasm32-wasip2/release/crypto_hash_multiplexer.wasm}"
+
+[[capabilities]]
+id     = "hashing"
+path   = "${HASHING_MULTIPLEXER_WASM:-$HOME/git/hashing-multiplexer/target/wasm32-wasip2/release/hashing_multiplexer.wasm}"
+
+[[capabilities]]
+id     = "openssl"
+path   = "${OPENSSL_COMPONENT_WASM:-$HOME/git/openssl-wasm/build/openssl-component.wasm}"
+
+[[capabilities]]
+id     = "sqlite"
+path   = "${SQLITE_COMPONENT_WASM:-$HOME/git/sqlite-wasm/build/sqlite-core.wasm}"
+
+[[capabilities]]
+id     = "v86"
+path   = "${V86_POSIX_COMPONENT_WASM:-$HOME/git/v86/target/wasm32-wasip2/release/v86_posix_stub.wasm}"
+
+# ---------------------------------------------------------------------------
+# Stdlib overlay — Python files shadowing stdlib that ship with python.wasm.
+#
+# Each entry maps a source path (relative to repo root) to its purpose.
+# pylon walks `make install-python-shims` to find the actual `cp` lines
+# (src+dest) and pairs each src with its purpose here. If a shim is
+# installed without a purpose entry, pylon emits an empty `purpose=""`.
+# ---------------------------------------------------------------------------
+
+[[shims]]
+src     = "cpython-ext/_ssl/ssl_capability.py"
+purpose = "Phase 3: cap-route ssl through openssl-component"
+
+[[shims]]
+src     = "cpython-ext/_compression/bz2.py"
+purpose = "Tier A: cap-route bz2 through _compress_cap.bzip2_*"
+
+[[shims]]
+src     = "cpython-ext/_compression/lzma.py"
+purpose = "Tier A: cap-route lzma through _compress_cap.lzma_* (FORMAT_XZ)"
+
+[[shims]]
+src     = "cpython-ext/_compression/zstd.py"
+purpose = "Tier A: cap-route compression.zstd through _compress_cap.zstd_*"
+
+[[shims]]
+src     = "cpython-ext/_compression/zlib.py"
+purpose = "Tier A: cap-route zlib through _compress_cap (retires static libz)"
+
+[[shims]]
+src     = "cpython-ext/_sqlite_capability/sqlite3.py"
+purpose = "Tier B: cap-route sqlite3 through _sqlite_cap"
+
+[[shims]]
+src     = "cpython-ext/_v86_posix/subprocess.py"
+purpose = "Tier C: cap-route subprocess through _v86_posix"
