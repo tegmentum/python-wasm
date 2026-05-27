@@ -20,9 +20,10 @@ MUX_COMPRESSION="${COMPRESSION_MULTIPLEXER_WASM:-$HOME/git/compression-multiplex
 MUX_CRYPTO_HASH="${CRYPTO_HASH_MULTIPLEXER_WASM:-$HOME/git/crypto-hash-multiplexer/target/wasm32-wasip2/release/crypto_hash_multiplexer.wasm}"
 MUX_HASHING="${HASHING_MULTIPLEXER_WASM:-$HOME/git/hashing-multiplexer/target/wasm32-wasip2/release/hashing_multiplexer.wasm}"
 OPENSSL_COMPONENT="${OPENSSL_COMPONENT_WASM:-$HOME/git/openssl-wasm/build/openssl-component.wasm}"
+SQLITE_COMPONENT="${SQLITE_COMPONENT_WASM:-$HOME/git/sqlite-wasm/build/sqlite-core.wasm}"
 
 [ -f "$PYW" ] || { echo "compose-python-component: $PYW not found — run 'make build' first." >&2; exit 1; }
-for f in "$MUX_COMPRESSION" "$MUX_CRYPTO_HASH" "$MUX_HASHING" "$OPENSSL_COMPONENT"; do
+for f in "$MUX_COMPRESSION" "$MUX_CRYPTO_HASH" "$MUX_HASHING" "$OPENSSL_COMPONENT" "$SQLITE_COMPONENT"; do
     [ -f "$f" ] || { echo "compose-python-component: capability not found: $f" >&2; exit 1; }
 done
 command -v wac >/dev/null 2>&1 || { echo "compose-python-component: 'wac' (wac-cli) is required on PATH." >&2; exit 1; }
@@ -33,6 +34,7 @@ wac plug "$PYW" \
     --plug "$MUX_CRYPTO_HASH" \
     --plug "$MUX_HASHING" \
     --plug "$OPENSSL_COMPONENT" \
+    --plug "$SQLITE_COMPONENT" \
     -o "$OUT"
 echo "==> $(du -h "$OUT" | cut -f1) $OUT"
 

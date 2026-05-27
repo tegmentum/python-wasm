@@ -140,6 +140,9 @@ install-python-shims:
 	@cp $(PROJECT_DIR)/cpython-ext/_compression/zlib.py \
 	    $(PROJECT_DIR)/deps/cpython/Lib/zlib.py
 	@echo "installed: deps/cpython/Lib/zlib.py  (Tier A: routes to _compress_cap.deflate_* + C-speed crc32/adler32)"
+	@cp $(PROJECT_DIR)/cpython-ext/_sqlite_capability/sqlite3.py \
+	    $(PROJECT_DIR)/deps/cpython/Lib/sqlite3/__init__.py
+	@echo "installed: deps/cpython/Lib/sqlite3/__init__.py  (Tier B: routes to _sqlite_cap via sqlite:wasm capability)"
 
 # Componentize-python plan, Phase 1: end-to-end smoke test of the composed
 # component + _compression extension + multiplexer.

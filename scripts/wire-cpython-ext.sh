@@ -46,6 +46,7 @@ declare -a EXTS=(
     "_crypto_hash|_crypto_hash|_crypto_hashmodule.c|crypto_hash_import.c|crypto_hash_import_component_type.o"
     "_xxhash|_xxhash|_xxhashmodule.c|xxhash_import.c|xxhash_import_component_type.o"
     "_ssl|_ssl_capability|_ssl_capability_module.c|ssl_import.c|ssl_import_component_type.o"
+    "_sqlite_capability|_sqlite_cap|_sqlite_capability_module.c|sqlite_import.c|sqlite_import_component_type.o"
     # _v86_posix is deferred — its v86:posix/process import has no plugged-in
     # implementation in compose-python-component.sh (no v86 component built
     # yet). Re-enable once a v86:posix-providing component exists.

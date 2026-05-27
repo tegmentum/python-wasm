@@ -1,0 +1,14 @@
+package tegmentum:python-sqlite@0.1.0;
+
+/// Companion WIT for CPython's `_sqlite_cap` static extension. The C
+/// extension imports `high-level` from the sqlite:wasm capability;
+/// composectl/wac wires the import to sqlite-core.wasm at compose time,
+/// giving the wasm Python full sqlite3 stdlib coverage (Connection,
+/// Cursor, execute/fetchall/etc.) through the capability path.
+///
+/// The low-level interface (sqlite3_* direct mappings) is not imported —
+/// the high-level interface covers the entire DB-API 2.0 surface the
+/// Python sqlite3 stdlib needs.
+world sqlite-import {
+    import sqlite:wasm/high-level@0.1.0;
+}
