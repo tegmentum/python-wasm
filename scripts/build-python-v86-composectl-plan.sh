@@ -37,7 +37,13 @@ PLAN="$PROJECT_DIR/plans/python-v86.json"
 MUX_COMPRESSION="${COMPRESSION_MULTIPLEXER_WASM:-$HOME/git/compression-multiplexer/target/wasm32-wasip2/release/compression_multiplexer.wasm}"
 MUX_CRYPTO_HASH="${CRYPTO_HASH_MULTIPLEXER_WASM:-$HOME/git/crypto-hash-multiplexer/target/wasm32-wasip2/release/crypto_hash_multiplexer.wasm}"
 MUX_HASHING="${HASHING_MULTIPLEXER_WASM:-$HOME/git/hashing-multiplexer/target/wasm32-wasip2/release/hashing_multiplexer.wasm}"
-V86_COMPONENT="${V86_COMPONENT_WASM:-$HOME/git/v86/target/wasm32-wasip2/release/v86.wasm}"
+# Default to the v86-posix-stub component — a 72 KB wasm that exports
+# v86:posix/process v0.1.0 with every spawn returning guest-not-ready
+# (~/git/v86/crates/v86-posix-stub). The full v86.wasm doesn't export
+# the WIT yet (posix.wit is contract-only in v86-component proper); the
+# stub satisfies the slot structurally so this plan composes. Override
+# with V86_COMPONENT_WASM=... once a real impl is built.
+V86_COMPONENT="${V86_COMPONENT_WASM:-$HOME/git/v86/target/wasm32-wasip2/release/v86_posix_stub.wasm}"
 COMPOSECTL="${COMPOSECTL:-$HOME/git/webassembly-component-orchestration/target/release/composectl}"
 
 [ -f "$PYW" ] || { echo "$(basename "$0"): $PYW not found — run 'make build' first." >&2; exit 1; }
@@ -48,15 +54,17 @@ if [ ! -f "$V86_COMPONENT" ]; then
     cat >&2 <<EOF
 $(basename "$0"): v86 component not found at $V86_COMPONENT.
 
-Set V86_COMPONENT_WASM=<path> to point at a v86 component build that
-exports the \`v86:posix/process@0.1.0\` interface (see
-~/git/v86/wit/posix.wit). The wasm should declare a world that
-includes \`export process\` from that package; until v86's Rust side
-implements it, no such build exists and this script can't proceed.
+By default we expect the v86-posix-stub artifact. Build it:
 
-Tracking: the contract is in v86 commit cbf77ae (interface-only at
-v0.1.0). The Rust impl is item #5 in the Tier-1 v86 task list — see
-docs/tier1-v86-integration.md.
+    (cd ~/git/v86 && cargo build --release --target wasm32-wasip2 -p v86-posix-stub)
+
+Or override with V86_COMPONENT_WASM=<path> pointing at any wasm
+component that exports \`v86:posix/process@0.1.0\` — once v86-component
+proper grows a real impl that dispatches \`spawn\` into a guest-side
+\`execve\`, point this at that artifact instead and the swap is
+otherwise transparent (same contract, different digest).
+
+See docs/tier1-v86-integration.md.
 EOF
     exit 1
 fi
