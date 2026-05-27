@@ -179,6 +179,22 @@ test-ssl-network: python-composed
 test-v86-posix-extension: python-composed
 	@bash scripts/test-v86-posix-extension.sh
 
+# Tier 1 v86 end-to-end round-trip against the REAL v86-posix-host
+# component (not the stub). Recomposes python.wasm with
+# V86_POSIX_COMPONENT_WASM = the host artifact, runs the posix-helper.sh
+# script as a host process (functionally identical to running it inside
+# the v86 guest — the v86 emulator's only role here is to expose the
+# mailbox dir to its guest via virtiofs, which is itself just a shared
+# host directory). Asserts real exit codes, signal decoding, error
+# mapping, env/cwd propagation.
+#
+# Requires: ~/git/v86 with `cargo build --release --target wasm32-wasip2
+# -p v86-posix-host` completed. See scripts/test-v86-posix-roundtrip.sh
+# for the V86_REPO / V86_POSIX_COMPONENT_WASM / POSIX_HELPER_SH knobs.
+.PHONY: test-v86-posix-roundtrip
+test-v86-posix-roundtrip: build install-python-shims
+	@bash scripts/test-v86-posix-roundtrip.sh
+
 # Componentize-python plan, Phase 4: generate the composectl plan that pins
 # python.wasm + capability multiplexers by CAS digest. Reproducibility target;
 # wac (python-composed) is the dev fast-path until composectl's emit dep-wiring
