@@ -456,19 +456,32 @@ def run(args: Sequence[str] | str, *,
         timeout: float | None = None,
         capture_output: bool = False,
         **kwargs: Any) -> CompletedProcess:
-    """subprocess.run analog with capture_output + input support."""
+    """subprocess.run analog with capture_output + input support.
+
+    For `input=…`, we side-step the Phase-3b-v1 FIFO blocker by wrapping
+    the child in a `/bin/sh -c 'exec "$@" < $FILE' -- file prog args …`
+    shell redirect: write the input bytes to a sibling file in the mailbox
+    dir + reference it via $POSIX_MAILBOX_DIR/<rel> in the wrapper. The
+    helper redirects the child as usual; no FIFO involved. Limitations:
+    the input must fit in a regular file (no streaming during execution),
+    and `Popen(stdin=PIPE).stdin.write()` is still unsupported (that
+    interactive shape needs the deferred-spawn shim refactor; tracked in
+    docs/tier1-v86-integration.md).
+    """
     if capture_output:
         if "stdout" in kwargs or "stderr" in kwargs:
             raise ValueError(
                 "capture_output may not be used with stdout / stderr kwargs")
         kwargs["stdout"] = PIPE
         kwargs["stderr"] = PIPE
-    if input is not None and "stdin" not in kwargs:
-        kwargs["stdin"] = PIPE
+
+    if input is not None:
+        return _run_with_input(args, input=input, check=check,
+                               timeout=timeout, **kwargs)
 
     with Popen(args, **kwargs) as p:
         try:
-            stdout_data, stderr_data = p.communicate(input=input, timeout=timeout)
+            stdout_data, stderr_data = p.communicate(input=None, timeout=timeout)
             rc = p.wait()
         except TimeoutExpired:
             p.kill()
@@ -480,6 +493,88 @@ def run(args: Sequence[str] | str, *,
     if check:
         completed.check_returncode()
     return completed
+
+
+def _run_with_input(args: Sequence[str] | str, *,
+                    input: bytes,
+                    check: bool,
+                    timeout: float | None,
+                    **kwargs: Any) -> CompletedProcess:
+    """Shell-redirect-wrapper variant of `run` that handles input=… without
+    needing a real PIPE on stdin. See `run` docstring for the why."""
+    # Mailbox dir from the wasm-side view. Same dir is exposed in the
+    # helper's env as $POSIX_MAILBOX_DIR — the wrapper script below uses
+    # that so the path resolves identically on whatever side the helper
+    # is running (in-guest at /workspace/posix-mailbox, on the host at
+    # whatever --dir mount the test harness arranged).
+    mailbox_wasm = os.environ.get("V86_POSIX_MAILBOX_DIR", "/workspace/posix-mailbox")
+
+    # Per-call unique stem so concurrent runs don't collide. Use os.urandom
+    # rather than uuid because uuid pulls _uuid and the system-call layer
+    # we'd prefer to avoid here.
+    nonce = os.urandom(8).hex()
+    rel_name = f".stdin-{nonce}.dat"
+    abs_path = f"{mailbox_wasm}/{rel_name}"
+    try:
+        with open(abs_path, "wb") as f:
+            f.write(input)
+    except OSError as e:
+        raise OSError(
+            errno.ENOENT,
+            f"Could not write stdin tempfile {abs_path}: {e}",
+        ) from None
+
+    # Normalise the program path / argv pair the way Popen would.
+    if kwargs.get("shell"):
+        # shell=True + input is the same as wrapping shell with shell —
+        # collapse one layer: the caller's string command becomes argv[0]
+        # of the inner sh -c, plus a redirect.
+        if not isinstance(args, str):
+            raise TypeError("shell=True requires a string command")
+        inner_args = ["/bin/sh", "-c", args]
+        kwargs.pop("shell")
+    elif isinstance(args, str):
+        inner_args = [args]
+    else:
+        inner_args = list(args)
+
+    # The wrapper script:
+    #   * picks the rel-name off $1 and shifts it out of "$@",
+    #   * opens "$POSIX_MAILBOX_DIR/$IN" for stdin,
+    #   * execs the user's command with the rest of "$@".
+    # All POSIX sh — no bash-isms.
+    wrapper_script = (
+        'IN="$POSIX_MAILBOX_DIR/$1"; shift; exec "$@" 0<"$IN"'
+    )
+    wrapped_args = ["/bin/sh", "-c", wrapper_script, "--", rel_name, *inner_args]
+
+    # Drop stdin from kwargs — the shell redirect handles it; spawn sees
+    # stdin=INHERIT and the redirect overrides whatever was inherited.
+    kwargs.pop("stdin", None)
+
+    try:
+        with Popen(wrapped_args, **kwargs) as p:
+            try:
+                stdout_data, stderr_data = p.communicate(input=None, timeout=timeout)
+                rc = p.wait()
+            except TimeoutExpired:
+                p.kill()
+                raise
+            except Exception:
+                p.kill()
+                raise
+        # The CompletedProcess records the ORIGINAL args, not the
+        # wrapped form — callers will reach for .args to log / diagnose
+        # and expect to see what they passed in.
+        completed = CompletedProcess(args, rc, stdout_data, stderr_data)
+        if check:
+            completed.check_returncode()
+        return completed
+    finally:
+        try:
+            os.unlink(abs_path)
+        except OSError:
+            pass
 
 
 def check_output(args: Sequence[str] | str, *, input: bytes | None = None,
