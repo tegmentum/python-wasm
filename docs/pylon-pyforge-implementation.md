@@ -714,3 +714,46 @@ against the manifest.
 
 These six items go into the manifest spec revision before Phase 1
 build orchestration starts depending on the schema being stable.
+
+### Phase 1 progress
+
+**Phase 1.0 (schema revisions) landed** in pylon-forge `6648782`.
+
+* Gap #1 (multi-interface caps inflate bound entries) closed by
+  splitting `[[capabilities.bound]]` (one entry per interface, FK
+  via `component_sha256`) from a new `[[components]]` section
+  (one entry per unique .wasm). openssl-component now appears
+  once in `[[components]]` with all 10 interfaces in `provides`,
+  while `[[capabilities.bound]]` keeps the per-interface query
+  shape the resolver needs.
+
+* Gap #2 (source_tarball_url misnomer) closed by renaming to
+  `source_url`. Reader keeps a legacy-key fallback for one
+  revision window so existing manifests parse cleanly.
+
+The canonical manifest re-emitted under the new schema is now
+241 lines (was 243; slightly tighter despite added structure).
+
+**Phase 1.1 (CAS primitive) landed.** `~/.pylon/cas/sha256/ab/cd/<full-hex>/`
+layout with atomic adds (os.link → tempfile rename), integrity-checked
+reads (re-hash on get; IntegrityError on mismatch), idempotent re-add.
+15/15 unit tests pass. CLI verbs: `pylon cas list/add/get` with
+`--cas-root` for sandboxing.
+
+**Phase 1.2 (`pylon forge populate-cas`) landed.** Walks a manifest's
+named files (components, stdlib_overlay shims, artifacts) and adds each
+to the CAS. Mismatch detection: if the CAS-computed sha256 disagrees
+with the manifest's claim, surfaces as `mismatched` in the report.
+
+Validated against the canonical `python-wasm-current.toml`:
+**14/14 entries added, 0 missing, 0 mismatched, 83.5 MiB**.
+Every sha256 the manifest claims is self-consistent end-to-end —
+the schema's data layer is sound, the CAS can ingest a full forge
+artifact bundle, and `pylon forge build` (Phase 1.3) can build on
+a known-good substrate.
+
+**Phase 1.3 (build orchestrator) is the remaining keystone.** This
+is the genuine 2-3 week chunk: drive `configure → wire-cpython-ext
+→ Tools/wasm/wasi build → install shim overlay → wac plug` from
+the manifest, resolving every input via CAS. Phase 1.4 (bit-identical
+reproducibility verification) gates the move to Phase 2.
