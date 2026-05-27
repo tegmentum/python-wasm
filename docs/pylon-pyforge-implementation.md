@@ -635,7 +635,82 @@ value proposition and a clear cost.
 
 ## Status
 
-Plan only. Phase 0 hasn't started. The next concrete move is a
-~2-day spike that emits a manifest for the current `python.composed.wasm`
-without writing any other infrastructure. That spike's output
-validates (or shreds) the schema before any deeper investment.
+**Phase 0 landed** (Jan 2026). `pylon-forge/` repo created at
+`~/git/pylon-forge/` (local-only). Emits a 243-line manifest for the
+current `python.composed.wasm`; round-trip is byte-identical, forge
+identity is deterministic across runs.
+
+  ```bash
+  $ pylon emit-manifest -o manifests/python-wasm-current.toml
+  forge_identity: 121c14fea151b4435e24e430e4fc4172c2f971e81e3fabf3df63b4be8ab57b3e
+
+  $ pylon validate manifests/python-wasm-current.toml
+  OK: parses, identity matches, re-emit is byte-identical
+  ```
+
+Phase 1 (reproducible builds) is the next target.
+
+### Phase 0 retrospective — schema gaps surfaced
+
+Six observations from inspecting a real artifact through the schema.
+These should be addressed before Phase 1 hardens the build pipeline
+against the manifest.
+
+1. **Multi-interface caps inflate `[[capabilities.bound]]`.** The
+   openssl-component exports 10 interfaces (error/pkey/x509/tls/
+   random/digest/cipher/mac/kdf/bignum); the emitter records one
+   `[[capabilities.bound]]` entry per (interface × component), so a
+   single .wasm appears 10 times with identical sha256 + source. Two
+   options for the next revision:
+
+   * **Group by component** — one entry per .wasm, with `provides =
+     ["iface1", "iface2", ...]`. Cleaner manifest; loses the 1:1
+     map from required → bound.
+   * **Keep one per interface** — current behavior. Inflates the
+     manifest but each entry is self-contained and matches the
+     resolver's query shape (`compatible(wheel, forge)` asks per
+     interface).
+
+   Recommendation: keep one-per-interface for the resolver, add a
+   separate `[[components]]` section that lists unique .wasm files
+   by sha256 so the CAS layer has a clean list of artifacts to fetch.
+
+2. **`source_tarball_url` is a misnomer when carrying git refs.**
+   The emitter records `git+local:/path/to/cpython@<commit>` for the
+   common case (CPython is checked in as a submodule, not fetched as
+   a tarball). Either rename to `source_url` (carrying any URI:
+   `https://`, `git+ssh://`, `git+local:`) or split into two fields
+   for the two cases. Renaming is cheaper.
+
+3. **`wasi_sdk_sha256` is the clang-binary hash, not the SDK tarball
+   hash.** The full SDK is ~150 MB; hashing only the clang binary
+   (a few MB) is a cheap proxy for "the toolchain that produced this
+   build" but is technically a different identity axis. Either
+   document the choice explicitly in the schema, or add a
+   `wasi_sdk_clang_sha256` field for the proxy and reserve
+   `wasi_sdk_sha256` for the tarball.
+
+4. **No way to discover frozen_modules from a built artifact.**
+   `frozen_modules` and `frozen_modules_sha256` are empty in the
+   Phase 0 output. Would need to either (a) parse the build-time
+   flag (Phase 1: we own the build), (b) introspect the bare wasm
+   for the frozen-module section, or (c) run `python -X
+   frozen_modules=on` at materialize time. Pushing to Phase 1.
+
+5. **`packaging` section is boilerplate.** The emitter hardcodes
+   `wheel_policy = "pylon-component-wheel-v1"` and
+   `native_extension_policy = "external-wasm-component"`. In Phase 3
+   these come from real configuration (e.g. `.pylonrc` or a sibling
+   file). Phase 0 just stamps in the defaults.
+
+6. **`stdlib_overlay.purpose` is from a hardcoded table.** The
+   emitter walks `make install-python-shims` for the `cp` commands
+   but doesn't know what each shim's *intent* is — that comes from
+   a lookup table in `emitter.py`. As new shims get added the table
+   needs manual updates. A cleaner approach: a `.pylon-shim.toml`
+   sidecar next to each shim declaring its purpose + the Lib/ path
+   it shadows. The emitter then needs nothing hardcoded. Defer until
+   the count of shims justifies the indirection (maybe ~10+).
+
+These six items go into the manifest spec revision before Phase 1
+build orchestration starts depending on the schema being stable.
