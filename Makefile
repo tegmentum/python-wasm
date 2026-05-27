@@ -35,8 +35,21 @@ else
     OPENSSL_STEP     := @echo "build: static OpenSSL disabled (capability path is the default; set STATIC_OPENSSL=1 to re-enable)"
 endif
 
+# Tier A retires static libz the same way OpenSSL was retired in Phase 3d:
+# Lib/zlib.py shim routes `import zlib` through `_compress_cap.deflate_*`
+# (which itself routes to the compression-multiplexer capability). The
+# static C extension `Modules/zlibmodule.c` is disabled in Setup.local by
+# scripts/wire-cpython-ext.sh; build-zlib.sh therefore no longer needs to
+# run in the default build. Re-enable A/B testing with: STATIC_ZLIB=1 make build
+STATIC_ZLIB ?=
+ifeq ($(STATIC_ZLIB),1)
+    ZLIB_STEP        := bash scripts/build-zlib.sh
+else
+    ZLIB_STEP        := @echo "build: static zlib disabled (capability path is the default; set STATIC_ZLIB=1 for A/B)"
+endif
+
 build: fetch-deps
-	bash scripts/build-zlib.sh
+	$(ZLIB_STEP)
 	$(OPENSSL_STEP)
 	# Wire every cpython-ext/ capability extension into the cpython build
 	# tree (symlinks + Setup.local). Idempotent. The deps/cpython tree is
@@ -104,10 +117,29 @@ python-composed: build install-python-shims
 # deps/cpython/Lib/ so the composed wasm can `import ssl_capability` at runtime.
 # Idempotent — re-copies on every invocation so iteration on the shim is
 # pick-up-on-next-run.
+#
+# The bz2/lzma/zstd/zlib shims SHADOW the stdlib copies of the same name.
+# They route through `_compress_cap` (the capability extension) instead of
+# the missing-on-wasi `_bz2`/`_lzma`/`_zstd`/`_zlib` C extensions. Tier A
+# net effect: `import bz2` / `import lzma` / `from compression import zstd`
+# now WORK in python-wasm (previously `ImportError`); `zlib` continues to
+# work but via the capability path (no `-lz` link dep).
 install-python-shims:
 	@cp $(PROJECT_DIR)/cpython-ext/_ssl/ssl_capability.py \
 	    $(PROJECT_DIR)/deps/cpython/Lib/ssl_capability.py
 	@echo "installed: deps/cpython/Lib/ssl_capability.py"
+	@cp $(PROJECT_DIR)/cpython-ext/_compression/bz2.py \
+	    $(PROJECT_DIR)/deps/cpython/Lib/bz2.py
+	@echo "installed: deps/cpython/Lib/bz2.py  (Tier A: routes to _compress_cap.bzip2_*)"
+	@cp $(PROJECT_DIR)/cpython-ext/_compression/lzma.py \
+	    $(PROJECT_DIR)/deps/cpython/Lib/lzma.py
+	@echo "installed: deps/cpython/Lib/lzma.py  (Tier A: routes to _compress_cap.lzma_* / FORMAT_XZ)"
+	@cp $(PROJECT_DIR)/cpython-ext/_compression/zstd.py \
+	    $(PROJECT_DIR)/deps/cpython/Lib/compression/zstd/__init__.py
+	@echo "installed: deps/cpython/Lib/compression/zstd/__init__.py  (Tier A: routes to _compress_cap.zstd_*)"
+	@cp $(PROJECT_DIR)/cpython-ext/_compression/zlib.py \
+	    $(PROJECT_DIR)/deps/cpython/Lib/zlib.py
+	@echo "installed: deps/cpython/Lib/zlib.py  (Tier A: routes to _compress_cap.deflate_* + C-speed crc32/adler32)"
 
 # Componentize-python plan, Phase 1: end-to-end smoke test of the composed
 # component + _compression extension + multiplexer.
