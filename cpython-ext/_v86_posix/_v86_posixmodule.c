@@ -287,31 +287,509 @@ static PyObject *process_try_wait(ProcessObject *self, PyObject *Py_UNUSED(args)
     return exit_status_to_tuple(&st);
 }
 
-static PyObject *process_take_stdin(ProcessObject *Py_UNUSED(self),
-                                    PyObject *Py_UNUSED(args))
+/* ===================================================================
+ * InputStream / OutputStream — Python file-like wrappers around the
+ * wasi:io/streams handles `take_std{in,out,err}` returns.
+ *
+ * Forward decls so process_take_* can construct them; full type/methods
+ * appear below.
+ * =================================================================== */
+
+typedef struct {
+    PyObject_HEAD
+    wasi_io_streams_own_input_stream_t handle;
+    bool owned;
+} InputStreamObject;
+
+typedef struct {
+    PyObject_HEAD
+    wasi_io_streams_own_output_stream_t handle;
+    bool owned;
+} OutputStreamObject;
+
+static PyTypeObject InputStreamType;
+static PyTypeObject OutputStreamType;
+
+/* Construct an InputStream wrapping an owned handle. Steals ownership. */
+static PyObject *input_stream_new(wasi_io_streams_own_input_stream_t handle)
 {
-    PyErr_SetString(PyExc_NotImplementedError,
-                    "stdin wrapping deferred — wasi:io/streams -> Python "
-                    "file-like adapter is a cross-extension concern, see "
-                    "docs/tier1-v86-integration.md");
+    InputStreamObject *s = PyObject_New(InputStreamObject, &InputStreamType);
+    if (s == NULL) {
+        wasi_io_streams_input_stream_drop_own(handle);
+        return NULL;
+    }
+    s->handle = handle;
+    s->owned = true;
+    return (PyObject *) s;
+}
+
+static PyObject *output_stream_new(wasi_io_streams_own_output_stream_t handle)
+{
+    OutputStreamObject *s = PyObject_New(OutputStreamObject, &OutputStreamType);
+    if (s == NULL) {
+        wasi_io_streams_output_stream_drop_own(handle);
+        return NULL;
+    }
+    s->handle = handle;
+    s->owned = true;
+    return (PyObject *) s;
+}
+
+/* Raise an OSError carrying the wasi:io/error debug string. Always consumes
+ * ownership of `err`. */
+static void raise_stream_error(wasi_io_streams_stream_error_t *err,
+                               const char *op)
+{
+    if (err->tag == WASI_IO_STREAMS_STREAM_ERROR_CLOSED) {
+        /* Caller decides whether this is EOF (input) or BrokenPipeError
+         * (output); the caller should branch before calling this helper.
+         * Defensive default: generic OSError. */
+        PyErr_Format(PyExc_OSError, "%s on a closed stream", op);
+    } else {
+        v86_posix_import_string_t debug;
+        wasi_io_error_borrow_error_t e =
+            wasi_io_error_borrow_error(err->val.last_operation_failed);
+        wasi_io_error_method_error_to_debug_string(e, &debug);
+        PyErr_Format(PyExc_OSError, "%s failed: %.*s",
+                     op, (int) debug.len, (const char *) debug.ptr);
+        v86_posix_import_string_free(&debug);
+    }
+    wasi_io_streams_stream_error_free(err);
+}
+
+/* --- Process.take_std{in,out,err} — now actually constructs streams --- */
+
+static PyObject *process_take_stdin(ProcessObject *self, PyObject *Py_UNUSED(args))
+{
+    if (!self->owned) {
+        PyErr_SetString(PyExc_RuntimeError, "process handle has been dropped");
+        return NULL;
+    }
+    v86_posix_process_borrow_process_t b =
+        v86_posix_process_borrow_process(self->handle);
+    v86_posix_process_own_output_stream_t out;
+    bool present = v86_posix_process_method_process_take_stdin(b, &out);
+    if (!present) {
+        Py_RETURN_NONE;
+    }
+    return output_stream_new(out);
+}
+
+static PyObject *process_take_stdout(ProcessObject *self, PyObject *Py_UNUSED(args))
+{
+    if (!self->owned) {
+        PyErr_SetString(PyExc_RuntimeError, "process handle has been dropped");
+        return NULL;
+    }
+    v86_posix_process_borrow_process_t b =
+        v86_posix_process_borrow_process(self->handle);
+    v86_posix_process_own_input_stream_t out;
+    bool present = v86_posix_process_method_process_take_stdout(b, &out);
+    if (!present) {
+        Py_RETURN_NONE;
+    }
+    return input_stream_new(out);
+}
+
+static PyObject *process_take_stderr(ProcessObject *self, PyObject *Py_UNUSED(args))
+{
+    if (!self->owned) {
+        PyErr_SetString(PyExc_RuntimeError, "process handle has been dropped");
+        return NULL;
+    }
+    v86_posix_process_borrow_process_t b =
+        v86_posix_process_borrow_process(self->handle);
+    v86_posix_process_own_input_stream_t out;
+    bool present = v86_posix_process_method_process_take_stderr(b, &out);
+    if (!present) {
+        Py_RETURN_NONE;
+    }
+    return input_stream_new(out);
+}
+
+/* --- InputStream method bodies --- */
+
+static void input_stream_dealloc(InputStreamObject *self)
+{
+    if (self->owned) {
+        wasi_io_streams_input_stream_drop_own(self->handle);
+        self->owned = false;
+    }
+    PyObject_Del(self);
+}
+
+static PyObject *input_stream_close(InputStreamObject *self, PyObject *Py_UNUSED(a))
+{
+    if (self->owned) {
+        wasi_io_streams_input_stream_drop_own(self->handle);
+        self->owned = false;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *input_stream_get_closed(InputStreamObject *self, void *Py_UNUSED(c))
+{
+    return PyBool_FromLong(!self->owned);
+}
+
+static PyObject *input_stream_readable(InputStreamObject *Py_UNUSED(self),
+                                       PyObject *Py_UNUSED(a))
+{ Py_RETURN_TRUE; }
+
+static PyObject *input_stream_writable(InputStreamObject *Py_UNUSED(self),
+                                       PyObject *Py_UNUSED(a))
+{ Py_RETURN_FALSE; }
+
+static PyObject *input_stream_seekable(InputStreamObject *Py_UNUSED(self),
+                                       PyObject *Py_UNUSED(a))
+{ Py_RETURN_FALSE; }
+
+static PyObject *input_stream_fileno(InputStreamObject *Py_UNUSED(self),
+                                     PyObject *Py_UNUSED(a))
+{
+    PyErr_SetString(PyExc_OSError, "stream has no host file descriptor");
     return NULL;
 }
 
-static PyObject *process_take_stdout(ProcessObject *Py_UNUSED(self),
-                                     PyObject *Py_UNUSED(args))
+/* Chunk size for read(-1)'s loop. Sized for typical pipe latency vs
+ * round-trip cost; the upstream stdlib io.BufferedReader uses 8 KiB. */
+#define V86_INPUT_READ_CHUNK 8192
+
+static PyObject *input_stream_read(InputStreamObject *self, PyObject *args)
 {
-    PyErr_SetString(PyExc_NotImplementedError,
-                    "stdout wrapping deferred — see take_stdin");
+    Py_ssize_t size = -1;
+    if (!PyArg_ParseTuple(args, "|n:read", &size)) {
+        return NULL;
+    }
+    if (!self->owned) {
+        PyErr_SetString(PyExc_ValueError, "I/O operation on closed stream");
+        return NULL;
+    }
+    wasi_io_streams_borrow_input_stream_t borrow =
+        wasi_io_streams_borrow_input_stream(self->handle);
+
+    if (size >= 0) {
+        v86_posix_import_list_u8_t out;
+        wasi_io_streams_stream_error_t err;
+        bool ok;
+        Py_BEGIN_ALLOW_THREADS
+        ok = wasi_io_streams_method_input_stream_blocking_read(
+            borrow, (uint64_t) size, &out, &err);
+        Py_END_ALLOW_THREADS
+        if (!ok) {
+            if (err.tag == WASI_IO_STREAMS_STREAM_ERROR_CLOSED) {
+                wasi_io_streams_stream_error_free(&err);
+                return PyBytes_FromStringAndSize(NULL, 0);
+            }
+            raise_stream_error(&err, "read");
+            return NULL;
+        }
+        PyObject *bytes = PyBytes_FromStringAndSize(
+            (const char *) out.ptr, (Py_ssize_t) out.len);
+        v86_posix_import_list_u8_free(&out);
+        return bytes;
+    }
+
+    /* size < 0 — read to EOF, accumulating chunks. */
+    PyObject *buf = PyBytes_FromStringAndSize(NULL, 0);
+    if (buf == NULL) return NULL;
+    while (1) {
+        v86_posix_import_list_u8_t out;
+        wasi_io_streams_stream_error_t err;
+        bool ok;
+        Py_BEGIN_ALLOW_THREADS
+        ok = wasi_io_streams_method_input_stream_blocking_read(
+            borrow, (uint64_t) V86_INPUT_READ_CHUNK, &out, &err);
+        Py_END_ALLOW_THREADS
+        if (!ok) {
+            if (err.tag == WASI_IO_STREAMS_STREAM_ERROR_CLOSED) {
+                wasi_io_streams_stream_error_free(&err);
+                return buf;
+            }
+            raise_stream_error(&err, "read");
+            Py_DECREF(buf);
+            return NULL;
+        }
+        if (out.len > 0) {
+            if (_PyBytes_Resize(&buf, PyBytes_GET_SIZE(buf) + (Py_ssize_t) out.len) < 0) {
+                v86_posix_import_list_u8_free(&out);
+                return NULL;
+            }
+            memcpy(PyBytes_AS_STRING(buf) + PyBytes_GET_SIZE(buf) - out.len,
+                   out.ptr, out.len);
+        }
+        v86_posix_import_list_u8_free(&out);
+        /* blocking_read either returns >=1 byte or the closed-error path;
+         * a 0-byte success would loop forever. Guard defensively. */
+        if (out.len == 0) {
+            return buf;
+        }
+    }
+}
+
+static PyObject *input_stream_readinto(InputStreamObject *self, PyObject *args)
+{
+    Py_buffer view;
+    if (!PyArg_ParseTuple(args, "w*:readinto", &view)) {
+        return NULL;
+    }
+    if (!self->owned) {
+        PyBuffer_Release(&view);
+        PyErr_SetString(PyExc_ValueError, "I/O operation on closed stream");
+        return NULL;
+    }
+    wasi_io_streams_borrow_input_stream_t borrow =
+        wasi_io_streams_borrow_input_stream(self->handle);
+    v86_posix_import_list_u8_t out;
+    wasi_io_streams_stream_error_t err;
+    bool ok;
+    Py_BEGIN_ALLOW_THREADS
+    ok = wasi_io_streams_method_input_stream_blocking_read(
+        borrow, (uint64_t) view.len, &out, &err);
+    Py_END_ALLOW_THREADS
+    if (!ok) {
+        if (err.tag == WASI_IO_STREAMS_STREAM_ERROR_CLOSED) {
+            wasi_io_streams_stream_error_free(&err);
+            PyBuffer_Release(&view);
+            return PyLong_FromLong(0);
+        }
+        raise_stream_error(&err, "readinto");
+        PyBuffer_Release(&view);
+        return NULL;
+    }
+    Py_ssize_t n = (Py_ssize_t) out.len;
+    if (n > view.len) n = view.len;
+    if (n > 0) {
+        memcpy(view.buf, out.ptr, (size_t) n);
+    }
+    v86_posix_import_list_u8_free(&out);
+    PyBuffer_Release(&view);
+    return PyLong_FromSsize_t(n);
+}
+
+static PyObject *input_stream_enter(InputStreamObject *self, PyObject *Py_UNUSED(a))
+{
+    Py_INCREF(self);
+    return (PyObject *) self;
+}
+
+static PyObject *input_stream_exit(InputStreamObject *self, PyObject *Py_UNUSED(a))
+{
+    if (self->owned) {
+        wasi_io_streams_input_stream_drop_own(self->handle);
+        self->owned = false;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef input_stream_methods[] = {
+    {"read",     (PyCFunction) input_stream_read,     METH_VARARGS,
+     "read(size=-1) -> bytes — blocking read; size<0 reads to EOF."},
+    {"readinto", (PyCFunction) input_stream_readinto, METH_VARARGS,
+     "readinto(buf) -> int — blocking read into a writable buffer."},
+    {"close",    (PyCFunction) input_stream_close,    METH_NOARGS,
+     "Release the underlying wasi:io stream handle."},
+    {"readable", (PyCFunction) input_stream_readable, METH_NOARGS, "True."},
+    {"writable", (PyCFunction) input_stream_writable, METH_NOARGS, "False."},
+    {"seekable", (PyCFunction) input_stream_seekable, METH_NOARGS, "False."},
+    {"fileno",   (PyCFunction) input_stream_fileno,   METH_NOARGS,
+     "Always raises — wasi:io streams are not fd-backed."},
+    {"__enter__", (PyCFunction) input_stream_enter,   METH_NOARGS, NULL},
+    {"__exit__",  (PyCFunction) input_stream_exit,    METH_VARARGS, NULL},
+    {NULL, NULL, 0, NULL}
+};
+
+static PyGetSetDef input_stream_getset[] = {
+    {"closed", (getter) input_stream_get_closed, NULL,
+     "True once close() has been called.", NULL},
+    {NULL, NULL, NULL, NULL, NULL}
+};
+
+static PyTypeObject InputStreamType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "_v86_posix.InputStream",
+    .tp_basicsize = sizeof(InputStreamObject),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_dealloc = (destructor) input_stream_dealloc,
+    .tp_methods = input_stream_methods,
+    .tp_getset = input_stream_getset,
+    .tp_doc = "Python file-like wrapper for a wasi:io/streams input-stream.\n\n"
+              "Supports read / readinto / context-manager / close. Not seekable.\n"
+              "Returned from Process.take_stdout() / take_stderr() when the\n"
+              "corresponding stdio was spawned with PIPE.",
+};
+
+/* --- OutputStream method bodies --- */
+
+static void output_stream_dealloc(OutputStreamObject *self)
+{
+    if (self->owned) {
+        wasi_io_streams_output_stream_drop_own(self->handle);
+        self->owned = false;
+    }
+    PyObject_Del(self);
+}
+
+static PyObject *output_stream_close(OutputStreamObject *self, PyObject *Py_UNUSED(a))
+{
+    if (self->owned) {
+        wasi_io_streams_output_stream_drop_own(self->handle);
+        self->owned = false;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *output_stream_get_closed(OutputStreamObject *self, void *Py_UNUSED(c))
+{
+    return PyBool_FromLong(!self->owned);
+}
+
+static PyObject *output_stream_readable(OutputStreamObject *Py_UNUSED(self),
+                                        PyObject *Py_UNUSED(a))
+{ Py_RETURN_FALSE; }
+
+static PyObject *output_stream_writable(OutputStreamObject *Py_UNUSED(self),
+                                        PyObject *Py_UNUSED(a))
+{ Py_RETURN_TRUE; }
+
+static PyObject *output_stream_seekable(OutputStreamObject *Py_UNUSED(self),
+                                        PyObject *Py_UNUSED(a))
+{ Py_RETURN_FALSE; }
+
+static PyObject *output_stream_fileno(OutputStreamObject *Py_UNUSED(self),
+                                      PyObject *Py_UNUSED(a))
+{
+    PyErr_SetString(PyExc_OSError, "stream has no host file descriptor");
     return NULL;
 }
 
-static PyObject *process_take_stderr(ProcessObject *Py_UNUSED(self),
-                                     PyObject *Py_UNUSED(args))
+static PyObject *output_stream_write(OutputStreamObject *self, PyObject *args)
 {
-    PyErr_SetString(PyExc_NotImplementedError,
-                    "stderr wrapping deferred — see take_stdin");
-    return NULL;
+    Py_buffer view;
+    if (!PyArg_ParseTuple(args, "y*:write", &view)) {
+        return NULL;
+    }
+    if (!self->owned) {
+        PyBuffer_Release(&view);
+        PyErr_SetString(PyExc_ValueError, "I/O operation on closed stream");
+        return NULL;
+    }
+    /* The WIT consumes its input list. Duplicate into a heap allocation we
+     * hand off; mirrors bytes_to_list_u8 in deflate_raw above. */
+    v86_posix_import_list_u8_t contents;
+    contents.ptr = NULL;
+    contents.len = (size_t) view.len;
+    if (view.len > 0) {
+        contents.ptr = (uint8_t *) malloc((size_t) view.len);
+        if (contents.ptr == NULL) {
+            PyBuffer_Release(&view);
+            PyErr_NoMemory();
+            return NULL;
+        }
+        memcpy(contents.ptr, view.buf, (size_t) view.len);
+    }
+    Py_ssize_t n = view.len;
+    PyBuffer_Release(&view);
+
+    wasi_io_streams_borrow_output_stream_t borrow =
+        wasi_io_streams_borrow_output_stream(self->handle);
+    wasi_io_streams_stream_error_t err;
+    bool ok;
+    Py_BEGIN_ALLOW_THREADS
+    ok = wasi_io_streams_method_output_stream_blocking_write_and_flush(
+        borrow, &contents, &err);
+    Py_END_ALLOW_THREADS
+    if (!ok) {
+        if (err.tag == WASI_IO_STREAMS_STREAM_ERROR_CLOSED) {
+            wasi_io_streams_stream_error_free(&err);
+            PyErr_SetString(PyExc_BrokenPipeError, "write to closed stream");
+            return NULL;
+        }
+        raise_stream_error(&err, "write");
+        return NULL;
+    }
+    /* blocking_write_and_flush guarantees the full input was written. */
+    return PyLong_FromSsize_t(n);
 }
+
+static PyObject *output_stream_flush(OutputStreamObject *self, PyObject *Py_UNUSED(a))
+{
+    if (!self->owned) {
+        PyErr_SetString(PyExc_ValueError, "I/O operation on closed stream");
+        return NULL;
+    }
+    wasi_io_streams_borrow_output_stream_t borrow =
+        wasi_io_streams_borrow_output_stream(self->handle);
+    wasi_io_streams_stream_error_t err;
+    bool ok;
+    Py_BEGIN_ALLOW_THREADS
+    ok = wasi_io_streams_method_output_stream_blocking_flush(borrow, &err);
+    Py_END_ALLOW_THREADS
+    if (!ok) {
+        if (err.tag == WASI_IO_STREAMS_STREAM_ERROR_CLOSED) {
+            wasi_io_streams_stream_error_free(&err);
+            Py_RETURN_NONE;  /* flush on closed is a no-op */
+        }
+        raise_stream_error(&err, "flush");
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *output_stream_enter(OutputStreamObject *self, PyObject *Py_UNUSED(a))
+{
+    Py_INCREF(self);
+    return (PyObject *) self;
+}
+
+static PyObject *output_stream_exit(OutputStreamObject *self, PyObject *Py_UNUSED(a))
+{
+    if (self->owned) {
+        wasi_io_streams_output_stream_drop_own(self->handle);
+        self->owned = false;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef output_stream_methods[] = {
+    {"write",    (PyCFunction) output_stream_write,    METH_VARARGS,
+     "write(bytes-like) -> int — blocking write+flush; returns bytes written."},
+    {"flush",    (PyCFunction) output_stream_flush,    METH_NOARGS,
+     "Force-flush any buffered data."},
+    {"close",    (PyCFunction) output_stream_close,    METH_NOARGS,
+     "Release the underlying wasi:io stream handle."},
+    {"readable", (PyCFunction) output_stream_readable, METH_NOARGS, "False."},
+    {"writable", (PyCFunction) output_stream_writable, METH_NOARGS, "True."},
+    {"seekable", (PyCFunction) output_stream_seekable, METH_NOARGS, "False."},
+    {"fileno",   (PyCFunction) output_stream_fileno,   METH_NOARGS,
+     "Always raises — wasi:io streams are not fd-backed."},
+    {"__enter__", (PyCFunction) output_stream_enter,   METH_NOARGS, NULL},
+    {"__exit__",  (PyCFunction) output_stream_exit,    METH_VARARGS, NULL},
+    {NULL, NULL, 0, NULL}
+};
+
+static PyGetSetDef output_stream_getset[] = {
+    {"closed", (getter) output_stream_get_closed, NULL,
+     "True once close() has been called.", NULL},
+    {NULL, NULL, NULL, NULL, NULL}
+};
+
+static PyTypeObject OutputStreamType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "_v86_posix.OutputStream",
+    .tp_basicsize = sizeof(OutputStreamObject),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_dealloc = (destructor) output_stream_dealloc,
+    .tp_methods = output_stream_methods,
+    .tp_getset = output_stream_getset,
+    .tp_doc = "Python file-like wrapper for a wasi:io/streams output-stream.\n\n"
+              "Supports write / flush / context-manager / close. Not seekable.\n"
+              "Returned from Process.take_stdin() when stdio was spawned\n"
+              "with PIPE. write() uses blocking-write-and-flush, so the call\n"
+              "returns once the bytes are flushed to the underlying sink.",
+};
 
 static PyMethodDef process_methods[] = {
     {"pid",         (PyCFunction) process_pid,         METH_NOARGS,
@@ -331,12 +809,16 @@ static PyMethodDef process_methods[] = {
      "try_wait() -> tuple[str, int] | None\n\n"
      "Non-blocking variant of `wait`. Returns None if still running."},
     {"take_stdin",  (PyCFunction) process_take_stdin,  METH_NOARGS,
-     "DEFERRED. Raises NotImplementedError — wasi:io/streams Python\n"
-     "wrapping is a separate concern; see module-level docstring."},
+     "take_stdin() -> OutputStream | None\n\n"
+     "Take ownership of the child's stdin write-end. Returns None if\n"
+     "spawn-options.stdin was not PIPED, or if a prior call already\n"
+     "took ownership of the stream."},
     {"take_stdout", (PyCFunction) process_take_stdout, METH_NOARGS,
-     "DEFERRED. See take_stdin."},
+     "take_stdout() -> InputStream | None\n\n"
+     "Take ownership of the child's stdout read-end. None if not PIPED."},
     {"take_stderr", (PyCFunction) process_take_stderr, METH_NOARGS,
-     "DEFERRED. See take_stdin."},
+     "take_stderr() -> InputStream | None\n\n"
+     "Take ownership of the child's stderr read-end. None if not PIPED."},
     {NULL, NULL, 0, NULL}
 };
 
@@ -612,6 +1094,8 @@ static int add_exc(PyObject *m, const char *name, PyObject *base, PyObject **out
 PyMODINIT_FUNC PyInit__v86_posix(void)
 {
     if (PyType_Ready(&ProcessType) < 0) return NULL;
+    if (PyType_Ready(&InputStreamType) < 0) return NULL;
+    if (PyType_Ready(&OutputStreamType) < 0) return NULL;
 
     PyObject *m = PyModule_Create(&v86_posix_module);
     if (m == NULL) return NULL;
@@ -628,6 +1112,16 @@ PyMODINIT_FUNC PyInit__v86_posix(void)
     Py_INCREF(&ProcessType);
     if (PyModule_AddObject(m, "Process", (PyObject *) &ProcessType) < 0) {
         Py_DECREF(&ProcessType);
+        goto err;
+    }
+    Py_INCREF(&InputStreamType);
+    if (PyModule_AddObject(m, "InputStream", (PyObject *) &InputStreamType) < 0) {
+        Py_DECREF(&InputStreamType);
+        goto err;
+    }
+    Py_INCREF(&OutputStreamType);
+    if (PyModule_AddObject(m, "OutputStream", (PyObject *) &OutputStreamType) < 0) {
+        Py_DECREF(&OutputStreamType);
         goto err;
     }
 

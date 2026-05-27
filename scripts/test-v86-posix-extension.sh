@@ -150,6 +150,51 @@ except OSError as e:
 print('subprocess shim              :', 'OK' if sub_failures == 0 else 'FAIL')
 failures += sub_failures
 
+# 6) Stream wrapping — InputStream / OutputStream types exist + correct surface
+stream_failures = 0
+
+for name in ('InputStream', 'OutputStream'):
+    cls = getattr(_v86_posix, name, None)
+    if cls is None:
+        print(f'_v86_posix.{name} missing: FAIL'); stream_failures += 1; continue
+    if not isinstance(cls, type):
+        print(f'_v86_posix.{name} is not a type: FAIL'); stream_failures += 1; continue
+
+inp_methods = {'read', 'readinto', 'close', 'readable', 'writable', 'seekable', 'fileno'}
+out_methods = {'write', 'flush', 'close', 'readable', 'writable', 'seekable', 'fileno'}
+for name, methods in (('InputStream', inp_methods), ('OutputStream', out_methods)):
+    cls = getattr(_v86_posix, name)
+    missing = [m for m in methods if not callable(getattr(cls, m, None))]
+    if missing:
+        print(f'_v86_posix.{name} missing methods {missing}: FAIL'); stream_failures += 1
+    if not callable(getattr(cls, '__enter__', None)) or not callable(getattr(cls, '__exit__', None)):
+        print(f'_v86_posix.{name} missing context-manager protocol: FAIL'); stream_failures += 1
+
+# subprocess.run(capture_output=True) should now reach spawn — same ENOTSUP
+# as the no-pipe case, since the stub fails before any stream is created.
+import subprocess as _sp
+try:
+    _sp.run(['/bin/true'], capture_output=True)
+    print('run(capture_output=True) returned without raising: FAIL'); stream_failures += 1
+except OSError as e:
+    if e.errno == errno.ENOTSUP:
+        print('run(capture_output=True)     : OK (routes via PIPE → spawn → ENOTSUP)')
+    else:
+        print(f'run(capture_output=True) -> errno={e.errno}: FAIL'); stream_failures += 1
+
+# subprocess.check_output likewise
+try:
+    _sp.check_output(['/bin/true'])
+    print('check_output returned without raising: FAIL'); stream_failures += 1
+except OSError as e:
+    if e.errno == errno.ENOTSUP:
+        print('check_output                 : OK')
+    else:
+        print(f'check_output -> errno={e.errno}: FAIL'); stream_failures += 1
+
+print('stream wrapping              :', 'OK' if stream_failures == 0 else 'FAIL')
+failures += stream_failures
+
 # Final tally
 sys.exit(failures)
 " \

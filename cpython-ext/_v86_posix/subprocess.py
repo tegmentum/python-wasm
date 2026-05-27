@@ -66,6 +66,7 @@ __all__ = [
     "run",
     "call",
     "check_call",
+    "check_output",
     "CompletedProcess",
     "SubprocessError",
     "CalledProcessError",
@@ -312,20 +313,12 @@ class Popen:
             raise _v86_to_subprocess_error(exc, args) from None
 
         self.returncode: int | None = None
-        # Public stdin/stdout/stderr attributes: deferred. The Popen
-        # object holds the WIT-side `_v86_posix.Process` which exposes
-        # take_stdin/out/err (themselves currently raising), so callers
-        # who reach for these get a clean NotImplementedError rather
-        # than the underlying NotImplementedError from the WIT layer.
-        self.stdin = None
-        self.stdout = None
-        self.stderr = None
-        if stdin == PIPE:
-            self.stdin = _DeferredStream("stdin")
-        if stdout == PIPE:
-            self.stdout = _DeferredStream("stdout")
-        if stderr == PIPE:
-            self.stderr = _DeferredStream("stderr")
+        # Public stdin/stdout/stderr — populated when the corresponding
+        # stdio was PIPE. take_std* returns None if it wasn't, so this
+        # is a safe one-shot.
+        self.stdin = self._process.take_stdin() if stdin == PIPE else None
+        self.stdout = self._process.take_stdout() if stdout == PIPE else None
+        self.stderr = self._process.take_stderr() if stderr == PIPE else None
 
     @property
     def pid(self) -> int:
@@ -387,9 +380,29 @@ class Popen:
 
     def communicate(self, input: bytes | None = None,
                     timeout: float | None = None) -> tuple[bytes | None, bytes | None]:
-        raise NotImplementedError(
-            "Popen.communicate needs wasi:io/streams Python wrapping (TBD); "
-            "use stdin/stdout/stderr=DEVNULL or INHERIT for now")
+        """Send `input` to stdin (if piped), read stdout/stderr to EOF, wait.
+
+        Returns `(stdout_bytes, stderr_bytes)` where each is `None` if the
+        corresponding stream was not piped, else `bytes`. Honours `timeout`
+        on the final `wait` (the stream reads are blocking — a tight timeout
+        on a stream that takes ages would be missed).
+        """
+        try:
+            if input is not None:
+                if self.stdin is None:
+                    raise ValueError(
+                        "communicate(input=...) requires stdin=PIPE on the Popen call")
+                try:
+                    self.stdin.write(input)
+                finally:
+                    self.stdin.close()
+            elif self.stdin is not None:
+                self.stdin.close()
+            stdout_data = self.stdout.read() if self.stdout is not None else None
+            stderr_data = self.stderr.read() if self.stderr is not None else None
+        finally:
+            self.wait(timeout=timeout)
+        return stdout_data, stderr_data
 
     def __enter__(self) -> "Popen":
         return self
@@ -401,27 +414,6 @@ class Popen:
             except Exception:
                 self.kill()
                 self.wait()
-
-
-class _DeferredStream:
-    """Placeholder returned where a PIPE stream would be — raises clearly."""
-
-    def __init__(self, which: str) -> None:
-        self._which = which
-
-    def _err(self) -> NotImplementedError:
-        return NotImplementedError(
-            f"Popen.{self._which} (PIPE) needs wasi:io/streams Python "
-            f"wrapping (TBD); use INHERIT or DEVNULL for now")
-
-    def read(self, *a, **kw): raise self._err()
-    def readline(self, *a, **kw): raise self._err()
-    def readlines(self, *a, **kw): raise self._err()
-    def write(self, *a, **kw): raise self._err()
-    def writelines(self, *a, **kw): raise self._err()
-    def flush(self): raise self._err()
-    def close(self): pass
-    def __iter__(self): raise self._err()
 
 
 # ---------------------------------------------------------------------------
@@ -459,28 +451,45 @@ def check_call(args: Sequence[str] | str, **kwargs: Any) -> int:
 
 
 def run(args: Sequence[str] | str, *,
+        input: bytes | None = None,
         check: bool = False,
         timeout: float | None = None,
         capture_output: bool = False,
         **kwargs: Any) -> CompletedProcess:
-    """subprocess.run analog. capture_output requires stream wrapping (TBD)."""
+    """subprocess.run analog with capture_output + input support."""
     if capture_output:
-        raise NotImplementedError(
-            "run(capture_output=True) needs wasi:io/streams Python wrapping "
-            "(TBD); for now pass stdout/stderr=DEVNULL or INHERIT explicitly")
+        if "stdout" in kwargs or "stderr" in kwargs:
+            raise ValueError(
+                "capture_output may not be used with stdout / stderr kwargs")
+        kwargs["stdout"] = PIPE
+        kwargs["stderr"] = PIPE
+    if input is not None and "stdin" not in kwargs:
+        kwargs["stdin"] = PIPE
+
     with Popen(args, **kwargs) as p:
         try:
-            rc = p.wait(timeout=timeout)
+            stdout_data, stderr_data = p.communicate(input=input, timeout=timeout)
+            rc = p.wait()
         except TimeoutExpired:
             p.kill()
             raise
         except Exception:
             p.kill()
             raise
-    completed = CompletedProcess(args, rc)
+    completed = CompletedProcess(args, rc, stdout_data, stderr_data)
     if check:
         completed.check_returncode()
     return completed
+
+
+def check_output(args: Sequence[str] | str, *, input: bytes | None = None,
+                 **kwargs: Any) -> bytes:
+    """Run command, return stdout. Stderr by default goes to caller's stderr."""
+    if "stdout" in kwargs:
+        raise ValueError("stdout argument not allowed, it will be overridden")
+    kwargs["stdout"] = PIPE
+    completed = run(args, input=input, check=True, **kwargs)
+    return completed.stdout
 
 
 # Stdlib subprocess defines a few capability flags (e.g. _USE_VFORK,
