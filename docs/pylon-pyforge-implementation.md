@@ -989,3 +989,94 @@ pylon-forge commit `b7b7cc3` lands:
 These five items go into the Phase 2.1 design. None are
 load-bearing for Phase 2.0's "validate the schema with one
 real cap" goal.
+
+---
+
+## Phase 4 — retired in favor of forge production
+
+The original Phase 4 (multi-forge coexistence: `pylon use`, `.pylonrc`,
+wrapping `python` binary that dispatches based on per-shell pin) is
+**retired**.
+
+**Why.** Forges are domain-specific. A python-wasm forge produces
+python.composed.wasm for a wasm-component runtime; a hypothetical
+JVM forge would produce a JVM substrate; a MicroPython forge would
+target embedded boards. These don't share consumers — there's no
+common shell where the user wants to "switch between" them. The
+pyenv-style "active Python" model fits when multiple Pythons are
+interchangeable for the same workflow; it doesn't fit when each
+substrate is for a different runtime entirely.
+
+So the per-shell/per-project pin UX is solving a problem that
+doesn't exist. Every project either uses pylon to build artifacts
+for a specific runtime (in which case the forge is pinned by the
+project's `.pylon.toml`, not by a shell env var) or doesn't use
+pylon at all.
+
+**The replacement Phase 4 goal: forge production.** The real
+validation of pylon's design isn't "can a user switch between
+forges" but "can pylon emit multiple meaningfully-different forge
+manifests, each reproducible, with cleanly separate identity
+chains." Single-forge use is exactly what the canonical
+`python-wasm-current.toml` already exercises; multi-forge
+production tests the harder claims:
+
+* **Capability-set variants** — same CPython source, different
+  composed substrate. python-wasm has an obvious split: a browser
+  variant (no v86, smaller artifact, suitable for the web demo)
+  vs a v86 variant (with the v86-posix capability composed in,
+  needed for native subprocess workloads).
+
+* **Build-flag variants** — same source, different ABI. e.g.
+  `cp314` vs `cp314t` (free-threading). Same Python version,
+  different ABI tag, different wheel-compat tag, different
+  forge_identity.
+
+* **CPython source variants** — different patch-level minor
+  versions (3.13 → 3.14) of the same wasm-component target. Same
+  build flags, different source identity, validates the
+  stdlib-overlay-hashing layer.
+
+* **Second consumer entirely** — not python-wasm, but e.g.
+  Ruby-on-wasm or MicroPython-on-wasm. Validates that pylon-forge
+  is genuinely consumer-agnostic (Phase 1.5's design). A second
+  consumer would author its own `.pylon.toml` and pylon would
+  produce a manifest for it without code changes.
+
+### Phase 4.1 — python-wasm browser / v86 variants (first slice)
+
+Concrete first variant pair (build flag in python-wasm):
+
+```
+WITH_V86_POSIX=1 make python-composed   # default; current behavior
+WITH_V86_POSIX=0 make python-composed   # browser variant
+```
+
+When `WITH_V86_POSIX=0`:
+
+* `scripts/wire-cpython-ext.sh` omits the `_v86_posix` entry from
+  EXTS. The bare python.wasm has no `v86:posix/process` import.
+* `scripts/compose-python-component.sh` skips the
+  `--plug "$V86_POSIX_COMPONENT"` arg.
+* `make install-python-shims` skips `subprocess.py` (it routes
+  through `_v86_posix` which doesn't exist in the browser variant).
+
+The two variants produce **different python.wasm bytes** and
+**different python.composed.wasm bytes**, so they have different
+sha256 and different forge_identity. Both should reproduce via
+`pylon forge build --auto-build` against their respective
+manifests.
+
+The matching pylon-side work:
+
+* Emit `manifests/python-wasm-v86.toml` (current behavior).
+* Emit `manifests/python-wasm-browser.toml` (with WITH_V86_POSIX=0
+  build).
+* `pylon forge build --auto-build` against either reproduces the
+  matching python.composed.wasm.
+* `pylon forge verify` against either holds (manifest + plan
+  determinism, same as today's single-forge case).
+
+No changes needed in `pylon-forge` itself for this — the
+manifest emitter is already consumer-agnostic; it just runs against
+each repo state and records what it finds.

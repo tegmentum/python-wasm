@@ -41,18 +41,27 @@ EXT_DIR="$PROJECT_DIR/cpython-ext"
 # srcdir; the special-case table below handles the historical _ssl mapping.
 #
 # Format: srcdir|module_name|c_file|gen_import_c|gen_import_obj
+# Capability extensions always wired in. Per-variant ones are appended
+# below based on env-var flags.
 declare -a EXTS=(
     "_compression|_compress_cap|_compressionmodule.c|compression_import.c|compression_import_component_type.o"
     "_crypto_hash|_crypto_hash|_crypto_hashmodule.c|crypto_hash_import.c|crypto_hash_import_component_type.o"
     "_xxhash|_xxhash|_xxhashmodule.c|xxhash_import.c|xxhash_import_component_type.o"
     "_ssl|_ssl_capability|_ssl_capability_module.c|ssl_import.c|ssl_import_component_type.o"
     "_sqlite_capability|_sqlite_cap|_sqlite_capability_module.c|sqlite_import.c|sqlite_import_component_type.o"
-    # _v86_posix: the v86:posix/process import is plugged in by
+)
+
+# pylon Phase 4.1 variant: _v86_posix is omitted from the browser
+# build (WITH_V86_POSIX=0). Default ON preserves the existing v86-
+# composed shape used by every current build script + test. See
+# pylon-pyforge-implementation.md §4.1.
+if [ "${WITH_V86_POSIX:-1}" = "1" ]; then
+    # The v86:posix/process import is plugged in by
     # compose-python-component.sh via V86_POSIX_COMPONENT (default:
     # v86-posix-stub — every spawn returns guest-not-ready until v86-
-    # component proper grows the real impl). See docs/tier1-v86-integration.md.
-    "_v86_posix|_v86_posix|_v86_posixmodule.c|v86_posix_import.c|v86_posix_import_component_type.o"
-)
+    # component proper grows the real impl).
+    EXTS+=("_v86_posix|_v86_posix|_v86_posixmodule.c|v86_posix_import.c|v86_posix_import_component_type.o")
+fi
 
 SETUP_LOCAL="$CPYTHON_DIR/Modules/Setup.local"
 TMP_SETUP="$(mktemp)"
@@ -77,6 +86,18 @@ zlib
 
 *static*
 EOF
+
+# Clean stale per-variant artifacts when their flag is off. If a previous
+# build wired _v86_posix and the user now sets WITH_V86_POSIX=0, the
+# Modules/_v86_posix symlink + the cross-build/.../Modules/_v86_posix
+# object tree would otherwise re-link the old .o into the new bare
+# python.wasm — silently producing the wrong artifact.
+if [ "${WITH_V86_POSIX:-1}" != "1" ]; then
+    rm -f "$CPYTHON_DIR/Modules/_v86_posix"
+    for cross_dir in "$CPYTHON_DIR"/cross-build/wasm*/Modules; do
+        rm -rf "$cross_dir/_v86_posix"
+    done
+fi
 
 echo "wire-cpython-ext: wiring $(echo "${EXTS[@]}" | wc -w | tr -d ' ') extensions into $CPYTHON_DIR/Modules/"
 

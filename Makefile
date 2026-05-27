@@ -48,6 +48,14 @@ else
     ZLIB_STEP        := @echo "build: static zlib disabled (capability path is the default; set STATIC_ZLIB=1 for A/B)"
 endif
 
+# pylon Phase 4.1 variant flag — when 0, omit the _v86_posix capability
+# extension + its subprocess.py shim + the v86-posix-stub plug in the
+# compose step. Produces a "browser" variant of python.composed.wasm
+# with a different sha256 (and a different pylon forge_identity)
+# than the default WITH_V86_POSIX=1 build.
+WITH_V86_POSIX ?= 1
+export WITH_V86_POSIX
+
 build: fetch-deps
 	$(ZLIB_STEP)
 	$(OPENSSL_STEP)
@@ -143,9 +151,14 @@ install-python-shims:
 	@cp $(PROJECT_DIR)/cpython-ext/_sqlite_capability/sqlite3.py \
 	    $(PROJECT_DIR)/deps/cpython/Lib/sqlite3/__init__.py
 	@echo "installed: deps/cpython/Lib/sqlite3/__init__.py  (Tier B: routes to _sqlite_cap via sqlite:wasm capability)"
-	@cp $(PROJECT_DIR)/cpython-ext/_v86_posix/subprocess.py \
-	    $(PROJECT_DIR)/deps/cpython/Lib/subprocess.py
-	@echo "installed: deps/cpython/Lib/subprocess.py  (Tier C: routes Popen/run through _v86_posix.spawn via v86:posix/process)"
+	@if [ "$(WITH_V86_POSIX)" = "1" ]; then \
+	    cp $(PROJECT_DIR)/cpython-ext/_v86_posix/subprocess.py \
+	        $(PROJECT_DIR)/deps/cpython/Lib/subprocess.py && \
+	    echo "installed: deps/cpython/Lib/subprocess.py  (Tier C: routes Popen/run through _v86_posix.spawn via v86:posix/process)"; \
+	else \
+	    rm -f $(PROJECT_DIR)/deps/cpython/Lib/subprocess.py && \
+	    echo "skipped: subprocess.py shim (WITH_V86_POSIX=0; using stdlib subprocess from Lib/)"; \
+	fi
 
 # Componentize-python plan, Phase 1: end-to-end smoke test of the composed
 # component + _compression extension + multiplexer.

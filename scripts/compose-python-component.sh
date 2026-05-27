@@ -26,21 +26,32 @@ SQLITE_COMPONENT="${SQLITE_COMPONENT_WASM:-$HOME/git/sqlite-wasm/build/sqlite-co
 # once it exports v86:posix/process — same contract, different digest.
 V86_POSIX_COMPONENT="${V86_POSIX_COMPONENT_WASM:-$HOME/git/v86/target/wasm32-wasip2/release/v86_posix_stub.wasm}"
 
+# pylon Phase 4.1: when WITH_V86_POSIX=0, the bare python.wasm has no
+# v86:posix/process import (wire-cpython-ext.sh skipped the _v86_posix
+# extension), so the v86-posix-stub plug must be skipped here too —
+# wac plug fails if the plug provides an export nothing requires.
+PLUG_ARGS=(
+    --plug "$MUX_COMPRESSION"
+    --plug "$MUX_CRYPTO_HASH"
+    --plug "$MUX_HASHING"
+    --plug "$OPENSSL_COMPONENT"
+    --plug "$SQLITE_COMPONENT"
+)
+REQUIRED_PLUGS=("$MUX_COMPRESSION" "$MUX_CRYPTO_HASH" "$MUX_HASHING"
+                "$OPENSSL_COMPONENT" "$SQLITE_COMPONENT")
+if [ "${WITH_V86_POSIX:-1}" = "1" ]; then
+    PLUG_ARGS+=(--plug "$V86_POSIX_COMPONENT")
+    REQUIRED_PLUGS+=("$V86_POSIX_COMPONENT")
+fi
+
 [ -f "$PYW" ] || { echo "compose-python-component: $PYW not found — run 'make build' first." >&2; exit 1; }
-for f in "$MUX_COMPRESSION" "$MUX_CRYPTO_HASH" "$MUX_HASHING" "$OPENSSL_COMPONENT" "$SQLITE_COMPONENT" "$V86_POSIX_COMPONENT"; do
+for f in "${REQUIRED_PLUGS[@]}"; do
     [ -f "$f" ] || { echo "compose-python-component: capability not found: $f" >&2; exit 1; }
 done
 command -v wac >/dev/null 2>&1 || { echo "compose-python-component: 'wac' (wac-cli) is required on PATH." >&2; exit 1; }
 
 mkdir -p "$PROJECT_DIR/build"
-wac plug "$PYW" \
-    --plug "$MUX_COMPRESSION" \
-    --plug "$MUX_CRYPTO_HASH" \
-    --plug "$MUX_HASHING" \
-    --plug "$OPENSSL_COMPONENT" \
-    --plug "$SQLITE_COMPONENT" \
-    --plug "$V86_POSIX_COMPONENT" \
-    -o "$OUT"
+wac plug "$PYW" "${PLUG_ARGS[@]}" -o "$OUT"
 echo "==> $(du -h "$OUT" | cut -f1) $OUT"
 
 # Sanity: the compression-dispatcher import is satisfied.
