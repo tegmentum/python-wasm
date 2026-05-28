@@ -51,6 +51,7 @@ with_v86_posix = true
 # build of any cap.
 [capabilities]
 compression_multiplexer = "${HOME}/git/compression-multiplexer/target/wasm32-wasip2/release/compression_multiplexer.wasm"
+zlib_component = "${HOME}/git/zlib-wasm/build/bin/zlib.component.wasm"
 crypto_hash_multiplexer = "${HOME}/git/crypto-hash-multiplexer/target/wasm32-wasip2/release/crypto_hash_multiplexer.wasm"
 hashing_multiplexer = "${HOME}/git/hashing-multiplexer/target/wasm32-wasip2/release/hashing_multiplexer.wasm"
 openssl_component = "${HOME}/git/openssl-wasm/build/openssl-component.wasm"

@@ -1,0 +1,53 @@
+schema = "tegmentum:pylon-pyforge/pkg@0.1.0"
+
+# Direct zlib codec extension. Imports zlib-wasm's per-codec WIT directly
+# (zlib:compression@0.1.0) instead of going through the
+# tegmentum:compression-multiplexer dispatcher. Replaces the zlib portion
+# of _compress_cap.
+
+[package]
+name = "zlib-cap"
+version = "0.1.0"
+description = "Direct zlib codec extension over zlib-wasm (replaces _compress_cap.deflate_* + crc32/adler32)"
+pattern = "A"
+
+[extension]
+srcdir = "_zlib_cap"
+module_name = "_zlib_cap"
+c_file = "_zlib_capmodule.c"
+wit_dir = "wit"
+gen_dir = "gen"
+gen_import_c = "zlib_cap_import.c"
+gen_import_obj = "zlib_cap_import_component_type.o"
+
+[[capabilities.required]]
+interface = "zlib:compression/simple"
+version = "0.1.0"
+
+[[capabilities.required]]
+interface = "zlib:compression/checksum"
+version = "0.1.0"
+
+[[capabilities.required]]
+interface = "zlib:compression/deflate"
+version = "0.1.0"
+
+[[capabilities.required]]
+interface = "zlib:compression/info"
+version = "0.1.0"
+
+# Shim provider: Lib/zlib.py routes through this extension. The shim
+# itself lives in cpython-ext/_compression/zlib.py and shadows stdlib
+# zlib (which would otherwise depend on the missing-on-wasi _zlib C
+# extension). This pkg entry declares the relationship; the actual file
+# copy happens in Makefile install-python-shims.
+[[provides]]
+module = "zlib"
+shim = "../_compression/zlib.py"
+dest = "Lib/zlib.py"
+purpose = "Tier A: cap-route zlib through _zlib_cap (replaces multiplexer-routed path)"
+version = "0.1.0"
+
+[gating]
+include_forges = []
+exclude_forges = []

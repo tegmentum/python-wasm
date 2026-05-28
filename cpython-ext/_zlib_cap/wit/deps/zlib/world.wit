@@ -1,0 +1,25 @@
+// World definition for zlib-wasm component
+//
+// This defines what the zlib-wasm component exports and imports.
+// Used by wasm-tools for component composition.
+
+package zlib:compression@0.1.0;
+
+// Re-export the interfaces from zlib.wit
+world zlib-component {
+    // Export compression functionality
+    export deflate;
+    export simple;
+    export checksum;
+    export info;
+
+    // WASI imports for runtime support
+    // (These are satisfied by the host runtime)
+}
+
+// World for composing with other components
+world zlib-library {
+    // Just export the interfaces, no CLI
+    export simple;
+    export checksum;
+}

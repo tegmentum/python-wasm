@@ -1,0 +1,17 @@
+package tegmentum:python-zlib-cap@0.1.0;
+
+/// Companion WIT for CPython's `_zlib_cap` static extension. The C
+/// extension imports zlib-wasm's interfaces directly (no multiplexer
+/// indirection); composectl/wac wires them at compose time to the
+/// zlib-wasm component artifact.
+///
+/// Replaces the compression-multiplexer-routed `_compress_cap` for the
+/// zlib codec. The other codecs (bz2, lzma, zstd) follow in their own
+/// per-codec caps.
+
+world zlib-cap-import {
+    import zlib:compression/simple@0.1.0;
+    import zlib:compression/checksum@0.1.0;
+    import zlib:compression/deflate@0.1.0;
+    import zlib:compression/info@0.1.0;
+}

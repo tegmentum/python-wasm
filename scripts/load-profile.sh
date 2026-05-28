@@ -103,6 +103,7 @@ caps = profile.get("capabilities", {})
 # Map TOML key (snake_case) -> the env var the compose script expects.
 cap_var_map = {
     "compression_multiplexer": "COMPRESSION_MULTIPLEXER_WASM",
+    "zlib_component": "ZLIB_COMPONENT_WASM",
     "crypto_hash_multiplexer": "CRYPTO_HASH_MULTIPLEXER_WASM",
     "hashing_multiplexer": "HASHING_MULTIPLEXER_WASM",
     "openssl_component": "OPENSSL_COMPONENT_WASM",

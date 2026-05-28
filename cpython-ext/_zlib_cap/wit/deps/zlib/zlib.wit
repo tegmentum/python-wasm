@@ -1,0 +1,186 @@
+package zlib:compression@0.1.0;
+
+/// Core compression/decompression interface for zlib
+interface deflate {
+    /// Error codes from zlib operations
+    enum error-code {
+        /// Success
+        ok,
+        /// Stream end reached
+        stream-end,
+        /// Need dictionary
+        need-dict,
+        /// Stream error (invalid state)
+        stream-error,
+        /// Data error (corrupted input)
+        data-error,
+        /// Memory allocation error
+        mem-error,
+        /// Buffer error (not enough space)
+        buf-error,
+        /// Version mismatch
+        version-error,
+    }
+
+    /// Compression levels
+    enum compression-level {
+        /// No compression (level 0)
+        none,
+        /// Best speed (level 1)
+        best-speed,
+        /// Default compression (level 6)
+        default-compression,
+        /// Best compression (level 9)
+        best-compression,
+    }
+
+    /// Compression strategy
+    enum strategy {
+        /// Default strategy
+        default-strategy,
+        /// Filtered data
+        filtered,
+        /// Huffman only
+        huffman-only,
+        /// Run-length encoding
+        rle,
+        /// Fixed Huffman codes
+        fixed,
+    }
+
+    /// Flush modes
+    enum flush-mode {
+        /// No flush
+        no-flush,
+        /// Partial flush
+        partial-flush,
+        /// Sync flush
+        sync-flush,
+        /// Full flush
+        full-flush,
+        /// Finish compression
+        finish,
+        /// Block mode
+        block,
+        /// Trees mode
+        trees,
+    }
+
+    /// Compressor resource for streaming compression
+    resource compressor {
+        /// Create a new compressor with specified level (0-9)
+        constructor(level: s32);
+
+        /// Create compressor with full options
+        /// level: 0-9, method: 8 (deflate), window-bits: 8-15, mem-level: 1-9
+        new-with-options: static func(
+            level: s32,
+            method: s32,
+            window-bits: s32,
+            mem-level: s32,
+            strategy: strategy
+        ) -> result<compressor, error-code>;
+
+        /// Compress a chunk of data
+        /// Returns compressed data and whether more input is needed
+        compress-chunk: func(input: list<u8>, flush: flush-mode) -> result<list<u8>, error-code>;
+
+        /// Reset compressor for reuse
+        reset: func() -> result<_, error-code>;
+
+        /// Get total bytes read
+        total-in: func() -> u64;
+
+        /// Get total bytes written
+        total-out: func() -> u64;
+    }
+
+    /// Decompressor resource for streaming decompression
+    resource decompressor {
+        /// Create a new decompressor
+        constructor();
+
+        /// Create decompressor with window bits option
+        /// window-bits: 8-15, add 32 for gzip auto-detection, add 16 for gzip only
+        new-with-window-bits: static func(window-bits: s32) -> result<decompressor, error-code>;
+
+        /// Decompress a chunk of data
+        decompress-chunk: func(input: list<u8>, flush: flush-mode) -> result<list<u8>, error-code>;
+
+        /// Reset decompressor for reuse
+        reset: func() -> result<_, error-code>;
+
+        /// Get total bytes read
+        total-in: func() -> u64;
+
+        /// Get total bytes written
+        total-out: func() -> u64;
+    }
+}
+
+/// Simple one-shot compression/decompression functions
+interface simple {
+    use deflate.{error-code, compression-level};
+
+    /// Compress data in one call
+    /// Returns compressed data or error
+    compress: func(data: list<u8>, level: compression-level) -> result<list<u8>, error-code>;
+
+    /// Decompress data in one call
+    /// Returns decompressed data or error
+    decompress: func(data: list<u8>) -> result<list<u8>, error-code>;
+
+    /// Get maximum compressed size for given input size
+    compress-bound: func(source-len: u64) -> u64;
+}
+
+/// Checksum functions
+interface checksum {
+    /// Calculate Adler-32 checksum
+    adler32: func(data: list<u8>) -> u32;
+
+    /// Update Adler-32 checksum with more data
+    adler32-update: func(adler: u32, data: list<u8>) -> u32;
+
+    /// Combine two Adler-32 checksums
+    adler32-combine: func(adler1: u32, adler2: u32, len2: u64) -> u32;
+
+    /// Calculate CRC-32 checksum
+    crc32: func(data: list<u8>) -> u32;
+
+    /// Update CRC-32 checksum with more data
+    crc32-update: func(crc: u32, data: list<u8>) -> u32;
+
+    /// Combine two CRC-32 checksums
+    crc32-combine: func(crc1: u32, crc2: u32, len2: u64) -> u32;
+}
+
+/// Version and capability information
+interface info {
+    /// Get zlib version string
+    version: func() -> string;
+
+    /// Get compile-time flags
+    compile-flags: func() -> u32;
+
+    /// Algorithm information
+    record algorithm-info {
+        name: string,
+        version: string,
+        min-level: s32,
+        max-level: s32,
+        default-level: s32,
+        supports-streaming: bool,
+    }
+
+    /// Get algorithm info
+    get-info: func() -> algorithm-info;
+}
+
+/// The main zlib world combining all interfaces
+world zlib {
+    export deflate;
+    export simple;
+    export checksum;
+    export info;
+}
