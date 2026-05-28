@@ -274,7 +274,10 @@ PEM_cert_to_DER_cert = _stub(
     "cert-format conversion helper not yet wired through the capability")
 get_server_certificate = _stub(
     "get_server_certificate",
-    "out-of-band cert fetching helper not yet wired through the capability")
+    "would need _ssl_capability + openssl-component to expose "
+    "SSL_get_peer_certificate / i2d_X509 — not in WIT 0.1.0. Pure-Python "
+    "implementation isn't possible (no path to extract cert bytes without "
+    "bypassing the TLS stack). Tracked as openssl-component v0.2.x")
 get_default_verify_paths = _stub(
     "get_default_verify_paths",
     "no OS verify-paths — capability bundles its own Mozilla WebPKI roots")

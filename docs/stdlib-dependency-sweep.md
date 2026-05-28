@@ -58,12 +58,12 @@ Modules that load but where specific operations fail:
 |---|---|---|---|
 | `threading` | imports, locks, condition vars, RLock | `Thread.start()` → `RuntimeError: can't start new thread` | wasi-p2 has no preemptive threads |
 | `os` | most stat/file/env operations | `os.fork`, `os.execvp`, `os.popen` | no process model in pure wasm |
-| `socket` | TCP via `wasi:sockets/tcp` | DNS (`gaierror: [Errno -4]`) | `socket.getaddrinfo` not wired to `wasi:sockets/ip-name-lookup` |
+| `socket` | TCP via `wasi:sockets/tcp` + **DNS via `wasi:sockets/ip-name-lookup`** (resolved 2026-05-28) | nothing in default scope | needs runtime grant: `-S inherit-network -S allow-ip-name-lookup` |
 | `subprocess` | imports + Popen object | `Popen.spawn()` requires v86 backend ready | `v86-posix-stub` returns `GuestNotReady` until v86 grows real spawn |
-| `hashlib` | 9 algorithms (md5..blake2s) | sha224, sha3_224, sha3_384, shake_128, shake_256, pbkdf2_hmac, scrypt | not in `crypto-hash-multiplexer` 0.1.0 + no KDF cap |
+| `hashlib` | **all 14 algorithms + pbkdf2_hmac** (post Phase 5.1 redesign 2026-05-28) | scrypt | scrypt impossible in pure Python at production parameters; needs cap |
 | `ssl` | TLS handshake, cert validation, urllib.urlopen, MemoryBIO | SSLObject, SSLSession, get_server_certificate, DER_cert_to_PEM_cert, RAND_add, RAND_status | deferred to openssl-component v1.1 |
-| `gzip` | `gzip.compress` works | `gzip.decompress` raises `EOFError: Compressed file ended before the end-of-stream marker` | bug in Lib/zlib.py shim's streaming decompressor — file separately |
-| `zoneinfo` | imports + algorithm | `ZoneInfo('UTC')` fails | no tzdata bundled in deps/cpython/Lib/zoneinfo/ |
+| `gzip` | **full roundtrip + zipfile + tarfile.tar.gz** (fixed 2026-05-28) | nothing | zlib shim _ZlibDecompressor + unused_data tracking shipped |
+| `zoneinfo` | **598 IANA timezones via PyPI tzdata fallback** (fixed 2026-05-28) | nothing | scripts/fetch-tzdata.sh wires into make fetch-deps |
 | `multiprocessing` | imports + Process object | `Process.start()` fails | same as `os.fork` — no process model |
 
 ### D. Fail to import entirely ❌
@@ -93,52 +93,54 @@ And the per-platform C extensions absent from the build:
 
 In rough priority order — most leverage / least effort first.
 
-### High-priority
+### High-priority — all RESOLVED 2026-05-28
 
-1. **DNS resolution** — `socket.getaddrinfo()` failing is the single most
-   impactful gap. Block on: wiring `wasi:sockets/ip-name-lookup` (already
-   in wasi-p2 0.2.x) into `_socket`. Likely a CPython patch + maybe a
-   small wrapper. **Effort:** 1–2 days.
+1. **DNS resolution** — ✅ **Was never broken.** Original sweep ran without
+   `-S inherit-network -S allow-ip-name-lookup` flags. With them,
+   `socket.getaddrinfo()`, `socket.create_connection()`, and
+   `socket.gethostbyname()` all work against example.com, www.python.org,
+   github.com. Wasmtime auto-wires `wasi:sockets/ip-name-lookup` to host
+   DNS when the flag is granted.
 
-2. **tzdata bundle** — `zoneinfo` works algorithmically but ships no
-   timezone database. Ship a curated tzdata blob (~200 KB compressed),
-   either as part of python.wasm or as a sibling asset. No new cap
-   needed — just data. **Effort:** 0.5 day.
+2. **tzdata bundle** — ✅ **Shipped** (commit `73d0a03`).
+   `scripts/fetch-tzdata.sh` pulls tzdata 2026.2 from PyPI, stages it
+   at `deps/cpython/Lib/tzdata/`. 598 IANA timezones available. Wired
+   into `make fetch-deps`.
 
-3. **gzip.decompress bug** — `Lib/zlib.py` shim's streaming
-   decompressor doesn't signal end-of-stream correctly to `gzip`.
-   `zlib.decompressobj(31).decompress(data)` works directly; the gzip
-   module's incremental usage doesn't. **Effort:** 0.5–1 day, no
-   new cap.
+3. **gzip.decompress bug** — ✅ **Shipped** (commit `5dd6788`).
+   `Lib/zlib.py` shim now has `_ZlibDecompressor` + proper `unused_data`
+   tracking. `gzip.decompress`, multi-member gzip, zipfile ZIP_DEFLATED,
+   and tarfile.tar.gz all roundtrip correctly.
 
-4. **pbkdf2_hmac, scrypt** — common KDFs needed by hashlib users
-   (passlib, cryptography). Two paths:
-   - Pure-Python pbkdf2 implementation built on top of capability-
-     routed HMAC (slow but correct; ~50 LOC).
-   - New WIT contract `tegmentum:kdf-multiplexer/kdf-dispatcher` →
-     PBKDF2, scrypt, argon2.
-   **Effort:** pure-Python 1 day; full cap 5–7 days.
+4. **pbkdf2_hmac, scrypt** — ✅ **pbkdf2_hmac shipped** (commit `738ae9b`).
+   Pure-Python PBKDF2 (RFC 8018) in `Lib/_hashlib.py`. RFC 6070 vectors
+   match; 4096-iteration HMAC-SHA1 takes 13ms. `scrypt` deliberately
+   omitted — pure-Python scrypt at production parameters (N=16384) is
+   too slow to be useful; tracked for a future `tegmentum:kdf` cap.
 
 ### Medium-priority
 
-5. **sha224, sha3_224, sha3_384** — `crypto-hash-multiplexer` v0.2.x
-   addition. Mechanical extension to the dispatcher enum + wasm. May
-   land alongside other multiplexer revisions. **Effort:** 1 day
-   cap-side + auto-pickup on this side.
+5. **sha224, sha3_224, sha3_384** — ✅ **Resolved by Phase 5.1 redesign**.
+   These are already available via CPython's BUILTIN `_sha2`/`_sha3`
+   C extensions (statically linked into python.wasm). Stdlib hashlib
+   uses them natively when `_hashlib` doesn't provide them. The
+   `crypto-hash-multiplexer` extension stays for component-to-component
+   cap-routed hashing but Python users go through the faster builtins.
 
-6. **shake_128, shake_256 (XOFs)** — variable-length output, different
-   shape than the fixed-digest contract. New `xof-dispatcher` interface
-   in crypto-hash-multiplexer. **Effort:** 2 days.
+6. **shake_128, shake_256 (XOFs)** — ✅ **Same as above** — covered by
+   builtin `_sha3.shake_128`/`shake_256`.
 
-7. **ssl.get_server_certificate** — out-of-band cert fetching helper.
-   Could be pure-Python on top of existing SSLSocket (open conn,
-   getpeercert, close). **Effort:** 1 day.
+7. **ssl.get_server_certificate** — ⏸ **Blocked on cap revision.** The
+   `_ssl_capability` C ext exposes no peer-cert getter; openssl-component
+   WIT 0.1.0 doesn't expose `SSL_get_peer_certificate` / `i2d_X509`.
+   Pure-Python implementation isn't possible (no way to extract cert
+   bytes without bypassing the TLS stack). Tracked as openssl-component
+   v0.2.x. Stub raises NotImplementedError with this context.
 
-8. **mmap** — `wasi:io/memory` doesn't exist; would need a new
-   `tegmentum:memory/anonymous-pages` cap or use wasi-p2 filesystem
-   APIs as a backing for file-backed mmap. **Effort:** 5–7 days,
-   medium-utility (most Python code path-of-least-resistance to
-   `io.BytesIO` anyway).
+8. **mmap** — ⏸ **Deferred.** `wasi:io/memory` doesn't exist; would need
+   a new `tegmentum:memory/anonymous-pages` cap or use wasi-p2 filesystem
+   APIs as backing. Most Python code paths around mmap have `io.BytesIO`
+   fallbacks. Medium-utility; not blocking common use.
 
 ### Low-priority / experimental
 
@@ -209,18 +211,27 @@ The functional probe results from this sweep (against
 
 ## Recommended sequence
 
-A tight three-week plan to close the high-value gaps:
+**All HIGH-priority gaps closed 2026-05-28.** The MEDIUM gaps split into:
 
-| Week | Gap | Action | Cap repo |
-|---|---|---|---|
-| 1 (M-W) | DNS + tzdata bundle | Wire `wasi:sockets/ip-name-lookup` into `_socket`; ship tzdata-2026a as a stdlib asset | (no new cap) |
-| 1 (Th-F) | gzip streaming bug | Patch `Lib/zlib.py` shim's decompressor end-of-stream signaling | (no new cap) |
-| 2 (M-W) | pbkdf2 + scrypt in pure-Python | Build PBKDF2 + scrypt on top of capability-routed HMAC | (no new cap; pure-Python) |
-| 2 (Th-F) | sha224/sha3_224/sha3_384 | Land in `crypto-hash-multiplexer` v0.2.0; rebuild | crypto-hash-multiplexer |
-| 3 (M-T) | ssl.get_server_certificate (pure-Python) | Build on existing SSLSocket primitives | (no new cap) |
-| 3 (W-F) | Documentation + ship | Update this sweep + componentize-python.md; tag a release | — |
+- ✅ MED-5, MED-6 (extra hash algos) — turned out to be already-shipped
+  via CPython builtin _sha2/_sha3
+- ⏸ MED-7 (ssl.get_server_certificate) — blocked on openssl-component
+  cap revision; can't be done at the Python layer
+- ⏸ MED-8 (mmap) — needs new cap; medium-utility
 
-After these 3 weeks, the python-wasm runtime would cover the
-~98%-of-real-world stdlib usage threshold that matters for `uv python
-install wasm32-wasip2` to feel like a competent Python runtime out of
-the box.
+What's left for "feels like a competent Python runtime out of the box":
+
+| Gap | Track |
+|---|---|
+| ssl.get_server_certificate | openssl-component v0.2.x — adds SSL_get_peer_certificate / i2d_X509 |
+| scrypt | tegmentum:kdf cap (or vendor in pure-Python from the `cryptography` lib if low-tier perf is acceptable) |
+| mmap | tegmentum:memory cap, or document `io.BytesIO` as the workaround for most use cases |
+
+These are all **cap-side** work. The Python-side surface (Pattern A
+extensions + Lib/ shims) is now feature-complete for the 14
+stdlib-hashlib algorithms, gzip/tar/zip compression, ssl with bundled
+roots, tzdata, and pbkdf2.
+
+The Phase 5 retirement is **functionally complete** for the default
+build: `import hashlib`, `import ssl`, `import gzip`, `import zoneinfo`,
+and all common operations work end-to-end without `STATIC_OPENSSL=1`.
