@@ -1,0 +1,37 @@
+schema = "tegmentum:pylon-pyforge/pkg@0.1.0"
+
+# Non-cryptographic hashes (xxh64, crc32, murmur3, blake3) over the
+# tegmentum:hashing-multiplexer capability. The C extension IS the
+# importable Python module — no Lib/ shim is needed. Users `import _xxhash`
+# directly. See ../../docs/pyforge-pkg-spec.md §3.5 "Direct-C provides".
+
+[package]
+name = "xxhash"
+version = "0.1.0"
+description = "Non-crypto hashes (xxh64, crc32, murmur3, blake3) over the hashing-multiplexer capability"
+pattern = "A"
+
+[extension]
+srcdir = "_xxhash"
+module_name = "_xxhash"
+c_file = "_xxhashmodule.c"
+wit_dir = "wit"
+gen_dir = "gen"
+gen_import_c = "xxhash_import.c"
+gen_import_obj = "xxhash_import_component_type.o"
+
+[[capabilities.required]]
+interface = "tegmentum:hashing-multiplexer/hashing-dispatcher"
+version = "0.1.0"
+
+# Direct-C provides: no shim, no dest. The Python user imports the C
+# extension by its PyInit_ name and the extension serves all calls.
+# module MUST equal [extension].module_name in this form.
+[[provides]]
+module = "_xxhash"
+purpose = "Non-crypto hashing surface served directly by the C extension (no Lib/ shim)"
+version = "0.1.0"
+
+[gating]
+include_forges = []
+exclude_forges = []

@@ -1,0 +1,58 @@
+schema = "tegmentum:pylon-pyforge/pkg@0.1.0"
+
+# Python subprocess + native-process surface over v86:posix/process.
+# Gated to v86 forges only — the browser forge has no v86 backend, so
+# the C extension and the subprocess shim are both excluded there.
+# See ../../docs/tier1-v86-integration.md and ../README.md.
+#
+# Two provides:
+#  1. `_v86_posix` — the C extension itself, importable directly
+#     (`_v86_posix.spawn`, `Process`, `InputStream`, `OutputStream`).
+#  2. `subprocess` — a shim shadowing the stdlib `Lib/subprocess.py`,
+#     routing `Popen`/`run`/`check_call`/etc. through `_v86_posix.spawn`.
+#
+# GAP: the current pylon-forge/manifests/python-wasm-v86.toml is missing
+# the `Lib/subprocess.py` overlay entry even though `install-python-shims`
+# installs it when WITH_V86_POSIX=1. `pylon pkg verify` should flag this
+# inconsistency once the tool exists.
+
+[package]
+name = "v86-posix"
+version = "0.1.0"
+description = "Python subprocess + native-process surface over v86:posix/process"
+pattern = "A"
+
+[extension]
+srcdir = "_v86_posix"
+module_name = "_v86_posix"
+c_file = "_v86_posixmodule.c"
+wit_dir = "wit"
+gen_dir = "gen"
+gen_import_c = "v86_posix_import.c"
+gen_import_obj = "v86_posix_import_component_type.o"
+
+[[capabilities.required]]
+interface = "v86:posix/process"
+version = "0.1.0"
+
+# Direct-C provides: the _v86_posix module itself, used by subprocess.py
+# and by callers that want the low-level spawn/Process API directly.
+[[provides]]
+module = "_v86_posix"
+purpose = "Native-process spawn surface served directly by the C extension"
+version = "0.1.0"
+
+# subprocess shim — shadows the stdlib Lib/subprocess.py so that every
+# Popen / run / check_call / os.popen path uses _v86_posix.spawn instead
+# of the missing-on-wasi _posixsubprocess primitives.
+[[provides]]
+module = "subprocess"
+shim = "subprocess.py"
+dest = "Lib/subprocess.py"
+purpose = "Tier C: route Popen/run/check_call through _v86_posix.spawn (v86:posix/process)"
+version = "0.1.0"
+
+# v86-only — the browser forge has no v86 backend.
+[gating]
+include_forges = ["python-wasm-v86"]
+exclude_forges = []

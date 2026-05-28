@@ -1,0 +1,63 @@
+schema = "tegmentum:pylon-pyforge/pkg@0.1.0"
+
+# Python `ssl` over openssl-component (Phase 3a pivot — consume
+# openssl-wasm's TLS interface directly rather than build a separate
+# tegmentum:tls component). See ../../docs/phase-3-tls.md.
+#
+# Shim is installed AS `Lib/ssl_capability.py` (NOT shadowing `Lib/ssl.py`).
+# User code opts in via `sys.modules['ssl'] = ssl_capability` to enable
+# the capability-routed path. End-state per Phase 5 of the
+# componentize-python plan is to retire the static OpenSSL _ssl entirely
+# and have ssl_capability *be* `ssl`.
+
+[package]
+name = "ssl"
+version = "0.1.0"
+description = "TLS over openssl-component, with bundled Mozilla WebPKI roots"
+pattern = "A"
+
+[extension]
+srcdir = "_ssl"
+module_name = "_ssl_capability"
+c_file = "_ssl_capability_module.c"
+wit_dir = "wit"
+gen_dir = "gen"
+gen_import_c = "ssl_import.c"
+gen_import_obj = "ssl_import_component_type.o"
+
+# All five interfaces are imported from openssl-component; see wit/world.wit.
+# x509 + pkey enable mTLS / trust-store assembly; error carries tls-error
+# detail; random feeds RAND_bytes / RAND_priv_bytes.
+[[capabilities.required]]
+interface = "openssl:component/tls"
+version = "0.1.0"
+
+[[capabilities.required]]
+interface = "openssl:component/x509"
+version = "0.1.0"
+
+[[capabilities.required]]
+interface = "openssl:component/pkey"
+version = "0.1.0"
+
+[[capabilities.required]]
+interface = "openssl:component/error"
+version = "0.1.0"
+
+[[capabilities.required]]
+interface = "openssl:component/random"
+version = "0.1.0"
+
+# Opt-in ssl shim. Installed at Lib/ssl_capability.py rather than
+# Lib/ssl.py so both paths coexist during the migration; the static
+# _ssl path remains available until Phase 5 retirement.
+[[provides]]
+module = "ssl_capability"
+shim = "ssl_capability.py"
+dest = "Lib/ssl_capability.py"
+purpose = "Phase 3: cap-route ssl through openssl-component"
+version = "0.1.0"
+
+[gating]
+include_forges = []
+exclude_forges = []

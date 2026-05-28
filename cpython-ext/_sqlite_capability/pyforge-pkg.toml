@@ -1,0 +1,41 @@
+schema = "tegmentum:pylon-pyforge/pkg@0.1.0"
+
+# Python sqlite3 stdlib over the sqlite:wasm capability (sqlite-core.wasm).
+# The shim shadows the stdlib sqlite3 package's __init__.py and routes
+# DB-API 2.0 calls (Connection, Cursor, execute/fetchall/etc.) through
+# the capability's high-level interface — the full DB-API surface,
+# without statically linking libsqlite.
+
+[package]
+name = "sqlite-capability"
+version = "0.1.0"
+description = "sqlite3 stdlib over the sqlite:wasm/high-level capability"
+pattern = "A"
+
+[extension]
+srcdir = "_sqlite_capability"
+module_name = "_sqlite_cap"
+c_file = "_sqlite_capability_module.c"
+wit_dir = "wit"
+gen_dir = "gen"
+gen_import_c = "sqlite_import.c"
+gen_import_obj = "sqlite_import_component_type.o"
+
+# Only the high-level interface — covers the entire DB-API 2.0 surface
+# the Python sqlite3 stdlib needs. low-level (raw sqlite3_*) not imported.
+[[capabilities.required]]
+interface = "sqlite:wasm/high-level"
+version = "0.1.0"
+
+# sqlite3 shim — shadows the stdlib sqlite3 package's __init__.py to
+# route DB-API calls through _sqlite_cap instead of a static libsqlite.
+[[provides]]
+module = "sqlite3"
+shim = "sqlite3.py"
+dest = "Lib/sqlite3/__init__.py"
+purpose = "Tier B: cap-route sqlite3 through _sqlite_cap"
+version = "0.1.0"
+
+[gating]
+include_forges = []
+exclude_forges = []

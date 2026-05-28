@@ -151,11 +151,20 @@ offload = [
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `module` | string | yes | Importable Python module name as the user types it: `zlib`, `bz2`, `compression.zstd`. Becomes `dist.name` in `registry/packages.json`. |
-| `shim` | string | yes | Filename of the shim under this extension's directory. |
-| `dest` | string | yes | Path in the CPython tree, relative to `deps/cpython/`. Usually `Lib/<module>.py` or `Lib/<pkg>/__init__.py`. |
-| `purpose` | string | yes | One-line note; copied verbatim into the forge manifest's overlay entry. |
+| `shim` | string | conditional | Filename of the shim under this extension's directory. Omit when the module is the C extension itself (see "direct-C provides" below). |
+| `dest` | string | conditional | Path in the CPython tree, relative to `deps/cpython/`. Usually `Lib/<module>.py` or `Lib/<pkg>/__init__.py`. Omit alongside `shim`. |
+| `purpose` | string | yes | One-line note; copied verbatim into the forge manifest's overlay entry (or describes the direct-C surface). |
 | `version` | string (PEP 440) | yes | Version reported in the registry's `dist.version`. May differ from `[package].version` if a shim's external API has its own cadence. |
 | `offload` | array of inline tables | optional | Each entry = one offload-able callable for the py-offload registry. |
+
+**Direct-C provides.** When `shim` and `dest` are both omitted, the
+extension exposes its Python surface directly via `PyInit_<module_name>` —
+no `Lib/` overlay is generated. In that case `module` MUST equal
+`[extension].module_name`. `_xxhash` is the reference example: users
+`import _xxhash` and the C extension answers without any Python shim.
+No `[[stdlib_overlay]]` entry is generated for direct-C provides; the
+`packages.json` registry entry still gets generated (module name +
+optional offload entries).
 
 #### Offload sub-entries
 

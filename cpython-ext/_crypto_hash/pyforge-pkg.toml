@@ -1,0 +1,47 @@
+schema = "tegmentum:pylon-pyforge/pkg@0.1.0"
+
+# Cryptographic hashes (sha256, sha512, blake2, …) served by
+# tegmentum:crypto-hash-multiplexer via Pattern A cpython-ext static
+# linkage. See ../../docs/pyforge-pkg-spec.md.
+#
+# NOTE: hashlib_capability.py is currently a proof-of-concept opt-in
+# (`import hashlib_capability`); it is NOT installed by
+# `make install-python-shims` today, and it is NOT in any pylon-forge
+# manifest's [[stdlib_overlay]]. Declaring it here makes the gap
+# discoverable to `pylon pkg verify` so it can be wired in when Phase 5
+# of the componentize-python plan retires the static OpenSSL _hashlib.
+
+[package]
+name = "crypto-hash"
+version = "0.1.0"
+description = "hashlib-shape cryptographic hashes over the crypto-hash-multiplexer capability"
+pattern = "A"
+
+[extension]
+srcdir = "_crypto_hash"
+module_name = "_crypto_hash"
+c_file = "_crypto_hashmodule.c"
+wit_dir = "wit"
+gen_dir = "gen"
+gen_import_c = "crypto_hash_import.c"
+gen_import_obj = "crypto_hash_import_component_type.o"
+
+[[capabilities.required]]
+interface = "tegmentum:crypto-hash-multiplexer/hash-dispatcher"
+version = "0.1.0"
+
+# hashlib_capability — opt-in hashlib replacement. Declared here as the
+# canonical Pattern A surface for cryptographic hashes; once wired into
+# install-python-shims + the forge manifests (Phase 5 OpenSSL retirement),
+# it will install at Lib/hashlib_capability.py and users will opt in via
+# `sys.modules['hashlib'] = hashlib_capability`.
+[[provides]]
+module = "hashlib_capability"
+shim = "hashlib_capability.py"
+dest = "Lib/hashlib_capability.py"
+purpose = "Cap-route hashlib through _crypto_hash (POC, not yet baked — pending Phase 5 OpenSSL retirement)"
+version = "0.1.0"
+
+[gating]
+include_forges = []
+exclude_forges = []
