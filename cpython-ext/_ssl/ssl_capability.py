@@ -190,18 +190,50 @@ class SSLSocket:
 
     # --- I/O ---
     def read(self, buflen: int = 8192) -> bytes:
-        # The C layer raises SSLError("SSL connection is closed") on clean
-        # peer-shutdown (TLS close-notify received). Stdlib ssl.SSLSocket.read
-        # returns b'' (EOF) in that case so callers like urllib (which reads
-        # chunked transfer-encoding responses to EOF) terminate cleanly
-        # rather than crashing mid-stream. Map it here.
+        # The C layer (openssl-component) has a sharp edge around clean
+        # peer-shutdown: once it raises SSLError("SSL connection is closed"),
+        # all further reads also raise — there's no way to recover any TLS
+        # records that may still have been buffered when close-notify fired.
+        # Concretely: a chunked HTTP response often arrives as one big TLS
+        # record (headers + body) followed by a small trailing record (the
+        # `0\r\n\r\n` chunk terminator). When urllib reads the first call's
+        # data and then tries to read more, the TCP connection has typically
+        # already been closed by the server. The first read returns the bulk
+        # of the data; the second read raises before delivering the trailer.
+        #
+        # Workaround: PROACTIVELY drain after every successful read. Issue
+        # a follow-up small read; if data comes back, concatenate; if the
+        # close exception fires, swallow it — we already have data, so this
+        # is the natural EOF. The cost is one extra C call per chunk, which
+        # is negligible vs the alternative (a lost terminator + crashed
+        # parser in the caller).
         try:
-            return self._inner.read(buflen)
+            data = self._inner.read(buflen)
         except SSLError as e:
             msg = str(e).lower()
             if "connection is closed" in msg or "zero return" in msg:
                 return b""
             raise
+
+        if not data:
+            return data  # natural EOF, nothing to drain
+
+        # Drain: combine any immediately-following trailing record into
+        # this return. Stops on empty result or close exception.
+        try:
+            extra = self._inner.read(buflen)
+            while extra:
+                data += extra
+                extra = self._inner.read(buflen)
+        except SSLError as e:
+            msg = str(e).lower()
+            if "connection is closed" not in msg and "zero return" not in msg:
+                # A real error mid-drain — propagate, but don't lose the
+                # data we already have. Re-raising loses `data`; instead
+                # store it on the exception so callers can recover it.
+                e._drained = data  # type: ignore[attr-defined]
+                raise
+        return data
 
     def write(self, data) -> int:
         return self._inner.write(data)
