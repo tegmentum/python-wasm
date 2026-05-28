@@ -52,6 +52,17 @@ interface compression-dispatcher {
         compress: func(input: list<u8>) -> result<list<u8>, string>;
     }
 
+    /// Result of decompress-counted — output bytes plus the number of input
+    /// bytes the stream actually consumed. The remaining `input.len() -
+    /// consumed` bytes are unused (trailing trailer, next member, or
+    /// garbage). Lets callers like gzip's chunked-transfer decoder pick
+    /// up the trailer at the right offset without binary-searching the
+    /// stream boundary.
+    record decompress-result {
+        output: list<u8>,
+        consumed: u64,
+    }
+
     /// Decompressor resource
     resource decompressor {
         /// Create a new decompressor
@@ -63,6 +74,17 @@ interface compression-dispatcher {
         ///
         /// Returns decompressed data or error message
         decompress: func(input: list<u8>) -> result<list<u8>, string>;
+
+        /// Decompress data AND report how many input bytes the stream
+        /// consumed. The provider should report the exact stream end
+        /// (e.g., for DEFLATE: the byte containing the end-of-block
+        /// code of the final block, BFINAL=1). If the provider can't
+        /// distinguish, returns `consumed = input.len()` (all input
+        /// claimed — caller has no recourse but to trust the boundary).
+        ///
+        /// Added in 0.1.x as an additive method; existing consumers
+        /// using the original `decompress` continue to work unchanged.
+        decompress-counted: func(input: list<u8>) -> result<decompress-result, string>;
     }
 
     /// Get list of supported algorithms

@@ -135,6 +135,47 @@ static PyObject *do_decompress(algo_t algo, PyObject *data)
     return list_u8_to_bytes(&output);
 }
 
+
+/* do_decompress_counted: returns (output_bytes, consumed_input_bytes).
+ * Powers `deflate_decompress_counted`, which gives the Python shim O(1)
+ * access to the "where did the deflate stream end" boundary so gzip's
+ * trailer parsing doesn't need binary-search post-decode. */
+static PyObject *do_decompress_counted(algo_t algo, PyObject *data)
+{
+    compression_import_list_u8_t input;
+    if (bytes_to_list_u8(data, &input) < 0) return NULL;
+
+    tegmentum_compression_multiplexer_compression_dispatcher_own_decompressor_t own =
+        tegmentum_compression_multiplexer_compression_dispatcher_constructor_decompressor(algo);
+
+    tegmentum_compression_multiplexer_compression_dispatcher_decompress_result_t result;
+    compression_import_string_t err;
+    tegmentum_compression_multiplexer_compression_dispatcher_borrow_decompressor_t borrow =
+        tegmentum_compression_multiplexer_compression_dispatcher_borrow_decompressor(own);
+    bool is_ok = tegmentum_compression_multiplexer_compression_dispatcher_method_decompressor_decompress_counted(
+        borrow, &input, &result, &err);
+    tegmentum_compression_multiplexer_compression_dispatcher_decompressor_drop_own(own);
+
+    if (!is_ok) return raise_from_wit("decompress_counted failed", &err);
+    PyObject *out_bytes = list_u8_to_bytes(&result.output);
+    if (out_bytes == NULL) return NULL;
+    PyObject *tup = Py_BuildValue("(OK)", out_bytes, (unsigned long long) result.consumed);
+    Py_DECREF(out_bytes);
+    return tup;
+}
+
+
+static PyObject *deflate_decompress_counted(PyObject *self, PyObject *args, PyObject *kw)
+{
+    static char *kwl[] = {"data", NULL};
+    PyObject *data;
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "O:deflate_decompress_counted",
+                                     kwl, &data)) return NULL;
+    return do_decompress_counted(
+        TEGMENTUM_COMPRESSION_MULTIPLEXER_COMPRESSION_DISPATCHER_ALGORITHM_DEFLATE,
+        data);
+}
+
 /* Per-algorithm wrappers. Each picks the right Algorithm constant + default
  * level matching the format's idiomatic default. ------------------------- */
 
@@ -643,6 +684,13 @@ static PyMethodDef compression_methods[] = {
       "deflate_compress(data: bytes, level: int = 6) -> bytes\n"
       "Raw DEFLATE compression via the multiplexer."),
     M("deflate_decompress", deflate_decompress, "Raw INFLATE decompression."),
+    M("deflate_decompress_counted", deflate_decompress_counted,
+      "deflate_decompress_counted(data: bytes) -> (output: bytes, consumed: int)\n\n"
+      "Like deflate_decompress, but also returns the number of input bytes\n"
+      "the deflate stream actually consumed. The remaining data[consumed:]\n"
+      "is unused (gzip trailer, next deflate member, or garbage). Enables\n"
+      "O(1) trailer detection instead of the binary-search workaround in\n"
+      "Lib/zlib.py."),
     M("bzip2_compress",     bzip2_compress,
       "bzip2_compress(data: bytes, level: int = 9) -> bytes  (bz2 backend)"),
     M("bzip2_decompress",   bzip2_decompress, "bzip2 decompression."),

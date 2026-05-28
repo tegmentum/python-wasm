@@ -467,37 +467,33 @@ class _Decompress:
 
 
 def _find_deflate_end(buf, wbits, expected_output):
-    """Recover the deflate-stream-consumed byte count from `buf` given
-    the known `expected_output`. Returns the prefix length (= where the
-    stream ended and unused_data should start).
+    """Return the prefix length of `buf` that the deflate stream consumed.
+    The remaining bytes are unused_data (gzip trailer, next member, …).
 
-    Background: the underlying capability's `decompress` is one-shot and
-    DOES NOT expose `total_in`. Worse, it's lenient about partial input:
-    it returns whatever output it can produce even when the deflate
-    end-of-block code isn't reached yet. Practical effect: binary-
-    searching for the smallest prefix that produces the full output
-    finds a prefix 0-1 bytes SHORTER than the true stream end (because
-    the final byte may contain only Huffman-coded end-of-block bits,
-    not output bits).
+    Phase 5.x Blocked-4 fix: for raw deflate (wbits<0), the cap now
+    exposes `_compress_cap.deflate_decompress_counted` returning
+    `(output, consumed)` from a single C call — O(1) vs the prior
+    O(log N) binary search workaround. zlib/gzip framing wbits fall
+    back to "claim all input" since the framing handler upstream of
+    decompressobj already strips headers/trailers."""
+    # Raw deflate — the cap exposes counted-decompress directly
+    if wbits < 0:
+        if hasattr(_compress_cap, "deflate_decompress_counted"):
+            try:
+                _, consumed = _compress_cap.deflate_decompress_counted(bytes(buf))
+                return consumed
+            except Exception:
+                pass
+        return _find_deflate_end_legacy(buf, wbits, expected_output)
+    # Non-raw wbits: the framing handler already stripped the header
+    # before calling here, so claim all input consumed.
+    return len(buf)
 
-    Two-stage strategy:
-      1. Binary search for the smallest prefix giving full output —
-         this is a lower bound on the true stream length.
-      2. CRC-validated trailer alignment: if the remaining bytes look
-         like they could hold a gzip trailer (CRC32 + length), slide
-         the boundary forward 0–4 bytes to find the position where
-         `buf[pos:pos+4]` interpreted as little-endian uint32 equals
-         crc32(expected_output). If found, that's the true stream end.
 
-    The trailer alignment fixes the most common consumer (`gzip` and
-    `gzip.decompress` for one-member streams). For raw-deflate streams
-    with no trailer, binary search is fine — false positives are
-    harmless since the consumer just sees a slightly-larger `unused_data`.
-
-    A future cap revision exposing `total_in` would make this O(1) and
-    eliminate the ambiguity entirely. Until then this is the best we
-    can do at the Python layer."""
-    # Stage 1: binary search for smallest-full-output prefix
+def _find_deflate_end_legacy(buf, wbits, expected_output):
+    """Pre-Blocked-4 binary-search fallback. Kept for the rare case where
+    `_compress_cap.deflate_decompress_counted` isn't available (e.g. an
+    older bundled cap artifact predating the WIT revision)."""
     lo, hi = 1, len(buf)
     while lo < hi:
         mid = (lo + hi) // 2
@@ -510,32 +506,25 @@ def _find_deflate_end(buf, wbits, expected_output):
         else:
             lo = mid + 1
     smallest_full = lo
-
-    # Stage 2: gzip-trailer alignment (small window since the cap typically
-    # under-reports by at most ~1 byte due to bit-level boundary alignment)
+    # CRC-aligned trailer rescue (gzip trailer is CRC32 LE + length LE).
     remaining = len(buf) - smallest_full
     if remaining >= 8:
-        # CRC32 of expected_output, little-endian (gzip trailer format)
         want_crc = _crc32_le(expected_output)
+        want_len = (len(expected_output) & 0xFFFFFFFF).to_bytes(4, "little")
         for offset in range(min(remaining - 7, 5)):
             pos = smallest_full + offset
-            if buf[pos:pos+4] == want_crc:
-                # Validate length too — gzip trailer is CRC32 (4B) + length (4B)
-                # length is uncompressed-output-length modulo 2^32
-                want_len = (len(expected_output) & 0xFFFFFFFF).to_bytes(4, "little")
-                if buf[pos+4:pos+8] == want_len:
-                    return pos
+            if buf[pos:pos+4] == want_crc and buf[pos+4:pos+8] == want_len:
+                return pos
     return smallest_full
 
 
 def _crc32_le(data):
-    """4-byte little-endian CRC32 (the encoding gzip writes in its trailer)."""
+    """4-byte little-endian CRC32 (legacy-fallback helper)."""
     return (_native_crc32(data) & 0xFFFFFFFF).to_bytes(4, "little")
 
 
-# Pure-Python CRC32 — we can't recursively use our own zlib.crc32 here
-# (would form a dependency cycle inside the shim). The compute is small
-# enough to be O(n) with a precomputed table.
+# Pure-Python CRC32 table (legacy-fallback). Kept tiny — we don't want to
+# recurse into our own zlib.crc32 here.
 def _make_crc32_table():
     table = []
     for n in range(256):

@@ -40,6 +40,22 @@ typedef struct tegmentum_compression_multiplexer_compression_dispatcher_borrow_c
   int32_t __handle;
 } tegmentum_compression_multiplexer_compression_dispatcher_borrow_compressor_t;
 
+typedef struct {
+  uint8_t *ptr;
+  size_t len;
+} compression_import_list_u8_t;
+
+// Result of decompress-counted — output bytes plus the number of input
+// bytes the stream actually consumed. The remaining `input.len() -
+// consumed` bytes are unused (trailing trailer, next member, or
+// garbage). Lets callers like gzip's chunked-transfer decoder pick
+// up the trailer at the right offset without binary-searching the
+// stream boundary.
+typedef struct tegmentum_compression_multiplexer_compression_dispatcher_decompress_result_t {
+  compression_import_list_u8_t   output;
+  uint64_t   consumed;
+} tegmentum_compression_multiplexer_compression_dispatcher_decompress_result_t;
+
 typedef struct tegmentum_compression_multiplexer_compression_dispatcher_own_decompressor_t {
   int32_t __handle;
 } tegmentum_compression_multiplexer_compression_dispatcher_own_decompressor_t;
@@ -49,17 +65,20 @@ typedef struct tegmentum_compression_multiplexer_compression_dispatcher_borrow_d
 } tegmentum_compression_multiplexer_compression_dispatcher_borrow_decompressor_t;
 
 typedef struct {
-  uint8_t *ptr;
-  size_t len;
-} compression_import_list_u8_t;
-
-typedef struct {
   bool is_err;
   union {
     compression_import_list_u8_t ok;
     compression_import_string_t err;
   } val;
 } tegmentum_compression_multiplexer_compression_dispatcher_result_list_u8_string_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    tegmentum_compression_multiplexer_compression_dispatcher_decompress_result_t ok;
+    compression_import_string_t err;
+  } val;
+} tegmentum_compression_multiplexer_compression_dispatcher_result_decompress_result_string_t;
 
 typedef struct {
   tegmentum_compression_multiplexer_compression_dispatcher_algorithm_t *ptr;
@@ -135,6 +154,16 @@ extern tegmentum_compression_multiplexer_compression_dispatcher_own_decompressor
 // 
 // Returns decompressed data or error message
 extern bool tegmentum_compression_multiplexer_compression_dispatcher_method_decompressor_decompress(tegmentum_compression_multiplexer_compression_dispatcher_borrow_decompressor_t self, compression_import_list_u8_t *input, compression_import_list_u8_t *ret, compression_import_string_t *err);
+// Decompress data AND report how many input bytes the stream
+// consumed. The provider should report the exact stream end
+// (e.g., for DEFLATE: the byte containing the end-of-block
+// code of the final block, BFINAL=1). If the provider can't
+// distinguish, returns `consumed = input.len()` (all input
+// claimed — caller has no recourse but to trust the boundary).
+// 
+// Added in 0.1.x as an additive method; existing consumers
+// using the original `decompress` continue to work unchanged.
+extern bool tegmentum_compression_multiplexer_compression_dispatcher_method_decompressor_decompress_counted(tegmentum_compression_multiplexer_compression_dispatcher_borrow_decompressor_t self, compression_import_list_u8_t *input, tegmentum_compression_multiplexer_compression_dispatcher_decompress_result_t *ret, compression_import_string_t *err);
 // Get list of supported algorithms
 // 
 // Returns algorithms available in this multiplexer instance
@@ -218,15 +247,19 @@ extern void tegmentum_compression_multiplexer_compression_dispatcher_compressor_
 
 extern tegmentum_compression_multiplexer_compression_dispatcher_borrow_compressor_t tegmentum_compression_multiplexer_compression_dispatcher_borrow_compressor(tegmentum_compression_multiplexer_compression_dispatcher_own_compressor_t handle);
 
+void compression_import_list_u8_free(compression_import_list_u8_t *ptr);
+
+void tegmentum_compression_multiplexer_compression_dispatcher_decompress_result_free(tegmentum_compression_multiplexer_compression_dispatcher_decompress_result_t *ptr);
+
 extern void tegmentum_compression_multiplexer_compression_dispatcher_decompressor_drop_own(tegmentum_compression_multiplexer_compression_dispatcher_own_decompressor_t handle);
 
 extern void tegmentum_compression_multiplexer_compression_dispatcher_decompressor_drop_borrow(tegmentum_compression_multiplexer_compression_dispatcher_borrow_decompressor_t handle);
 
 extern tegmentum_compression_multiplexer_compression_dispatcher_borrow_decompressor_t tegmentum_compression_multiplexer_compression_dispatcher_borrow_decompressor(tegmentum_compression_multiplexer_compression_dispatcher_own_decompressor_t handle);
 
-void compression_import_list_u8_free(compression_import_list_u8_t *ptr);
-
 void tegmentum_compression_multiplexer_compression_dispatcher_result_list_u8_string_free(tegmentum_compression_multiplexer_compression_dispatcher_result_list_u8_string_t *ptr);
+
+void tegmentum_compression_multiplexer_compression_dispatcher_result_decompress_result_string_free(tegmentum_compression_multiplexer_compression_dispatcher_result_decompress_result_string_t *ptr);
 
 void tegmentum_compression_multiplexer_compression_dispatcher_list_algorithm_free(tegmentum_compression_multiplexer_compression_dispatcher_list_algorithm_t *ptr);
 

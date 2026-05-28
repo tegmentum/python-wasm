@@ -17,6 +17,9 @@ extern int32_t __wasm_import_tegmentum_compression_multiplexer_compression_dispa
 __attribute__((__import_module__("tegmentum:compression-multiplexer/compression-dispatcher@0.1.0"), __import_name__("[method]decompressor.decompress")))
 extern void __wasm_import_tegmentum_compression_multiplexer_compression_dispatcher_method_decompressor_decompress(int32_t, uint8_t *, size_t, uint8_t *);
 
+__attribute__((__import_module__("tegmentum:compression-multiplexer/compression-dispatcher@0.1.0"), __import_name__("[method]decompressor.decompress-counted")))
+extern void __wasm_import_tegmentum_compression_multiplexer_compression_dispatcher_method_decompressor_decompress_counted(int32_t, uint8_t *, size_t, uint8_t *);
+
 __attribute__((__import_module__("tegmentum:compression-multiplexer/compression-dispatcher@0.1.0"), __import_name__("supported-algorithms")))
 extern void __wasm_import_tegmentum_compression_multiplexer_compression_dispatcher_supported_algorithms(uint8_t *);
 
@@ -89,6 +92,20 @@ tegmentum_compression_multiplexer_compression_dispatcher_borrow_compressor_t teg
   return (tegmentum_compression_multiplexer_compression_dispatcher_borrow_compressor_t) { arg.__handle };
 }
 
+void compression_import_list_u8_free(compression_import_list_u8_t *ptr) {
+  size_t list_len = ptr->len;
+  if (list_len > 0) {
+    uint8_t *list_ptr = ptr->ptr;
+    for (size_t i = 0; i < list_len; i++) {
+    }
+    free(list_ptr);
+  }
+}
+
+void tegmentum_compression_multiplexer_compression_dispatcher_decompress_result_free(tegmentum_compression_multiplexer_compression_dispatcher_decompress_result_t *ptr) {
+  compression_import_list_u8_free(&ptr->output);
+}
+
 __attribute__((__import_module__("tegmentum:compression-multiplexer/compression-dispatcher@0.1.0"), __import_name__("[resource-drop]decompressor")))
 extern void __wasm_import_tegmentum_compression_multiplexer_compression_dispatcher_decompressor_drop(int32_t handle);
 
@@ -104,19 +121,17 @@ tegmentum_compression_multiplexer_compression_dispatcher_borrow_decompressor_t t
   return (tegmentum_compression_multiplexer_compression_dispatcher_borrow_decompressor_t) { arg.__handle };
 }
 
-void compression_import_list_u8_free(compression_import_list_u8_t *ptr) {
-  size_t list_len = ptr->len;
-  if (list_len > 0) {
-    uint8_t *list_ptr = ptr->ptr;
-    for (size_t i = 0; i < list_len; i++) {
-    }
-    free(list_ptr);
-  }
-}
-
 void tegmentum_compression_multiplexer_compression_dispatcher_result_list_u8_string_free(tegmentum_compression_multiplexer_compression_dispatcher_result_list_u8_string_t *ptr) {
   if (!ptr->is_err) {
     compression_import_list_u8_free(&ptr->val.ok);
+  } else {
+    compression_import_string_free(&ptr->val.err);
+  }
+}
+
+void tegmentum_compression_multiplexer_compression_dispatcher_result_decompress_result_string_free(tegmentum_compression_multiplexer_compression_dispatcher_result_decompress_result_string_t *ptr) {
+  if (!ptr->is_err) {
+    tegmentum_compression_multiplexer_compression_dispatcher_decompress_result_free(&ptr->val.ok);
   } else {
     compression_import_string_free(&ptr->val.err);
   }
@@ -254,6 +269,36 @@ bool tegmentum_compression_multiplexer_compression_dispatcher_method_decompresso
     case 1: {
       result.is_err = true;
       result.val.err = (compression_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool tegmentum_compression_multiplexer_compression_dispatcher_method_decompressor_decompress_counted(tegmentum_compression_multiplexer_compression_dispatcher_borrow_decompressor_t self, compression_import_list_u8_t *input, tegmentum_compression_multiplexer_compression_dispatcher_decompress_result_t *ret, compression_import_string_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(16+2*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_compression_multiplexer_compression_dispatcher_method_decompressor_decompress_counted((self).__handle, (uint8_t *) (*input).ptr, (*input).len, ptr);
+  tegmentum_compression_multiplexer_compression_dispatcher_result_decompress_result_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (tegmentum_compression_multiplexer_compression_dispatcher_decompress_result_t) {
+        (compression_import_list_u8_t) (compression_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) },
+        (uint64_t) (uint64_t) (*((int64_t*) (ptr + (8+2*sizeof(void*))))),
+      };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (compression_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
       break;
     }
   }
