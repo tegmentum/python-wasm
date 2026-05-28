@@ -1,0 +1,34 @@
+From: python-wasm build
+Subject: Make python.sh --version smoke test non-fatal
+
+The cpython WASI build's final step runs `python.sh --version` to confirm
+the build artifact loads. In our build, python.wasm has unsatisfied
+component imports (the tegmentum:* multiplexers are plugged in later via
+wac/composectl), so wasmtime errors before main runs. The build itself
+succeeded — only the smoke check fails.
+
+Convert the check_call to a try/except + warn, matching the equivalent
+fix in 3.14's Tools/wasm/wasi/__main__.py.
+
+diff --git a/Tools/wasm/wasi.py b/Tools/wasm/wasi.py
+--- a/Tools/wasm/wasi.py
++++ b/Tools/wasm/wasi.py
+@@ -276,7 +276,17 @@ def make_wasi_python(context, working_dir):
+              quiet=context.quiet)
+
+     exec_script = working_dir / "python.sh"
+-    subprocess.check_call([exec_script, "--version"])
++    # The smoke check runs python.sh --version under wasmtime; if any
++    # component imports are unsatisfied (e.g. tegmentum:*-multiplexer is
++    # composed in later via wac/composectl), wasmtime errors. That's fine
++    # here — the wasm build itself succeeded, and Phase 1+ extensions
++    # deliberately leave unsatisfied imports. Make it non-fatal so the
++    # rest of the make chain (web-transpile, etc.) proceeds.
++    try:
++        subprocess.check_call([exec_script, "--version"])
++    except subprocess.CalledProcessError as e:
++        print(f"⚠️  smoke `python.sh --version` failed (rc={e.returncode}); "
++              "OK if python.wasm has unsatisfied component imports composed in later")
+
+
+ def build_all(context):

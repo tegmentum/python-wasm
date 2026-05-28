@@ -86,10 +86,22 @@ build: fetch-deps
 	# tree (symlinks + Setup.local). Idempotent. The deps/cpython tree is
 	# gitignored so these have to be (re-)applied locally on each clone.
 	bash scripts/wire-cpython-ext.sh
-	cd $(CPYTHON_DIR) && python3 Tools/wasm/wasi build \
-		--host-triple $(HOST_TRIPLE) \
-		--wasi-sdk $(WASI_SDK_DIR) \
-		$(WITH_OPENSSL_FLAG)
+	# CPython's WASI-build entrypoint moved between minor versions:
+	#   3.13:  Tools/wasm/wasi.py        (single-file module)
+	#   3.14+: Tools/wasm/wasi/__main__.py (package)
+	# Detect which shape this profile's tree has and invoke accordingly.
+	cd $(CPYTHON_DIR) && \
+	    if [ -f Tools/wasm/wasi.py ]; then \
+	        python3 Tools/wasm/wasi.py build \
+	            --host-triple $(HOST_TRIPLE) \
+	            --wasi-sdk $(WASI_SDK_DIR) \
+	            $(WITH_OPENSSL_FLAG); \
+	    else \
+	        python3 Tools/wasm/wasi build \
+	            --host-triple $(HOST_TRIPLE) \
+	            --wasi-sdk $(WASI_SDK_DIR) \
+	            $(WITH_OPENSSL_FLAG); \
+	    fi
 
 run:
 	@bash scripts/run-python.sh $(ARGS)
@@ -168,9 +180,13 @@ install-python-shims:
 	@cp $(PROJECT_DIR)/cpython-ext/_compression/lzma.py \
 	    $(CPYTHON_DIR)/Lib/lzma.py
 	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/lzma.py  (Tier A: routes to _compress_cap.lzma_* / FORMAT_XZ)"
-	@cp $(PROJECT_DIR)/cpython-ext/_compression/zstd.py \
-	    $(CPYTHON_DIR)/Lib/compression/zstd/__init__.py
-	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/compression/zstd/__init__.py  (Tier A: routes to _compress_cap.zstd_*)"
+	@if [ -d "$(CPYTHON_DIR)/Lib/compression/zstd" ]; then \
+	    cp $(PROJECT_DIR)/cpython-ext/_compression/zstd.py \
+	        $(CPYTHON_DIR)/Lib/compression/zstd/__init__.py && \
+	    echo "installed: $(PYTHON_SOURCE_DIR)/Lib/compression/zstd/__init__.py  (Tier A: routes to _compress_cap.zstd_*)"; \
+	else \
+	    echo "skipped: $(PYTHON_SOURCE_DIR)/Lib/compression/zstd/  (not a stdlib module in this Python version — added in 3.14)"; \
+	fi
 	@cp $(PROJECT_DIR)/cpython-ext/_compression/zlib.py \
 	    $(CPYTHON_DIR)/Lib/zlib.py
 	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/zlib.py  (Tier A: routes to _compress_cap.deflate_* + C-speed crc32/adler32)"
@@ -200,28 +216,34 @@ install-python-shims:
 	    echo "skipped: subprocess.py shim (WITH_V86_POSIX=0; using stdlib subprocess from Lib/)"; \
 	fi
 
+# Test targets run against an already-built artifact at $(COMPOSED_WASM).
+# Run `make python-composed PROFILE=<name>` once (or just `make python-composed`
+# for the default profile) to produce it. The test targets don't re-trigger
+# build because CPython's wasi.py isn't idempotent across rebuilds on all
+# minor versions (notably 3.13).
+#
 # Componentize-python plan, Phase 1: end-to-end smoke test of the composed
 # component + _compression extension + multiplexer.
-test-compression-extension: python-composed
+test-compression-extension:
 	@bash scripts/test-compression-extension.sh
 
 # Componentize-python plan, Phase 2: end-to-end smoke test of the composed
 # component + _crypto_hash + _xxhash extensions against canonical vectors for
 # all 9 crypto + 5 verifiable non-crypto algorithms.
-test-hash-extensions: python-composed
+test-hash-extensions:
 	@bash scripts/test-hash-extensions.sh
 
 # Componentize-python plan, Phase 3b: end-to-end smoke of _ssl_capability.
 # Exercises 3b.1 (scaffold), 3b.2 (MemoryBIO with stdlib parity), and 3b.3
 # (_SSLContext + _SSLSocket type wiring + config knobs, no network).
-test-ssl-capability: python-composed
+test-ssl-capability:
 	@bash scripts/test-ssl-capability.sh
 
 # Componentize-python plan, Phase 3c.1: NETWORK-GATED end-to-end TLS smoke.
 # Does a real HTTPS request through _SSLSocket -> openssl-component ->
 # wasi:sockets/tcp. Default-OFF; opt-in with NETWORK=1. This is the gating
 # decision-point #2 from docs/phase-3-tls.md ("real handshake works?").
-test-ssl-network: python-composed
+test-ssl-network:
 	@NETWORK=1 bash scripts/test-ssl-network.sh
 
 # Componentize-python plan, Tier 1 v86: end-to-end smoke of _v86_posix +
@@ -229,7 +251,7 @@ test-ssl-network: python-composed
 # exception hierarchy + spawn → GuestNotReadyError contract (the stub's
 # only behavior — see crates/v86-posix-stub in the v86 repo).
 .PHONY: test-v86-posix-extension
-test-v86-posix-extension: python-composed
+test-v86-posix-extension:
 	@bash scripts/test-v86-posix-extension.sh
 
 # Componentize-python plan, Phase 4: generate the composectl plan that pins

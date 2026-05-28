@@ -33,16 +33,21 @@ echo "Cloning CPython $GIT_TAG into $CPYTHON_DIR..."
 git clone --depth 1 --branch "$GIT_TAG" \
     https://github.com/python/cpython.git "$CPYTHON_DIR"
 
-# Apply patches
-PATCHES_DIR="$PROJECT_DIR/patches"
+# Apply per-version patches. The CPython tree's structure changes between
+# minor versions (Tools/wasm/wasi.py in 3.13, Tools/wasm/wasi/__main__.py
+# in 3.14, etc.), so each Python minor version gets its own patches dir.
+PY_MINOR="$(printf '%s\n' "$PYTHON_VERSION" | cut -d. -f1-2)"
+PATCHES_DIR="$PROJECT_DIR/patches/$PY_MINOR"
 if [ -d "$PATCHES_DIR" ] && ls "$PATCHES_DIR"/*.patch >/dev/null 2>&1; then
-    echo "Applying patches..."
+    echo "Applying $PY_MINOR patches..."
     cd "$CPYTHON_DIR"
     for patch in "$PATCHES_DIR"/*.patch; do
         echo "  Applying $(basename "$patch")..."
         git apply "$patch"
     done
     cd "$PROJECT_DIR"
+else
+    echo "No patches found for Python $PY_MINOR at $PATCHES_DIR (this is fine if the version doesn't need any)."
 fi
 
 # Maintain the back-compat symlink: deps/cpython -> the most recently

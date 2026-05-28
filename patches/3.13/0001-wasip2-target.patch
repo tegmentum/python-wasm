@@ -1,0 +1,30 @@
+From: python-wasm build
+Subject: Add --target=wasm32-wasip2 clang flag when targeting wasip2
+
+3.13's Tools/wasm/wasi.py defaults to wasm32-wasip1 and doesn't pass an
+explicit --target to clang. Building for wasm32-wasip2 needs clang to know
+which sysroot to use (wasi-sdk-33 ships both wasip1 and wasip2 sysroots
+side-by-side and picks one by --target).
+
+3.14 has a structurally-equivalent patch under Tools/wasm/wasi/__main__.py
+(the path got reorganized between minor versions). This patch is the 3.13
+counterpart targeting the pre-reorg single-file wasi.py.
+
+diff --git a/Tools/wasm/wasi.py b/Tools/wasm/wasi.py
+--- a/Tools/wasm/wasi.py
++++ b/Tools/wasm/wasi.py
+@@ -179,6 +179,13 @@ def wasi_sdk_env(context):
+     if wasi_sdk_path != pathlib.Path("/opt/wasi-sdk"):
+         for compiler in ["CC", "CPP", "CXX"]:
+             env[compiler] += f" --sysroot={sysroot}"
+
++    # When targeting wasip2, explicitly pass --target so clang selects the
++    # wasip2 sysroot and uses wasm-component-ld to produce a component.
++    if hasattr(context, "host_triple") and "wasip1" not in context.host_triple:
++        target_flag = f" --target={context.host_triple}"
++        for compiler in ["CC", "CPP", "CXX"]:
++            env[compiler] += target_flag
++
+     env["PKG_CONFIG_PATH"] = ""
+     env["PKG_CONFIG_LIBDIR"] = os.pathsep.join(
+                                 map(os.fsdecode,
