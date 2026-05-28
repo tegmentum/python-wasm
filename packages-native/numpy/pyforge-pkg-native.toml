@@ -1,0 +1,59 @@
+schema = "tegmentum:pylon-pyforge/pkg-native@0.1.0"
+
+# Native numpy 1.26.4 over the v86 native-tier worker.
+#
+# Reference example for pyforge-pkg-native.toml (Pattern N). See
+# ../../docs/pyforge-pkg-native-spec.md for the schema.
+#
+# This package describes a v86-hosted numpy: a 32-bit Linux guest with
+# CPython 3.11 + numpy 1.26.4 installed, fronted by an offload-bridge
+# component that translates `tegmentum:py-offload/offload.run` calls
+# into guest-side Python invocations.
+
+[package]
+name = "numpy"
+version = "1.26.4"
+description = "Native numpy 1.26.4 (cp311 manylinux2014_i686) over v86"
+pattern = "N"
+
+[guest]
+image = "v86://debian-bookworm-py311-i686"
+image_sha256 = "PLACEHOLDER-no-canonical-debian-py311-image-built-yet"
+cpython_version = "3.11.7"
+arch = "i686"
+
+[[wheels]]
+name = "numpy"
+version = "1.26.4"
+filename = "numpy-1.26.4-cp311-cp311-manylinux2014_i686.manylinux_2_17_i686.whl"
+sha256 = "PLACEHOLDER-fetch-from-pypi-and-fill"
+source = "pypi:https://files.pythonhosted.org/packages/...numpy-1.26.4-cp311-cp311-manylinux2014_i686.manylinux_2_17_i686.whl"
+
+[[provides]]
+module = "numpy"
+purpose = "Native numpy array ops + linalg over v86 (call-offload, codec via arrow)"
+version = "1.26.4"
+offload = [
+  { callable = "array",        doc = "numpy.array — build an ndarray from a Python sequence.", codecs = ["msgpack", "arrow"] },
+  { callable = "zeros",        doc = "numpy.zeros — allocate a zero-filled array.",            codecs = ["msgpack", "arrow"] },
+  { callable = "matmul",       doc = "numpy.matmul — matrix product (a @ b).",                 codecs = ["arrow"] },
+  { callable = "linalg.svd",   doc = "numpy.linalg.svd — singular value decomposition.",       codecs = ["arrow"] },
+  { callable = "linalg.solve", doc = "numpy.linalg.solve — solve a linear system.",            codecs = ["arrow"] },
+  { callable = "fft.fft",      doc = "numpy.fft.fft — discrete Fourier transform.",            codecs = ["arrow"] },
+]
+
+# [bridge] deliberately omitted — the v86-offload-bridge wasm component
+# does not exist as of 2026-05. Today's path is the host shim described
+# in docs/native-execution-and-parallelism.md §4.2 ("today: implement
+# offload.run as a host shim that drives the v86 component via
+# wasi:cli/command"). Add this block when the bridge component is built:
+#
+#   [bridge]
+#   component_sha256 = "<sha>"
+#   local_path = "${V86_OFFLOAD_BRIDGE_WASM:-$HOME/git/v86-offload-bridge/build/bridge.wasm}"
+#   source = "git@github.com:tegmentum/v86-offload-bridge.git#<ref>"
+#   provides = ["tegmentum:py-offload/offload@0.1.0"]
+
+[gating]
+requires_host = ["v86"]
+prefer_over = []
