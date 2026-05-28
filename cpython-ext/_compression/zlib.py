@@ -409,23 +409,41 @@ class _Decompress:
     def unconsumed_tail(self):
         return self._unconsumed
 
+    def _wbits(self):
+        """Translate stored mode back into a zlib wbits value for the
+        underlying one-shot decompress call."""
+        return (-MAX_WBITS if self._mode == "raw"
+                else MAX_WBITS if self._mode == "zlib"
+                else MAX_WBITS | 16 if self._mode == "gzip"
+                else MAX_WBITS | 32)  # auto
+
     def decompress(self, data, max_length=0):
         if self._eof:
+            # Stream already finished. Any additional input becomes
+            # unused_data (the gzip + multi-member compression cases
+            # need this — they read trailers from unused_data).
+            if data:
+                self._unused += bytes(data)
             return b""
         self._buf.extend(data)
         try:
-            full = decompress(bytes(self._buf),
-                              wbits=(
-                                  -MAX_WBITS if self._mode == "raw"
-                                  else MAX_WBITS if self._mode == "zlib"
-                                  else MAX_WBITS | 16 if self._mode == "gzip"
-                                  else MAX_WBITS | 32  # auto
-                              ))
+            full = decompress(bytes(self._buf), wbits=self._wbits())
         except error:
             # Likely truncated input — buffer for next call.
             return b""
         self._eof = True
         self._out = full
+        # Find how many input bytes the deflate/zlib/gzip stream actually
+        # consumed; the rest is `unused_data`. The capability's decompress
+        # is one-shot and doesn't report consumed-bytes, so we binary-
+        # search the smallest prefix of self._buf that decodes to the
+        # same output. For typical gzip with an 8-byte trailer this is
+        # ~log2(N) decompress calls — acceptable overhead vs. losing the
+        # trailer entirely (which is what gzip.decompress reads to verify
+        # CRC32 + length).
+        consumed = _find_deflate_end(bytes(self._buf), self._wbits(), full)
+        if consumed < len(self._buf):
+            self._unused = bytes(self._buf[consumed:])
         if max_length and 0 < max_length < len(full):
             self._unconsumed = full[max_length:]
             return full[:max_length]
@@ -448,6 +466,96 @@ class _Decompress:
         return new
 
 
+def _find_deflate_end(buf, wbits, expected_output):
+    """Recover the deflate-stream-consumed byte count from `buf` given
+    the known `expected_output`. Returns the prefix length (= where the
+    stream ended and unused_data should start).
+
+    Background: the underlying capability's `decompress` is one-shot and
+    DOES NOT expose `total_in`. Worse, it's lenient about partial input:
+    it returns whatever output it can produce even when the deflate
+    end-of-block code isn't reached yet. Practical effect: binary-
+    searching for the smallest prefix that produces the full output
+    finds a prefix 0-1 bytes SHORTER than the true stream end (because
+    the final byte may contain only Huffman-coded end-of-block bits,
+    not output bits).
+
+    Two-stage strategy:
+      1. Binary search for the smallest prefix giving full output —
+         this is a lower bound on the true stream length.
+      2. CRC-validated trailer alignment: if the remaining bytes look
+         like they could hold a gzip trailer (CRC32 + length), slide
+         the boundary forward 0–4 bytes to find the position where
+         `buf[pos:pos+4]` interpreted as little-endian uint32 equals
+         crc32(expected_output). If found, that's the true stream end.
+
+    The trailer alignment fixes the most common consumer (`gzip` and
+    `gzip.decompress` for one-member streams). For raw-deflate streams
+    with no trailer, binary search is fine — false positives are
+    harmless since the consumer just sees a slightly-larger `unused_data`.
+
+    A future cap revision exposing `total_in` would make this O(1) and
+    eliminate the ambiguity entirely. Until then this is the best we
+    can do at the Python layer."""
+    # Stage 1: binary search for smallest-full-output prefix
+    lo, hi = 1, len(buf)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        try:
+            out = decompress(buf[:mid], wbits=wbits)
+        except error:
+            out = None
+        if out == expected_output:
+            hi = mid
+        else:
+            lo = mid + 1
+    smallest_full = lo
+
+    # Stage 2: gzip-trailer alignment (small window since the cap typically
+    # under-reports by at most ~1 byte due to bit-level boundary alignment)
+    remaining = len(buf) - smallest_full
+    if remaining >= 8:
+        # CRC32 of expected_output, little-endian (gzip trailer format)
+        want_crc = _crc32_le(expected_output)
+        for offset in range(min(remaining - 7, 5)):
+            pos = smallest_full + offset
+            if buf[pos:pos+4] == want_crc:
+                # Validate length too — gzip trailer is CRC32 (4B) + length (4B)
+                # length is uncompressed-output-length modulo 2^32
+                want_len = (len(expected_output) & 0xFFFFFFFF).to_bytes(4, "little")
+                if buf[pos+4:pos+8] == want_len:
+                    return pos
+    return smallest_full
+
+
+def _crc32_le(data):
+    """4-byte little-endian CRC32 (the encoding gzip writes in its trailer)."""
+    return (_native_crc32(data) & 0xFFFFFFFF).to_bytes(4, "little")
+
+
+# Pure-Python CRC32 — we can't recursively use our own zlib.crc32 here
+# (would form a dependency cycle inside the shim). The compute is small
+# enough to be O(n) with a precomputed table.
+def _make_crc32_table():
+    table = []
+    for n in range(256):
+        c = n
+        for _ in range(8):
+            c = (c >> 1) ^ (0xedb88320 if c & 1 else 0)
+        table.append(c)
+    return table
+
+
+_CRC32_TABLE = _make_crc32_table()
+
+
+def _native_crc32(data):
+    c = 0xFFFFFFFF
+    for b in data:
+        c = _CRC32_TABLE[(c ^ b) & 0xff] ^ (c >> 8)
+    return c ^ 0xFFFFFFFF
+
+
 def compressobj(level=Z_DEFAULT_COMPRESSION, method=DEFLATED, wbits=MAX_WBITS,
                 memLevel=DEF_MEM_LEVEL, strategy=Z_DEFAULT_STRATEGY, zdict=None):
     return _Compress(level, method, wbits, memLevel, strategy, zdict)
@@ -455,3 +563,46 @@ def compressobj(level=Z_DEFAULT_COMPRESSION, method=DEFLATED, wbits=MAX_WBITS,
 
 def decompressobj(wbits=MAX_WBITS, zdict=None):
     return _Decompress(wbits, zdict)
+
+
+class _ZlibDecompressor:
+    """Streaming decompressor matching stdlib `zlib._ZlibDecompressor`.
+
+    CPython's stdlib gzip module instantiates this via
+    `compression._streams.DecompressReader(_PaddedFile(fp),
+    zlib._ZlibDecompressor, wbits=-zlib.MAX_WBITS)`. The reader feeds
+    file chunks to `.decompress(chunk, max_length=...)` and reads
+    `.eof` / `.needs_input` / `.unused_data` between calls.
+
+    Wraps `_Decompress` (which already accumulates input until the
+    one-shot capability decompress succeeds), surfacing the stdlib's
+    `needs_input` attribute. eof, unused_data, decompress(data,
+    max_length=-1) semantics match `zlib._ZlibDecompressor` so the
+    gzip module's incremental usage works."""
+
+    def __init__(self, wbits=MAX_WBITS, zdict=None):
+        self._inner = _Decompress(wbits=wbits, zdict=zdict)
+        self._needs_input = True
+
+    @property
+    def eof(self):
+        return self._inner.eof
+
+    @property
+    def needs_input(self):
+        return self._needs_input
+
+    @property
+    def unused_data(self):
+        return self._inner.unused_data
+
+    def decompress(self, data, max_length=-1):
+        # Stdlib uses max_length=-1 to mean "unlimited"; _Decompress
+        # uses 0. Translate.
+        if max_length == -1:
+            max_length = 0
+        out = self._inner.decompress(data, max_length=max_length)
+        # needs_input becomes False when we have leftover output to
+        # consume (max_length truncated and there's unconsumed_tail).
+        self._needs_input = not self._inner.unconsumed_tail
+        return out
