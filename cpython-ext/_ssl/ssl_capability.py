@@ -190,7 +190,18 @@ class SSLSocket:
 
     # --- I/O ---
     def read(self, buflen: int = 8192) -> bytes:
-        return self._inner.read(buflen)
+        # The C layer raises SSLError("SSL connection is closed") on clean
+        # peer-shutdown (TLS close-notify received). Stdlib ssl.SSLSocket.read
+        # returns b'' (EOF) in that case so callers like urllib (which reads
+        # chunked transfer-encoding responses to EOF) terminate cleanly
+        # rather than crashing mid-stream. Map it here.
+        try:
+            return self._inner.read(buflen)
+        except SSLError as e:
+            msg = str(e).lower()
+            if "connection is closed" in msg or "zero return" in msg:
+                return b""
+            raise
 
     def write(self, data) -> int:
         return self._inner.write(data)

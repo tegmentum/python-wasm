@@ -101,6 +101,11 @@ CA_BUNDLE_CERT_COUNT = _impl.CA_BUNDLE_CERT_COUNT
 create_default_context = _impl.create_default_context
 _create_unverified_context = _impl._create_unverified_context
 
+# http.client + urllib.request reach for `ssl._create_default_https_context`
+# (note: with `default` in the name) to build the HTTPS context. ssl_capability
+# exposes the same callable as `_create_https_context`; alias it here.
+_create_default_https_context = _impl._create_https_context
+
 # Random
 RAND_bytes = _impl.RAND_bytes
 RAND_priv_bytes = _impl.RAND_priv_bytes
@@ -370,6 +375,7 @@ __all__ = (
     "HAS_NPN", "HAS_SNI", "HAS_PSK", "HAS_NEVER_CHECK_COMMON_NAME",
     # Functions
     "create_default_context", "_create_unverified_context",
+    "_create_default_https_context",
     "RAND_bytes", "RAND_priv_bytes", "RAND_add", "RAND_status",
     "DER_cert_to_PEM_cert", "PEM_cert_to_DER_cert",
     "get_server_certificate", "get_default_verify_paths",
