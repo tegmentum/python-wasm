@@ -161,6 +161,14 @@ install-python-shims:
 	@cp $(PROJECT_DIR)/cpython-ext/_mmap_shim/mmap.py \
 	    $(PROJECT_DIR)/deps/cpython/Lib/mmap.py
 	@echo "installed: deps/cpython/Lib/mmap.py  (Blocked-3: pure-Python mmap on bytearray + file I/O; no cap needed in single-process wasm)"
+	@cp $(PROJECT_DIR)/cpython-ext/_threading_shim/threading.py \
+	    $(PROJECT_DIR)/deps/cpython/Lib/threading.py
+	@echo "installed: deps/cpython/Lib/threading.py  (LOW-2: single-threaded shim — Thread.start() runs target() inline since wasm has no preemptive threads)"
+	@cp $(PROJECT_DIR)/cpython-ext/_ctypes_shim/__init__.py \
+	    $(PROJECT_DIR)/deps/cpython/Lib/ctypes/__init__.py
+	@cp $(PROJECT_DIR)/cpython-ext/_ctypes_shim/util.py \
+	    $(PROJECT_DIR)/deps/cpython/Lib/ctypes/util.py
+	@echo "installed: deps/cpython/Lib/ctypes/  (LOW-1: stub — import succeeds with c_* types; CDLL/cdll raise NotImplementedError since wasm has no native ABI)"
 	@if [ "$(WITH_V86_POSIX)" = "1" ]; then \
 	    cp $(PROJECT_DIR)/cpython-ext/_v86_posix/subprocess.py \
 	        $(PROJECT_DIR)/deps/cpython/Lib/subprocess.py && \
