@@ -1,15 +1,15 @@
 """bz2 shim — routes through the compression-multiplexer capability.
 
 Drop-in replacement for the stdlib `bz2` module that uses the
-`_compress_cap` capability extension instead of the missing-on-wasi
+`_bz2_cap` capability extension instead of the missing-on-wasi
 `_bz2` C extension. Installed into `deps/cpython/Lib/bz2.py` by
 `make install-python-shims`, shadowing the stdlib copy.
 
 API parity:
 
   Module-level
-    bz2.compress(data, compresslevel=9) -> bytes      ✓ via _compress_cap
-    bz2.decompress(data)                -> bytes      ✓ via _compress_cap
+    bz2.compress(data, compresslevel=9) -> bytes      ✓ via _bz2_cap
+    bz2.decompress(data)                -> bytes      ✓ via _bz2_cap
     bz2.open(...)                                     ✓ delegates to BZ2File
 
   Streaming classes (chunked compress/decompress; buffer until flush)
@@ -41,7 +41,7 @@ import os
 from builtins import open as _builtin_open
 from compression._common import _streams
 
-import _compress_cap
+import _bz2_cap
 
 
 # Mode constants kept for compatibility with stdlib bz2.py callers that
@@ -81,7 +81,7 @@ class BZ2Compressor:
         if self._flushed:
             raise ValueError("Repeated call to flush()")
         self._flushed = True
-        return _compress_cap.bzip2_compress(bytes(self._buf), self._level)
+        return _bz2_cap.bzip2_compress(bytes(self._buf), self._level)
 
 
 class BZ2Decompressor:
@@ -112,7 +112,7 @@ class BZ2Decompressor:
         # We have no streaming decompressor. Decode the buffered input as
         # a complete bzip2 stream; if that fails (truncated), defer.
         try:
-            full = _compress_cap.bzip2_decompress(bytes(self._buf))
+            full = _bz2_cap.bzip2_decompress(bytes(self._buf))
         except RuntimeError:
             # Likely truncated input — accept more bytes on next call.
             return b""
@@ -130,7 +130,7 @@ def compress(data, compresslevel=9):
     """One-shot bzip2 compression. `compresslevel` ∈ [1, 9]."""
     if not 1 <= compresslevel <= 9:
         raise ValueError("compresslevel must be between 1 and 9")
-    return _compress_cap.bzip2_compress(bytes(data), compresslevel)
+    return _bz2_cap.bzip2_compress(bytes(data), compresslevel)
 
 
 def decompress(data):
@@ -138,7 +138,7 @@ def decompress(data):
     if not data:
         return b""
     try:
-        return _compress_cap.bzip2_decompress(bytes(data))
+        return _bz2_cap.bzip2_decompress(bytes(data))
     except RuntimeError as e:
         raise OSError(f"Invalid bzip2 data: {e}") from None
 

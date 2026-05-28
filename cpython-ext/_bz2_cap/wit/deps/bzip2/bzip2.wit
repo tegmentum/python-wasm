@@ -1,0 +1,111 @@
+package bzip2:compression@0.1.0;
+
+/// Per-codec WIT for bzip2 (Burrows-Wheeler + Huffman). Shape matches
+/// the standardized per-codec design used across the four codec caps
+/// (zlib-wasm, bzip2-wasm, lzma-wasm, zstd-wasm) so python-wasm's
+/// cpython-ext/_<codec>_cap/ extensions are near-identical clones.
+///
+/// bzip2 has no relevant `checksum` or `advanced` interface: there's
+/// no standalone checksum API the way zlib has crc32/adler32, and
+/// bzip2's only useful knob is compresslevel (already on the
+/// compressor constructor). The shape is therefore the minimum
+/// three-interface skeleton.
+
+interface streaming {
+    enum error-code {
+        ok,
+        stream-end,
+        sequence-error,
+        param-error,
+        mem-error,
+        data-error,
+        data-error-magic,
+        io-error,
+        unexpected-eof,
+        output-buffer-full,
+        config-error,
+        version-error,
+    }
+
+    enum compression-level {
+        /// Equivalent to bzip2 -1 (100 KB blocks; smallest memory).
+        best-speed,
+        /// Equivalent to bzip2 -6 (600 KB blocks; balanced).
+        default-compression,
+        /// Equivalent to bzip2 -9 (900 KB blocks; max compression).
+        best-compression,
+    }
+
+    enum flush-mode {
+        no-flush,
+        finish,
+    }
+
+    record decompress-result {
+        output: list<u8>,
+        consumed: u64,
+        eof: bool,
+    }
+
+    resource compressor {
+        /// Construct with explicit block-size level 1-9. Level 6 is the
+        /// CPython bz2 default; level 9 is bzip2(1)'s default.
+        constructor(level: s32);
+
+        compress-chunk: func(input: list<u8>, flush: flush-mode)
+                            -> result<list<u8>, error-code>;
+        reset: func() -> result<_, error-code>;
+        total-in: func() -> u64;
+        total-out: func() -> u64;
+    }
+
+    resource decompressor {
+        constructor();
+
+        decompress-chunk: func(input: list<u8>, flush: flush-mode)
+                            -> result<list<u8>, error-code>;
+        /// As decompress-chunk but also reports consumed-bytes + eof
+        /// for stdlib bz2.BZ2Decompressor.unused_data / eof semantics.
+        decompress-chunk-counted: func(input: list<u8>, flush: flush-mode)
+                                    -> result<decompress-result, error-code>;
+        reset: func() -> result<_, error-code>;
+        total-in: func() -> u64;
+        total-out: func() -> u64;
+    }
+}
+
+interface simple {
+    use streaming.{error-code, compression-level};
+
+    /// One-shot compress with the named level. Returns the .bz2 frame
+    /// (with magic header).
+    compress: func(data: list<u8>, level: compression-level)
+                  -> result<list<u8>, error-code>;
+
+    /// One-shot decompress of a .bz2 frame.
+    decompress: func(data: list<u8>) -> result<list<u8>, error-code>;
+
+    /// Worst-case output size for `source-len` input bytes.
+    compress-bound: func(source-len: u64) -> u64;
+}
+
+interface info {
+    record algorithm-info {
+        name: string,
+        version: string,
+        min-level: s32,
+        max-level: s32,
+        default-level: s32,
+        supports-streaming: bool,
+        supports-dictionary: bool,
+    }
+
+    version: func() -> string;
+    get-info: func() -> algorithm-info;
+}
+
+world bzip2-component {
+    export simple;
+    export streaming;
+    export info;
+}

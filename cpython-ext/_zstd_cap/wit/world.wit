@@ -1,0 +1,8 @@
+package tegmentum:python-zstd-cap@0.1.0;
+
+world zstd-cap-import {
+    import zstd:compression/simple@0.1.0;
+    import zstd:compression/streaming@0.1.0;
+    import zstd:compression/info@0.1.0;
+    import zstd:compression/advanced@0.1.0;
+}

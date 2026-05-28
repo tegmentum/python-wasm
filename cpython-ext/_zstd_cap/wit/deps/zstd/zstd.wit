@@ -1,0 +1,152 @@
+package zstd:compression@0.1.0;
+
+/// Per-codec WIT for Zstandard. Shape matches the standardized per-codec
+/// design. zstd's advanced interface exposes dictionaries, training, and
+/// the raw-parameter API the CPython compression.zstd module needs.
+
+interface streaming {
+    enum error-code {
+        ok,
+        stream-end,
+        data-error,
+        mem-error,
+        param-error,
+        dict-error,
+        version-error,
+    }
+
+    enum compression-level {
+        best-speed,
+        default-compression,
+        best-compression,
+    }
+
+    enum flush-mode {
+        no-flush,
+        sync-flush,
+        finish,
+    }
+
+    record decompress-result {
+        output: list<u8>,
+        consumed: u64,
+        eof: bool,
+    }
+
+    resource compressor {
+        /// zstd compression levels run 1..22. Conventional default is 3.
+        constructor(level: s32);
+
+        compress-chunk: func(input: list<u8>, flush: flush-mode)
+                            -> result<list<u8>, error-code>;
+        reset: func() -> result<_, error-code>;
+        total-in: func() -> u64;
+        total-out: func() -> u64;
+    }
+
+    resource decompressor {
+        constructor();
+
+        decompress-chunk: func(input: list<u8>, flush: flush-mode)
+                            -> result<list<u8>, error-code>;
+        decompress-chunk-counted: func(input: list<u8>, flush: flush-mode)
+                                    -> result<decompress-result, error-code>;
+        reset: func() -> result<_, error-code>;
+        total-in: func() -> u64;
+        total-out: func() -> u64;
+    }
+}
+
+interface simple {
+    use streaming.{error-code, compression-level};
+
+    /// One-shot compress at the named level.
+    compress: func(data: list<u8>, level: compression-level)
+                  -> result<list<u8>, error-code>;
+
+    /// One-shot decompress.
+    decompress: func(data: list<u8>) -> result<list<u8>, error-code>;
+
+    /// libzstd ZSTD_compressBound (input size + ~0.4% + small overhead).
+    compress-bound: func(source-len: u64) -> u64;
+}
+
+interface advanced {
+    use streaming.{error-code};
+
+    /// A (parameter-id, value) pair for the libzstd advanced API. `id`
+    /// is the libzstd ZSTD_cParameter / ZSTD_dParameter enum value
+    /// (numerically stable across libzstd releases).
+    record zstd-param {
+        id: u32,
+        value: s32,
+    }
+
+    /// A loaded zstd dictionary. Wraps the raw dictionary bytes plus
+    /// any prepared CDict/DDict state. Dictionaries are 16 KB – 100 KB
+    /// typically and amortize well across many compress calls on
+    /// related data; construct once and reuse.
+    resource zstd-dict {
+        /// Wrap raw zstd dictionary bytes. Accepts the output of
+        /// `train-dict` or a dictionary loaded from disk.
+        constructor(bytes: list<u8>);
+
+        /// 4-byte dictID from the dictionary header. Returns 0 for
+        /// "raw content" dictionaries that don't carry an ID.
+        id: func() -> u32;
+
+        /// Copy of the raw dictionary bytes (for serialization or
+        /// transfer to another process).
+        as-bytes: func() -> list<u8>;
+    }
+
+    /// One-shot compress with a dictionary.
+    compress-with-dict: func(input: list<u8>, dict: borrow<zstd-dict>, level: s32)
+                            -> result<list<u8>, string>;
+
+    /// One-shot decompress with a dictionary. The dict must match what
+    /// was used at compress time (verified by dictID for non-raw dicts).
+    decompress-with-dict: func(input: list<u8>, dict: borrow<zstd-dict>)
+                             -> result<list<u8>, string>;
+
+    /// Train a dictionary from a set of samples. Returns the raw dict
+    /// bytes; wrap in zstd-dict to use.
+    train-dict: func(samples: list<list<u8>>, dict-size: u32)
+                    -> result<list<u8>, string>;
+
+    /// Compressed size of the first frame in `frame` (ZSTD_findFrameCompressedSize).
+    get-frame-size: func(frame: list<u8>) -> result<u64, string>;
+
+    /// Advanced compress: apply ZSTD_CCtx_setParameter calls before
+    /// compressing. `level` is sugar for the compression_level param;
+    /// applied last so it overrides any same-named entry in `params`.
+    compress-advanced: func(input: list<u8>, level: s32,
+                            params: list<zstd-param>)
+                           -> result<list<u8>, string>;
+
+    /// Advanced decompress.
+    decompress-advanced: func(input: list<u8>, params: list<zstd-param>)
+                            -> result<list<u8>, string>;
+}
+
+interface info {
+    record algorithm-info {
+        name: string,
+        version: string,
+        min-level: s32,
+        max-level: s32,
+        default-level: s32,
+        supports-streaming: bool,
+        supports-dictionary: bool,
+    }
+
+    version: func() -> string;
+    get-info: func() -> algorithm-info;
+}
+
+world zstd-component {
+    export simple;
+    export streaming;
+    export info;
+    export advanced;
+}

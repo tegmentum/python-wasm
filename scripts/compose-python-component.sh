@@ -27,6 +27,9 @@ OUT="$OUT_DIR/python.composed.wasm"
 # in here so the composed component has zero unsatisfied non-wasi:* imports.
 MUX_COMPRESSION="${COMPRESSION_MULTIPLEXER_WASM:-$HOME/git/compression-multiplexer/target/wasm32-wasip2/release/compression_multiplexer.wasm}"
 ZLIB_COMPONENT="${ZLIB_COMPONENT_WASM:-$HOME/git/zlib-wasm/build/bin/zlib.component.wasm}"
+BZIP2_COMPONENT="${BZIP2_COMPONENT_WASM:-$HOME/git/bzip2-wasm/target/wasm32-wasip2/release/bzip2_wasm.wasm}"
+LZMA_COMPONENT="${LZMA_COMPONENT_WASM:-$HOME/git/lzma-wasm/target/wasm32-wasip2/release/lzma_wasm.wasm}"
+ZSTD_COMPONENT="${ZSTD_COMPONENT_WASM:-$HOME/git/zstd-wasm/target/wasm32-wasip2/release/zstd_wasm.wasm}"
 MUX_CRYPTO_HASH="${CRYPTO_HASH_MULTIPLEXER_WASM:-$HOME/git/crypto-hash-multiplexer/target/wasm32-wasip2/release/crypto_hash_multiplexer.wasm}"
 MUX_HASHING="${HASHING_MULTIPLEXER_WASM:-$HOME/git/hashing-multiplexer/target/wasm32-wasip2/release/hashing_multiplexer.wasm}"
 OPENSSL_COMPONENT="${OPENSSL_COMPONENT_WASM:-$HOME/git/openssl-wasm/build/openssl-component.wasm}"
@@ -44,13 +47,18 @@ PASSWORD_HASH_MULTIPLEXER="${PASSWORD_HASH_MULTIPLEXER_WASM:-$HOME/git/password-
 PLUG_ARGS=(
     --plug "$MUX_COMPRESSION"
     --plug "$ZLIB_COMPONENT"
+    --plug "$BZIP2_COMPONENT"
+    --plug "$LZMA_COMPONENT"
+    --plug "$ZSTD_COMPONENT"
     --plug "$MUX_CRYPTO_HASH"
     --plug "$MUX_HASHING"
     --plug "$OPENSSL_COMPONENT"
     --plug "$SQLITE_COMPONENT"
     --plug "$PASSWORD_HASH_MULTIPLEXER"
 )
-REQUIRED_PLUGS=("$MUX_COMPRESSION" "$ZLIB_COMPONENT" "$MUX_CRYPTO_HASH" "$MUX_HASHING"
+REQUIRED_PLUGS=("$MUX_COMPRESSION" "$ZLIB_COMPONENT"
+                "$BZIP2_COMPONENT" "$LZMA_COMPONENT" "$ZSTD_COMPONENT"
+                "$MUX_CRYPTO_HASH" "$MUX_HASHING"
                 "$OPENSSL_COMPONENT" "$SQLITE_COMPONENT" "$PASSWORD_HASH_MULTIPLEXER")
 if [ "${WITH_V86_POSIX:-1}" = "1" ]; then
     PLUG_ARGS+=(--plug "$V86_POSIX_COMPONENT")

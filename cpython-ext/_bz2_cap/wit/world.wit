@@ -1,0 +1,11 @@
+package tegmentum:python-bz2-cap@0.1.0;
+
+/// Companion WIT for CPython's `_bz2_cap` static extension. Imports the
+/// per-codec WIT exported by ~/git/bzip2-wasm (bzip2:compression@0.1.0)
+/// instead of the multiplexer's compression-dispatcher.
+
+world bz2-cap-import {
+    import bzip2:compression/simple@0.1.0;
+    import bzip2:compression/streaming@0.1.0;
+    import bzip2:compression/info@0.1.0;
+}

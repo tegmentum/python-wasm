@@ -1,0 +1,151 @@
+package lzma:compression@0.1.0;
+
+/// Per-codec WIT for lzma (LZMA1 standalone + XZ container). Shape
+/// matches the standardized per-codec design.
+///
+/// lzma's `advanced` interface exposes the codec-specific surface
+/// CPython's `lzma` stdlib module needs: format selection (xz/alone/
+/// raw/auto), integrity check selection, custom filter chains for
+/// raw-format streams, and decompression memory limits.
+
+interface streaming {
+    enum error-code {
+        ok,
+        stream-end,
+        data-error,
+        mem-error,
+        param-error,
+        format-error,
+        memlimit-error,
+        unsupported-check,
+        io-error,
+    }
+
+    enum compression-level {
+        best-speed,
+        default-compression,
+        best-compression,
+    }
+
+    enum flush-mode {
+        no-flush,
+        sync-flush,
+        finish,
+    }
+
+    record decompress-result {
+        output: list<u8>,
+        consumed: u64,
+        eof: bool,
+    }
+
+    resource compressor {
+        constructor(level: s32);
+
+        compress-chunk: func(input: list<u8>, flush: flush-mode)
+                            -> result<list<u8>, error-code>;
+        reset: func() -> result<_, error-code>;
+        total-in: func() -> u64;
+        total-out: func() -> u64;
+    }
+
+    resource decompressor {
+        constructor();
+
+        decompress-chunk: func(input: list<u8>, flush: flush-mode)
+                            -> result<list<u8>, error-code>;
+        decompress-chunk-counted: func(input: list<u8>, flush: flush-mode)
+                                    -> result<decompress-result, error-code>;
+        reset: func() -> result<_, error-code>;
+        total-in: func() -> u64;
+        total-out: func() -> u64;
+    }
+}
+
+interface simple {
+    use streaming.{error-code, compression-level};
+
+    /// One-shot compress in the standard XZ container.
+    compress: func(data: list<u8>, level: compression-level)
+                  -> result<list<u8>, error-code>;
+
+    /// One-shot decompress. Auto-detects XZ/LZMA-alone framing.
+    decompress: func(data: list<u8>) -> result<list<u8>, error-code>;
+
+    /// LZMA's compress-bound is approximate (input + ~5% overhead +
+    /// stream headers). Conservative estimate.
+    compress-bound: func(source-len: u64) -> u64;
+}
+
+interface advanced {
+    use streaming.{error-code};
+
+    /// Container format selection. CPython lzma.FORMAT_XZ /
+    /// FORMAT_ALONE / FORMAT_RAW / FORMAT_AUTO map directly.
+    enum format {
+        xz,
+        alone,
+        raw,
+        auto,
+    }
+
+    /// Integrity check choices for XZ streams. CPython lzma.CHECK_NONE /
+    /// CHECK_CRC32 / CHECK_CRC64 / CHECK_SHA256.
+    enum check {
+        none,
+        crc32,
+        crc64,
+        sha256,
+    }
+
+    /// Filter for raw-format LZMA. `id` is the LZMA filter constant
+    /// (e.g. 0x21 = LZMA2, 0x03 = X86, 0x04 = PPC, 0x05 = IA64,
+    /// 0x06 = ARM, 0x07 = ARM-THUMB, 0x08 = SPARC, 0x09 = ARM64).
+    /// `options` is a codec-specific options blob. Empty list = use
+    /// defaults for that filter.
+    record filter {
+        id: u64,
+        options: list<u8>,
+    }
+
+    /// One-shot compress with explicit format, check, preset, and
+    /// (for raw format) filter chain.
+    compress-full: func(
+        data: list<u8>,
+        format: format,
+        check: check,
+        preset: u32,
+        filters: list<filter>,
+    ) -> result<list<u8>, string>;
+
+    /// One-shot decompress with explicit format and (optional) memory
+    /// limit in bytes. Use `memlimit` to bound resource use on
+    /// untrusted input.
+    decompress-full: func(
+        data: list<u8>,
+        format: format,
+        memlimit: option<u64>,
+    ) -> result<list<u8>, string>;
+}
+
+interface info {
+    record algorithm-info {
+        name: string,
+        version: string,
+        min-level: s32,
+        max-level: s32,
+        default-level: s32,
+        supports-streaming: bool,
+        supports-dictionary: bool,
+    }
+
+    version: func() -> string;
+    get-info: func() -> algorithm-info;
+}
+
+world lzma-component {
+    export simple;
+    export streaming;
+    export info;
+    export advanced;
+}

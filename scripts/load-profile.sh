@@ -104,6 +104,9 @@ caps = profile.get("capabilities", {})
 cap_var_map = {
     "compression_multiplexer": "COMPRESSION_MULTIPLEXER_WASM",
     "zlib_component": "ZLIB_COMPONENT_WASM",
+    "bzip2_component": "BZIP2_COMPONENT_WASM",
+    "lzma_component": "LZMA_COMPONENT_WASM",
+    "zstd_component": "ZSTD_COMPONENT_WASM",
     "crypto_hash_multiplexer": "CRYPTO_HASH_MULTIPLEXER_WASM",
     "hashing_multiplexer": "HASHING_MULTIPLEXER_WASM",
     "openssl_component": "OPENSSL_COMPONENT_WASM",

@@ -1,6 +1,6 @@
 """lzma shim — routes through the compression-multiplexer capability.
 
-Drop-in replacement for stdlib `lzma` that uses the `_compress_cap`
+Drop-in replacement for stdlib `lzma` that uses the `_lzma_cap`
 capability extension instead of the missing-on-wasi `_lzma` C extension.
 
 **Container format.** The capability's lzma backend (`lzma-rust2`)
@@ -65,7 +65,7 @@ import os
 from builtins import open as _builtin_open
 from compression._common import _streams
 
-import _compress_cap
+import _lzma_cap
 
 
 # Container-format identifiers. Numerically aligned with stdlib's _lzma.h so
@@ -184,7 +184,7 @@ class LZMACompressor:
         if self._flushed:
             raise ValueError("Repeated call to flush()")
         self._flushed = True
-        return _compress_cap.lzma_compress(bytes(self._buf), self._level)
+        return _lzma_cap.lzma_compress(bytes(self._buf), self._level)
 
 
 class LZMADecompressor:
@@ -227,7 +227,7 @@ class LZMADecompressor:
         if not self._buf:
             return b""
         try:
-            full = _compress_cap.lzma_decompress(bytes(self._buf))
+            full = _lzma_cap.lzma_decompress(bytes(self._buf))
         except RuntimeError as e:
             # Truncated input is the common cause; let caller add more bytes.
             return b""
@@ -254,7 +254,7 @@ def compress(data, format=FORMAT_XZ, check=-1, preset=None, filters=None):
     _check_write_format(format, filters)
     # `check` is informational; cap writer embeds its own CRC32 by default.
     level = PRESET_DEFAULT if preset is None else int(preset) & 0xFF
-    return _compress_cap.lzma_compress(bytes(data), level)
+    return _lzma_cap.lzma_compress(bytes(data), level)
 
 
 def decompress(data, format=FORMAT_AUTO, memlimit=None, filters=None):
@@ -268,7 +268,7 @@ def decompress(data, format=FORMAT_AUTO, memlimit=None, filters=None):
     if not data:
         return b""
     try:
-        return _compress_cap.lzma_decompress(bytes(data))
+        return _lzma_cap.lzma_decompress(bytes(data))
     except RuntimeError as e:
         raise LZMAError(f"Invalid LZMA data: {e}") from None
 

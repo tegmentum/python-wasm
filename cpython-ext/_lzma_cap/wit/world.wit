@@ -1,0 +1,8 @@
+package tegmentum:python-lzma-cap@0.1.0;
+
+world lzma-cap-import {
+    import lzma:compression/simple@0.1.0;
+    import lzma:compression/streaming@0.1.0;
+    import lzma:compression/info@0.1.0;
+    import lzma:compression/advanced@0.1.0;
+}
