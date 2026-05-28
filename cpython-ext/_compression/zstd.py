@@ -53,8 +53,7 @@ import struct
 from builtins import open as _builtin_open
 from compression._common import _streams
 
-import _compress_cap  # advanced/dict ops until _zstd_cap implements them
-import _zstd_cap      # basic compress/decompress via zstd-wasm directly
+import _zstd_cap     # all zstd ops route through zstd-wasm directly
 
 
 COMPRESSION_LEVEL_DEFAULT = 3
@@ -100,7 +99,7 @@ class ZstdDict:
         self._bytes = bytes(dict_content)
         self._is_raw = bool(is_raw)
         # Cache the dict ID (cheap; only requires header parse).
-        self._dict_id = _compress_cap.zstd_dict_id(self._bytes) if not is_raw else 0
+        self._dict_id = _zstd_cap.zstd_dict_id(self._bytes) if not is_raw else 0
 
     @property
     def dict_content(self):
@@ -121,7 +120,7 @@ def train_dict(samples, dict_size):
     bytes (typical: 16 KB to 110 KB). Provide at least 10-100x dict_size
     worth of total sample data for a quality dictionary.
     """
-    raw = _compress_cap.zstd_train_dict(samples, int(dict_size))
+    raw = _zstd_cap.zstd_train_dict(samples, int(dict_size))
     return ZstdDict(raw)
 
 
@@ -135,7 +134,7 @@ def finalize_dict(zstd_dict, samples, dict_size, level):
     """
     if not isinstance(zstd_dict, ZstdDict):
         raise TypeError("zstd_dict must be a ZstdDict")
-    raw = _compress_cap.zstd_finalize_dict(
+    raw = _zstd_cap.zstd_finalize_dict(
         zstd_dict.dict_content, samples, int(dict_size), int(level))
     return ZstdDict(raw)
 
@@ -155,12 +154,12 @@ def compress(data, level=COMPRESSION_LEVEL_DEFAULT, options=None, zstd_dict=None
     params = _normalize_options(options)
     try:
         if params is not None and zstd_dict is not None:
-            return _compress_cap.zstd_compress_advanced_with_dict(
+            return _zstd_cap.zstd_compress_advanced_with_dict(
                 bytes(data), zstd_dict.dict_content, level, params)
         if params is not None:
-            return _compress_cap.zstd_compress_advanced(bytes(data), level, params)
+            return _zstd_cap.zstd_compress_advanced(bytes(data), level, params)
         if zstd_dict is not None:
-            return _compress_cap.zstd_compress_with_dict(
+            return _zstd_cap.zstd_compress_with_dict(
                 bytes(data), zstd_dict.dict_content, level)
         return _zstd_cap.zstd_compress(bytes(data), level)
     except RuntimeError as e:
@@ -177,12 +176,12 @@ def decompress(data, zstd_dict=None, options=None):
     params = _normalize_options(options)
     try:
         if params is not None and zstd_dict is not None:
-            return _compress_cap.zstd_decompress_advanced_with_dict(
+            return _zstd_cap.zstd_decompress_advanced_with_dict(
                 bytes(data), zstd_dict.dict_content, params)
         if params is not None:
-            return _compress_cap.zstd_decompress_advanced(bytes(data), params)
+            return _zstd_cap.zstd_decompress_advanced(bytes(data), params)
         if zstd_dict is not None:
-            return _compress_cap.zstd_decompress_with_dict(
+            return _zstd_cap.zstd_decompress_with_dict(
                 bytes(data), zstd_dict.dict_content)
         return _zstd_cap.zstd_decompress(bytes(data))
     except RuntimeError as e:
@@ -239,14 +238,14 @@ class ZstdCompressor:
             return b""
         self._frame_done = True
         if self._params is not None and self._dict is not None:
-            return _compress_cap.zstd_compress_advanced_with_dict(
+            return _zstd_cap.zstd_compress_advanced_with_dict(
                 bytes(self._buf), self._dict.dict_content,
                 self._level, self._params)
         if self._params is not None:
-            return _compress_cap.zstd_compress_advanced(
+            return _zstd_cap.zstd_compress_advanced(
                 bytes(self._buf), self._level, self._params)
         if self._dict is not None:
-            return _compress_cap.zstd_compress_with_dict(
+            return _zstd_cap.zstd_compress_with_dict(
                 bytes(self._buf), self._dict.dict_content, self._level)
         return _zstd_cap.zstd_compress(bytes(self._buf), self._level)
 
@@ -283,13 +282,13 @@ class ZstdDecompressor:
             return b""
         try:
             if self._params is not None and self._dict is not None:
-                full = _compress_cap.zstd_decompress_advanced_with_dict(
+                full = _zstd_cap.zstd_decompress_advanced_with_dict(
                     bytes(self._buf), self._dict.dict_content, self._params)
             elif self._params is not None:
-                full = _compress_cap.zstd_decompress_advanced(
+                full = _zstd_cap.zstd_decompress_advanced(
                     bytes(self._buf), self._params)
             elif self._dict is not None:
-                full = _compress_cap.zstd_decompress_with_dict(
+                full = _zstd_cap.zstd_decompress_with_dict(
                     bytes(self._buf), self._dict.dict_content)
             else:
                 full = _zstd_cap.zstd_decompress(bytes(self._buf))
@@ -395,7 +394,7 @@ def get_frame_size(frame_buffer):
     on edge cases (skippable frames, trailing checksum bytes, etc.) — pure-
     Python block-walking would work for most frames but miss those.
     """
-    return _compress_cap.zstd_get_frame_size(bytes(frame_buffer))
+    return _zstd_cap.zstd_get_frame_size(bytes(frame_buffer))
 
 
 # --------------------------------------------------------------------------

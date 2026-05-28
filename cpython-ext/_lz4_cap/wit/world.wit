@@ -1,0 +1,6 @@
+package tegmentum:python-lz4-cap@0.1.0;
+
+world lz4-cap-import {
+    import lz4:compression/simple@0.1.0;
+    import lz4:compression/info@0.1.0;
+}

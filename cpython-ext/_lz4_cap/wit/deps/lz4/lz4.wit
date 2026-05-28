@@ -1,0 +1,90 @@
+package lz4:compression@0.1.0;
+
+/// Per-codec WIT for LZ4 block format. Matches the standardized
+/// per-codec design used by the other compression caps. LZ4 has a
+/// minimal stdlib parity story (it isn't in CPython stdlib at all), so
+/// no `advanced` interface is needed.
+
+interface streaming {
+    enum error-code {
+        ok,
+        stream-end,
+        data-error,
+        mem-error,
+        param-error,
+    }
+
+    enum compression-level {
+        best-speed,           // LZ4 default (fast)
+        default-compression,
+        best-compression,     // LZ4HC level 12
+    }
+
+    enum flush-mode {
+        no-flush,
+        finish,
+    }
+
+    record decompress-result {
+        output: list<u8>,
+        consumed: u64,
+        eof: bool,
+    }
+
+    resource compressor {
+        constructor(level: s32);
+
+        compress-chunk: func(input: list<u8>, flush: flush-mode)
+                            -> result<list<u8>, error-code>;
+        reset: func() -> result<_, error-code>;
+        total-in: func() -> u64;
+        total-out: func() -> u64;
+    }
+
+    resource decompressor {
+        constructor();
+
+        decompress-chunk: func(input: list<u8>, flush: flush-mode)
+                            -> result<list<u8>, error-code>;
+        decompress-chunk-counted: func(input: list<u8>, flush: flush-mode)
+                                    -> result<decompress-result, error-code>;
+        reset: func() -> result<_, error-code>;
+        total-in: func() -> u64;
+        total-out: func() -> u64;
+    }
+}
+
+interface simple {
+    use streaming.{error-code, compression-level};
+
+    /// LZ4 block compress. `decompress` requires the original size as
+    /// a prefix or out-of-band — the standalone simple interface
+    /// prepends a 4-byte little-endian length to each compress output.
+    compress: func(data: list<u8>, level: compression-level)
+                  -> result<list<u8>, error-code>;
+
+    decompress: func(data: list<u8>) -> result<list<u8>, error-code>;
+
+    compress-bound: func(source-len: u64) -> u64;
+}
+
+interface info {
+    record algorithm-info {
+        name: string,
+        version: string,
+        min-level: s32,
+        max-level: s32,
+        default-level: s32,
+        supports-streaming: bool,
+        supports-dictionary: bool,
+    }
+
+    version: func() -> string;
+    get-info: func() -> algorithm-info;
+}
+
+world lz4-component {
+    export simple;
+    export streaming;
+    export info;
+}
