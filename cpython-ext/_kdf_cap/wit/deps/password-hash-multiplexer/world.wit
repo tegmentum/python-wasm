@@ -1,0 +1,5 @@
+package tegmentum:password-hash-multiplexer@0.1.0;
+
+world password-hash-multiplexer {
+    export password-dispatcher;
+}

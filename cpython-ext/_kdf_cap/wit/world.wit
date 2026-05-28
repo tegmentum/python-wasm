@@ -1,0 +1,14 @@
+package tegmentum:python-kdf-cap@0.1.0;
+
+/// Companion WIT for CPython's `_kdf_cap` static extension. The C
+/// extension imports the capabilities listed below; composectl/wac wires
+/// them to their multiplexer / cap-component wasm at compose time.
+
+// NOTE: this world depends on capability WIT files under wit/deps/.
+// You must vendor each capability's .wit (and its transitive deps)
+// before `wit-bindgen c --world kdf-cap-import --out-dir gen wit/` will succeed.
+// The README walks through this.
+
+world kdf-cap-import {
+    import tegmentum:password-hash-multiplexer/password-dispatcher@0.1.0;
+}

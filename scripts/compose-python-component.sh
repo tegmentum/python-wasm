@@ -25,6 +25,7 @@ SQLITE_COMPONENT="${SQLITE_COMPONENT_WASM:-$HOME/git/sqlite-wasm/build/sqlite-co
 # guest-not-ready). Swap V86_POSIX_COMPONENT to the real v86-component build
 # once it exports v86:posix/process — same contract, different digest.
 V86_POSIX_COMPONENT="${V86_POSIX_COMPONENT_WASM:-$HOME/git/v86/target/wasm32-wasip2/release/v86_posix_stub.wasm}"
+PASSWORD_HASH_MULTIPLEXER="${PASSWORD_HASH_MULTIPLEXER_WASM:-$HOME/git/password-hash-multiplexer/target/wasm32-wasip2/release/password_hash_multiplexer.wasm}"
 
 # pylon Phase 4.1: when WITH_V86_POSIX=0, the bare python.wasm has no
 # v86:posix/process import (wire-cpython-ext.sh skipped the _v86_posix
@@ -36,9 +37,10 @@ PLUG_ARGS=(
     --plug "$MUX_HASHING"
     --plug "$OPENSSL_COMPONENT"
     --plug "$SQLITE_COMPONENT"
+    --plug "$PASSWORD_HASH_MULTIPLEXER"
 )
 REQUIRED_PLUGS=("$MUX_COMPRESSION" "$MUX_CRYPTO_HASH" "$MUX_HASHING"
-                "$OPENSSL_COMPONENT" "$SQLITE_COMPONENT")
+                "$OPENSSL_COMPONENT" "$SQLITE_COMPONENT" "$PASSWORD_HASH_MULTIPLEXER")
 if [ "${WITH_V86_POSIX:-1}" = "1" ]; then
     PLUG_ARGS+=(--plug "$V86_POSIX_COMPONENT")
     REQUIRED_PLUGS+=("$V86_POSIX_COMPONENT")

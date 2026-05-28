@@ -49,6 +49,7 @@ declare -a EXTS=(
     "_xxhash|_xxhash|_xxhashmodule.c|xxhash_import.c|xxhash_import_component_type.o"
     "_ssl|_ssl_capability|_ssl_capability_module.c|ssl_import.c|ssl_import_component_type.o"
     "_sqlite_capability|_sqlite_cap|_sqlite_capability_module.c|sqlite_import.c|sqlite_import_component_type.o"
+    "_kdf_cap|_kdf_cap|_kdf_capmodule.c|kdf_cap_import.c|kdf_cap_import_component_type.o"
 )
 
 # pylon Phase 4.1 variant: _v86_posix is omitted from the browser
