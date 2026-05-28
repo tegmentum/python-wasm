@@ -4,16 +4,30 @@ schema = "tegmentum:pylon-pyforge/pkg@0.1.0"
 # tegmentum:crypto-hash-multiplexer via Pattern A cpython-ext static
 # linkage. See ../../docs/pyforge-pkg-spec.md.
 #
-# Phase 5.1 (committed): hashlib.py is a self-contained replacement that
-# routes the stdlib hashlib API through _crypto_hash. Installed AS
-# Lib/hashlib.py by `make install-python-shims` so plain `import hashlib`
-# uses the capability path (the static _hashlib is unavailable in the
-# default build — set STATIC_OPENSSL=1 to re-enable it).
+# Phase 5.1 redesign (current):
 #
-# hashlib_capability.py is kept as a backwards-compat shim for code that
-# explicitly did `import hashlib_capability; install()`. It still works:
-# its monkey-patches end up touching the new self-contained hashlib (no
-# harm done; routing is already correct).
+# Discovery: CPython's builtin _sha2/_sha3/_blake2/_md5/_sha1 C extensions
+# already cover all 14 stdlib hash algorithms (sha224, sha3_224/384,
+# shake_128/256 included). Stdlib hashlib naturally falls back to them
+# when `_hashlib` (the OpenSSL extension) is missing. So the original
+# Phase 5.1 plan — overlaying Lib/hashlib.py to cap-route through
+# _crypto_hash — was unnecessary.
+#
+# Instead we ship a minimal Lib/_hashlib.py providing:
+#   * compare_digest, openssl_<algo> aliases (delegate to builtins)
+#   * stubs for hmac_new/hmac_digest (raise UnsupportedDigestmodError
+#     so stdlib hmac falls through to its builtin _hmac path)
+#   * pbkdf2_hmac in pure Python (RFC 8018)
+#
+# scrypt is NOT provided — pure-Python scrypt at production parameters
+# (N=16384) is impractically slow. Code that needs it should use the
+# `cryptography` library, rebuild with STATIC_OPENSSL=1, or wait for
+# a proper KDF cap component.
+#
+# The _crypto_hash cpython-ext extension itself is retained for
+# component-to-component handoffs and as a demonstration of the
+# tegmentum:crypto-hash-multiplexer integration — Python users go
+# through stdlib hashlib (which doesn't use it).
 
 [package]
 name = "crypto-hash"
@@ -34,33 +48,19 @@ gen_import_obj = "crypto_hash_import_component_type.o"
 interface = "tegmentum:crypto-hash-multiplexer/hash-dispatcher"
 version = "0.1.0"
 
-# hashlib — self-contained replacement for stdlib hashlib. Routes the
-# stdlib API through _crypto_hash for the 9 multiplexer-supported algos
-# (md5, sha1, sha256, sha384, sha512, sha3_256, sha3_512, blake2b,
-# blake2s) and raises NotImplementedError for sha224 / sha3_224 /
-# shake_* / pbkdf2_hmac / scrypt (gaps documented in the shim).
+# _hashlib — pure-Python `_hashlib` providing pbkdf2_hmac and the surface
+# stdlib hashlib + hmac assume is there. Stdlib hashlib doesn't override
+# (its builtin fallbacks cover all 14 algorithms); _hashlib.py exists
+# solely to expose pbkdf2_hmac and stub compare_digest / hmac_new.
 [[provides]]
-module = "hashlib"
-shim = "hashlib.py"
-dest = "Lib/hashlib.py"
-purpose = "Phase 5.1: cap-route hashlib through _crypto_hash (retires static _hashlib)"
+module = "_hashlib"
+shim = "_hashlib.py"
+dest = "Lib/_hashlib.py"
+purpose = "Phase 5.1: pure-Python pbkdf2_hmac so stdlib hashlib exposes it (no static OpenSSL)"
 version = "0.1.0"
 offload = [
-  { callable = "new",       doc = "Construct a hasher by algorithm name.",  codecs = ["msgpack", "json"] },
-  { callable = "sha256",    doc = "SHA-256 hasher constructor.",            codecs = ["msgpack", "json"] },
-  { callable = "sha512",    doc = "SHA-512 hasher constructor.",            codecs = ["msgpack", "json"] },
-  { callable = "blake2b",   doc = "BLAKE2b hasher constructor.",            codecs = ["msgpack", "json"] },
+  { callable = "pbkdf2_hmac", doc = "PBKDF2-HMAC key derivation (RFC 8018).", codecs = ["msgpack", "json"] },
 ]
-
-# hashlib_capability — opt-in backwards-compat shim. Kept installed for
-# code that explicitly does `import hashlib_capability; install()`. The
-# install() call now no-ops against the already-routing Lib/hashlib.py.
-[[provides]]
-module = "hashlib_capability"
-shim = "hashlib_capability.py"
-dest = "Lib/hashlib_capability.py"
-purpose = "Backwards-compat shim for code that opted in via `import hashlib_capability` (Phase 5.1: superseded by Lib/hashlib.py auto-install)"
-version = "0.1.0"
 
 [gating]
 include_forges = []
