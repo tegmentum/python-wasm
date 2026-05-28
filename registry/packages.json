@@ -249,6 +249,35 @@
     },
     {
       "dist": {
+        "name": "ssl",
+        "version": "0.1.0",
+        "backends": [
+          {
+            "tier": "in-wasm",
+            "env": "a0006ecbc58cb8a20989ee7f7cdbe46cc1c86043823bfaeb56320213331ca937"
+          }
+        ]
+      },
+      "entries": [],
+      "source": {
+        "pattern": "A",
+        "extension": "cpython-ext/_ssl",
+        "shim": "cpython-ext/_ssl/ssl.py",
+        "capabilities": [
+          "openssl:component/tls@0.1.0",
+          "openssl:component/x509@0.1.0",
+          "openssl:component/pkey@0.1.0",
+          "openssl:component/error@0.1.0",
+          "openssl:component/random@0.1.0"
+        ],
+        "purpose": "Phase 5.2: cap-route ssl through _ssl_capability (retires static _ssl)",
+        "forges": [
+          "python-wasm-browser"
+        ]
+      }
+    },
+    {
+      "dist": {
         "name": "ssl_capability",
         "version": "0.1.0",
         "backends": [
@@ -270,7 +299,7 @@
           "openssl:component/error@0.1.0",
           "openssl:component/random@0.1.0"
         ],
-        "purpose": "Phase 3: cap-route ssl through openssl-component",
+        "purpose": "Phase 3: cap-route ssl through openssl-component (now the implementation under Phase 5.2's Lib/ssl.py adapter)",
         "forges": [
           "python-wasm-browser"
         ]

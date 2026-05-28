@@ -270,34 +270,43 @@ the default build — the stdlib's `import _hashlib` failed.
 | sha224, sha3_224, sha3_384, shake_* | use the closest covered algo (sha256 instead of sha224) | crypto-hash-multiplexer v0.2.x extension |
 | pbkdf2_hmac, scrypt | rebuild with `STATIC_OPENSSL=1` for projects that depend on these | separate `kdf` WIT contract |
 
-#### 5.2 — `import ssl` defaults to the capability path (pending)
+#### 5.2 — `import ssl` defaults to the capability path ✅
 
-**Why deferred from 5.1.** ssl_capability is a much wider surface than
-hashlib_capability (SSLContext, SSLSocket, wrap_socket, MemoryBIO,
-SSLObject, dozens of constants). Per ssl_capability.py's docstring:
+**State pre-5.2.** `Lib/ssl_capability.py` was installed, but plain
+`import ssl` was broken on the default build (no static `_ssl`; stdlib
+ssl.py's `import _ssl` failed). User code had to opt in via
+`sys.modules['ssl'] = ssl_capability`.
 
-> CPython's `ssl.py` pulls dozens of symbols from `_ssl` (SSLSession,
-> txt2obj, nid2obj, `_DEFAULT_CIPHERS`, `_OPENSSL_API_VERSION`, …) that
-> `_ssl_capability` doesn't expose.
+**What 5.2 ships.** A two-layer architecture:
 
-To install `ssl_capability` AS `Lib/ssl.py` (replacing the stdlib's
-ssl.py wholesale), every symbol the stdlib ssl module exposes that
-real code depends on needs an equivalent in the capability shim — or
-an explicit `NotImplementedError`. That's substantially more work than
-hashlib's 9-algorithm rewrite.
+1. `cpython-ext/_ssl/ssl_capability.py` (Phase 3b) stays as the
+   **implementation** — fully tested via `make test-ssl-network` (21
+   assertions including real TLS 1.3 to example.com:443).
+2. `cpython-ext/_ssl/ssl.py` (new) is a **stdlib-compat wrapper**
+   installed at `deps/cpython/Lib/ssl.py`. Re-exports the
+   ssl_capability surface and adds the missing stdlib symbols
+   (HAS_TLSv1_*, TLSVersion / Options / VerifyFlags enums,
+   SSLEOFError + sibling subclasses, MemoryBIO direct re-export,
+   AlertDescription, SSLErrorNumber).
 
-**Today.** `Lib/ssl_capability.py` is installed; user code opts in via:
+The split keeps Phase 3b implementation untouched while letting the
+adapter grow the compat surface incrementally. After 5.2:
 
-```python
-import ssl_capability
-import urllib.request
-sys.modules['ssl'] = ssl_capability  # or use directly
-```
+  - `import ssl` works on the default build.
+  - `urllib.request.urlopen('https://...')` works without
+    `sys.modules['ssl'] = ssl_capability`.
+  - `ssl_capability` stays importable for back-compat.
 
-**5.2 will ship.** A self-contained `Lib/ssl.py` shim covering the
-stdlib symbols that hashlib-shaped clients (urllib, httpx, requests)
-actually call. Out-of-coverage symbols raise NotImplementedError.
-Same coverage approach as 5.1 — the 80% that real code uses.
+**Coverage.** Tier-1 (urllib / requests / httpx hot paths) and most
+of Tier-2 (TLSVersion / Options / VerifyFlags / SSLEOFError /
+SSLWantReadError etc.) are real. Tier-3 raises `NotImplementedError`
+with messages pointing at the underlying gap:
+
+| Stub | Reason |
+|---|---|
+| `SSLSession`, `SSLObject` | Deferred to openssl-component v1.1 (per `docs/phase-3-tls.md`) |
+| `DefaultVerifyPaths`, `get_default_verify_paths` | Capability bundles WebPKI roots; no OS verify-paths |
+| `DER_cert_to_PEM_cert`, `PEM_cert_to_DER_cert`, `get_server_certificate`, `cert_time_to_seconds`, `create_connection`, `RAND_add`, `RAND_status`, `get_protocol_name` | Niche helpers not yet wired through the capability |
 
 #### 5.3 — full removal of the static escape hatches (optional)
 

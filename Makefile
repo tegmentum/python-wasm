@@ -136,6 +136,9 @@ install-python-shims:
 	@cp $(PROJECT_DIR)/cpython-ext/_ssl/ssl_capability.py \
 	    $(PROJECT_DIR)/deps/cpython/Lib/ssl_capability.py
 	@echo "installed: deps/cpython/Lib/ssl_capability.py"
+	@cp $(PROJECT_DIR)/cpython-ext/_ssl/ssl.py \
+	    $(PROJECT_DIR)/deps/cpython/Lib/ssl.py
+	@echo "installed: deps/cpython/Lib/ssl.py  (Phase 5.2: cap-route ssl through _ssl_capability; retires the stdlib ssl + static _ssl path)"
 	@cp $(PROJECT_DIR)/cpython-ext/_compression/bz2.py \
 	    $(PROJECT_DIR)/deps/cpython/Lib/bz2.py
 	@echo "installed: deps/cpython/Lib/bz2.py  (Tier A: routes to _compress_cap.bzip2_*)"

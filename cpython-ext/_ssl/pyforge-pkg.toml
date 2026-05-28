@@ -48,14 +48,29 @@ version = "0.1.0"
 interface = "openssl:component/random"
 version = "0.1.0"
 
-# Opt-in ssl shim. Installed at Lib/ssl_capability.py rather than
-# Lib/ssl.py so both paths coexist during the migration; the static
-# _ssl path remains available until Phase 5 retirement.
+# ssl — self-contained stdlib-compat wrapper installed AS Lib/ssl.py.
+# Re-exports ssl_capability's tested implementation and adds the missing
+# stdlib surface (HAS_TLSv1_*, TLSVersion/Options/VerifyFlags enums,
+# SSLEOFError + sibling subclasses, MemoryBIO, AlertDescription, etc.)
+# with NotImplementedError stubs for the deferred-to-v1.1 surface
+# (SSLSession, SSLObject, get_server_certificate, …).
+[[provides]]
+module = "ssl"
+shim = "ssl.py"
+dest = "Lib/ssl.py"
+purpose = "Phase 5.2: cap-route ssl through _ssl_capability (retires static _ssl)"
+version = "0.1.0"
+
+# ssl_capability — Phase 3b implementation. Stays installed because:
+#  - It's the canonical implementation under the Lib/ssl.py adapter.
+#  - Pre-5.2 code that opted in via `import ssl_capability` keeps working.
+#  - Pre-5.2 code that did `sys.modules['ssl'] = ssl_capability` is now
+#    redundant (just `import ssl` works) but doesn't break.
 [[provides]]
 module = "ssl_capability"
 shim = "ssl_capability.py"
 dest = "Lib/ssl_capability.py"
-purpose = "Phase 3: cap-route ssl through openssl-component"
+purpose = "Phase 3: cap-route ssl through openssl-component (now the implementation under Phase 5.2's Lib/ssl.py adapter)"
 version = "0.1.0"
 
 [gating]
