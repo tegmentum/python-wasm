@@ -158,6 +158,9 @@ install-python-shims:
 	@cp $(PROJECT_DIR)/cpython-ext/_sqlite_capability/sqlite3.py \
 	    $(PROJECT_DIR)/deps/cpython/Lib/sqlite3/__init__.py
 	@echo "installed: deps/cpython/Lib/sqlite3/__init__.py  (Tier B: routes to _sqlite_cap via sqlite:wasm capability)"
+	@cp $(PROJECT_DIR)/cpython-ext/_mmap_shim/mmap.py \
+	    $(PROJECT_DIR)/deps/cpython/Lib/mmap.py
+	@echo "installed: deps/cpython/Lib/mmap.py  (Blocked-3: pure-Python mmap on bytearray + file I/O; no cap needed in single-process wasm)"
 	@if [ "$(WITH_V86_POSIX)" = "1" ]; then \
 	    cp $(PROJECT_DIR)/cpython-ext/_v86_posix/subprocess.py \
 	        $(PROJECT_DIR)/deps/cpython/Lib/subprocess.py && \
