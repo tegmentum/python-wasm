@@ -19,3 +19,8 @@ web/node_modules/
 web/dist/
 web/public/python-component/
 web/public/stdlib.tar.gz
+
+# Python bytecode caches
+__pycache__/
+*.pyc
+*.pyo
