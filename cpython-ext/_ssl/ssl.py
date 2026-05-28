@@ -272,12 +272,53 @@ DER_cert_to_PEM_cert = _stub(
 PEM_cert_to_DER_cert = _stub(
     "PEM_cert_to_DER_cert",
     "cert-format conversion helper not yet wired through the capability")
-get_server_certificate = _stub(
-    "get_server_certificate",
-    "would need _ssl_capability + openssl-component to expose "
-    "SSL_get_peer_certificate / i2d_X509 — not in WIT 0.1.0. Pure-Python "
-    "implementation isn't possible (no path to extract cert bytes without "
-    "bypassing the TLS stack). Tracked as openssl-component v0.2.x")
+def get_server_certificate(addr, ssl_version=None, ca_certs=None, timeout=None):
+    """Connect to (host, port) and return the server's certificate as PEM.
+
+    Implemented as the standard pattern: open a TLS connection, call
+    getpeercert(binary_form=True) → DER bytes, base64-wrap into PEM.
+
+    The cap-side now exposes the peer cert via openssl-component's
+    `peer-info.peer-chain` (which ssl_capability surfaces as
+    `SSLSocket.getpeercert`), so this works without `STATIC_OPENSSL=1`."""
+    import base64 as _base64
+    import socket as _socket
+
+    host, port = addr
+    if ssl_version is not None and ssl_version != PROTOCOL_TLS_CLIENT:
+        raise NotImplementedError(
+            f"ssl.get_server_certificate: only PROTOCOL_TLS_CLIENT supported "
+            f"(got {ssl_version})")
+
+    ctx = create_default_context()
+    if ca_certs is not None:
+        # Allow the caller to override the bundled WebPKI roots
+        with open(ca_certs, "rb") as fh:
+            ctx.load_verify_locations(cadata=fh.read())
+    # The cap doesn't currently support "fetch cert without validating it"
+    # — server-cert verification runs against the bundled roots. For
+    # untrusted-cert inspection use cases the caller should pass ca_certs
+    # explicitly with the expected anchor.
+
+    sock = _socket.create_connection(
+        (host, port), timeout=timeout if timeout is not None else 15)
+    try:
+        ssock = ctx.wrap_socket(sock, server_hostname=host)
+        try:
+            der = ssock.getpeercert(binary_form=True)
+        finally:
+            try: ssock.close()
+            except Exception: pass
+    finally:
+        try: sock.close()
+        except Exception: pass
+
+    if der is None:
+        raise SSLError("server did not present a certificate")
+    # Convert DER -> PEM (the format stdlib get_server_certificate returns)
+    b64 = _base64.encodebytes(der).decode("ascii").rstrip("\n")
+    return (f"-----BEGIN CERTIFICATE-----\n{b64}\n"
+            f"-----END CERTIFICATE-----\n")
 get_default_verify_paths = _stub(
     "get_default_verify_paths",
     "no OS verify-paths — capability bundles its own Mozilla WebPKI roots")

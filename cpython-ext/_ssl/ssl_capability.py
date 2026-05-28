@@ -272,6 +272,23 @@ class SSLSocket:
     def selected_alpn_protocol(self):
         return self._inner.selected_alpn_protocol()
 
+    def getpeercert(self, binary_form: bool = False):
+        """Return the peer's certificate.
+
+        With binary_form=True, returns DER bytes (the stdlib API). The
+        binary_form=False variant (returning a parsed dict) isn't
+        implemented — would need x509-info parsing wired through the
+        capability. Most TLS validation users only need binary_form."""
+        der = self._inner.peer_cert_der()
+        if der is None:
+            return {} if not binary_form else None
+        if binary_form:
+            return der
+        raise NotImplementedError(
+            "ssl_capability.getpeercert(binary_form=False) not implemented — "
+            "parsed cert dict needs x509-info wiring through the cap. "
+            "Pass binary_form=True to get DER bytes.")
+
     @property
     def server_hostname(self):
         return self._inner.server_hostname

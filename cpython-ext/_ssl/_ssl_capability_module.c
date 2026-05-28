@@ -789,6 +789,45 @@ static PyObject *SSLSocket_cipher(SSLSocketObject *self, PyObject *Py_UNUSED(arg
     return t;
 }
 
+/* peer_cert_der() — return the peer's certificate as DER bytes (or None
+ * if the peer didn't send one). Powers ssl.get_server_certificate +
+ * stdlib SSLSocket.getpeercert(binary_form=True). */
+static PyObject *SSLSocket_peer_cert_der(SSLSocketObject *self, PyObject *Py_UNUSED(args))
+{
+    openssl_component_tls_peer_info_t info;
+    if (load_peer_info(self, &info) < 0) return NULL;
+
+    if (info.peer_chain.len == 0) {
+        openssl_component_tls_peer_info_free(&info);
+        Py_RETURN_NONE;
+    }
+
+    /* The peer's own certificate is the first in peer_chain. encode() it
+     * to DER bytes — that's the binary form stdlib getpeercert returns. */
+    openssl_component_x509_borrow_certificate_t cert =
+        openssl_component_x509_borrow_certificate(info.peer_chain.ptr[0]);
+    ssl_import_list_u8_t out;
+    openssl_component_x509_x509_error_t err;
+    bool is_err = openssl_component_x509_method_certificate_encode(
+        cert, OPENSSL_COMPONENT_PKEY_ENCODING_DER, &out, &err);
+
+    if (is_err) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "_ssl_capability.peer_cert_der: x509 encode failed");
+        /* Don't bother decoding err here — the openssl_component x509_error
+         * is a complex variant; simple message is fine for now. */
+        openssl_component_tls_peer_info_free(&info);
+        return NULL;
+    }
+
+    PyObject *r = PyBytes_FromStringAndSize((const char *) out.ptr,
+                                              (Py_ssize_t) out.len);
+    ssl_import_list_u8_free(&out);
+    openssl_component_tls_peer_info_free(&info);
+    return r;
+}
+
+
 static PyObject *SSLSocket_selected_alpn_protocol(SSLSocketObject *self, PyObject *Py_UNUSED(args))
 {
     openssl_component_tls_peer_info_t info;
@@ -827,6 +866,9 @@ static PyMethodDef SSLSocket_methods[] = {
      "version() -> str — \"TLSv1.2\" or \"TLSv1.3\"."},
     {"cipher",                  (PyCFunction) SSLSocket_cipher,                  METH_NOARGS,
      "cipher() -> (name, version, secret_bits)"},
+    {"peer_cert_der",           (PyCFunction) SSLSocket_peer_cert_der,           METH_NOARGS,
+     "peer_cert_der() -> bytes | None — the peer's certificate in DER, or "
+     "None if the peer didn't send one."},
     {"selected_alpn_protocol",  (PyCFunction) SSLSocket_selected_alpn_protocol,  METH_NOARGS,
      "selected_alpn_protocol() -> str | None"},
     {NULL, NULL, 0, NULL}
