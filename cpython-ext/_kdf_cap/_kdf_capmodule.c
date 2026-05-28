@@ -91,13 +91,13 @@ mod_derive(PyObject *self, PyObject *args, PyObject *kwargs)
     kdf_cap_import_list_u8_t out;
     kdf_cap_import_string_t err;
 
-    bool is_err = tegmentum_password_hash_multiplexer_password_dispatcher_derive(
+    bool ok = tegmentum_password_hash_multiplexer_password_dispatcher_derive(
         algo, &password, &salt, (uint32_t) length, &out, &err);
 
     PyBuffer_Release(&password_buf);
     PyBuffer_Release(&salt_buf);
 
-    if (is_err) {
+    if (!ok) {
         PyErr_Format(PyExc_RuntimeError, "_kdf_cap.derive failed: %.*s",
                      (int) err.len, (const char *) err.ptr);
         kdf_cap_import_string_free(&err);
