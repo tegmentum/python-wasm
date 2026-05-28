@@ -102,11 +102,12 @@ emit("WITH_V86_POSIX", build.get("with_v86_posix", True))
 caps = profile.get("capabilities", {})
 # Map TOML key (snake_case) -> the env var the compose script expects.
 cap_var_map = {
-    "compression_multiplexer": "COMPRESSION_MULTIPLEXER_WASM",
     "zlib_component": "ZLIB_COMPONENT_WASM",
     "bzip2_component": "BZIP2_COMPONENT_WASM",
     "lzma_component": "LZMA_COMPONENT_WASM",
     "zstd_component": "ZSTD_COMPONENT_WASM",
+    "lz4_component": "LZ4_COMPONENT_WASM",
+    "openzl_component": "OPENZL_COMPONENT_WASM",
     "crypto_hash_multiplexer": "CRYPTO_HASH_MULTIPLEXER_WASM",
     "hashing_multiplexer": "HASHING_MULTIPLEXER_WASM",
     "openssl_component": "OPENSSL_COMPONENT_WASM",

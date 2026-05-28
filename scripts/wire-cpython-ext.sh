@@ -48,11 +48,12 @@ EXT_DIR="$PROJECT_DIR/cpython-ext"
 # Capability extensions always wired in. Per-variant ones are appended
 # below based on env-var flags.
 declare -a EXTS=(
-    "_compression|_compress_cap|_compressionmodule.c|compression_import.c|compression_import_component_type.o"
     "_zlib_cap|_zlib_cap|_zlib_capmodule.c|zlib_cap_import.c|zlib_cap_import_component_type.o"
     "_bz2_cap|_bz2_cap|_bz2_capmodule.c|bz2_cap_import.c|bz2_cap_import_component_type.o"
     "_lzma_cap|_lzma_cap|_lzma_capmodule.c|lzma_cap_import.c|lzma_cap_import_component_type.o"
     "_zstd_cap|_zstd_cap|_zstd_capmodule.c|zstd_cap_import.c|zstd_cap_import_component_type.o"
+    "_lz4_cap|_lz4_cap|_lz4_capmodule.c|lz4_cap_import.c|lz4_cap_import_component_type.o"
+    "_openzl_cap|_openzl_cap|_openzl_capmodule.c|openzl_cap_import.c|openzl_cap_import_component_type.o"
     "_crypto_hash|_crypto_hash|_crypto_hashmodule.c|crypto_hash_import.c|crypto_hash_import_component_type.o"
     "_xxhash|_xxhash|_xxhashmodule.c|xxhash_import.c|xxhash_import_component_type.o"
     "_ssl|_ssl_capability|_ssl_capability_module.c|ssl_import.c|ssl_import_component_type.o"

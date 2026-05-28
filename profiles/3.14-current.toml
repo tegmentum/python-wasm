@@ -50,11 +50,12 @@ with_v86_posix = true
 # sibling repo's release build. Override per-profile to pin a specific
 # build of any cap.
 [capabilities]
-compression_multiplexer = "${HOME}/git/compression-multiplexer/target/wasm32-wasip2/release/compression_multiplexer.wasm"
 zlib_component = "${HOME}/git/zlib-wasm/build/bin/zlib.component.wasm"
 bzip2_component = "${HOME}/git/bzip2-wasm/target/wasm32-wasip2/release/bzip2_wasm.wasm"
 lzma_component = "${HOME}/git/lzma-wasm/target/wasm32-wasip2/release/lzma_wasm.wasm"
 zstd_component = "${HOME}/git/zstd-wasm/target/wasm32-wasip2/release/zstd_wasm.wasm"
+lz4_component = "${HOME}/git/lz4-wasm/target/wasm32-wasip2/release/lz4_wasm.wasm"
+openzl_component = "${HOME}/git/openzl-wasm/target/wasm32-wasip2/release/openzl_wasm.wasm"
 crypto_hash_multiplexer = "${HOME}/git/crypto-hash-multiplexer/target/wasm32-wasip2/release/crypto_hash_multiplexer.wasm"
 hashing_multiplexer = "${HOME}/git/hashing-multiplexer/target/wasm32-wasip2/release/hashing_multiplexer.wasm"
 openssl_component = "${HOME}/git/openssl-wasm/build/openssl-component.wasm"

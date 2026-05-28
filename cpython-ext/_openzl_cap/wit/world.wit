@@ -1,0 +1,6 @@
+package tegmentum:python-openzl-cap@0.1.0;
+
+world openzl-cap-import {
+    import openzl:compression/simple@0.1.0;
+    import openzl:compression/info@0.1.0;
+}
