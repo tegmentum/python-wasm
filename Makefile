@@ -17,6 +17,7 @@ all: fetch-deps build
 fetch-deps:
 	bash scripts/fetch-sdk.sh
 	bash scripts/fetch-cpython.sh
+	bash scripts/fetch-tzdata.sh
 
 # Componentize-python plan, Phase 3d: by default the build NO LONGER static-
 # links OpenSSL. The capability path (_ssl_capability + openssl-component +
