@@ -27,7 +27,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-CPYTHON_DIR="$PROJECT_DIR/deps/cpython"
+
+PROFILE="${PROFILE:-default}"
+eval "$(bash "$SCRIPT_DIR/load-profile.sh" "$PROFILE")"
+
+CPYTHON_DIR="$PROJECT_DIR/deps/$PYTHON_SOURCE_DIR"
 
 if [ ! -d "$CPYTHON_DIR/Modules" ]; then
     echo "wire-cpython-ext: $CPYTHON_DIR/Modules missing — run \`make fetch-deps\` first." >&2

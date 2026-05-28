@@ -13,15 +13,19 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-COMP="$PROJECT_DIR/build/python.composed.wasm"
+
+PROFILE="${PROFILE:-default}"
+eval "$(bash "$SCRIPT_DIR/load-profile.sh" "$PROFILE")"
+CPYTHON_DIR="$PROJECT_DIR/deps/$PYTHON_SOURCE_DIR"
+COMP="$PROJECT_DIR/$BUILD_DIR/python.composed.wasm"
 
 [ -f "$COMP" ] || { echo "test-ssl-capability: $COMP not found — run scripts/compose-python-component.sh first." >&2; exit 1; }
 command -v wasmtime >/dev/null 2>&1 || { echo "test-ssl-capability: 'wasmtime' is required on PATH." >&2; exit 1; }
 
-LIBDIR="$(basename "$(ls -d "$PROJECT_DIR"/deps/cpython/cross-build/wasm32-wasip2/build/lib.wasi-wasm32-* | head -1)")"
+LIBDIR="$(basename "$(ls -d "$CPYTHON_DIR"/cross-build/"$HOST_TRIPLE"/build/lib.wasi-wasm32-* | head -1)")"
 
 wasmtime run --wasm max-wasm-stack=16777216 \
-    --dir "$PROJECT_DIR/deps/cpython::/" \
+    --dir "$CPYTHON_DIR::/" \
     --env "PYTHONPATH=/cross-build/wasm32-wasip2/build/$LIBDIR" \
     "$COMP" -c "
 import sys

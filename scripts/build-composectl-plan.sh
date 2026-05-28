@@ -20,7 +20,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-PYW="$PROJECT_DIR/deps/cpython/cross-build/wasm32-wasip2/python.wasm"
+
+PROFILE="${PROFILE:-default}"
+eval "$(bash "$SCRIPT_DIR/load-profile.sh" "$PROFILE")"
+
+PYW="$PROJECT_DIR/deps/$PYTHON_SOURCE_DIR/cross-build/$HOST_TRIPLE/python.wasm"
 PLAN="$PROJECT_DIR/plans/python-browser.json"
 MUX_COMPRESSION="${COMPRESSION_MULTIPLEXER_WASM:-$HOME/git/compression-multiplexer/target/wasm32-wasip2/release/compression_multiplexer.wasm}"
 MUX_CRYPTO_HASH="${CRYPTO_HASH_MULTIPLEXER_WASM:-$HOME/git/crypto-hash-multiplexer/target/wasm32-wasip2/release/crypto_hash_multiplexer.wasm}"

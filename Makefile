@@ -1,61 +1,83 @@
 PROJECT_DIR := $(shell pwd)
 DEPS_DIR := $(PROJECT_DIR)/deps
-CPYTHON_DIR := $(DEPS_DIR)/cpython
-WASI_SDK_DIR := $(DEPS_DIR)/wasi-sdk-33.0-arm64-macos
+
+# Build profile — names a TOML file under profiles/. The profile captures
+# every option that the build depends on: which CPython source tree, which
+# wasi-sdk, which static-vs-cap toggles, which cap artifacts get plugged
+# in at compose time, and which build/<dir> the outputs land in. Multiple
+# profiles coexist on disk under build/<profile>/ so simultaneous version
+# builds don't clobber each other. See docs/build-profiles.md.
+PROFILE ?= default
+
+# Resolve profile -> KEY=VALUE pairs once at Make-load time and turn each
+# pair into a Make variable. The shell command below emits one
+# "KEY=VALUE" line per resolved field, which we splice into a single
+# $(eval ...) so the variables become first-class Make symbols.
+PROFILE_VARS := $(shell bash $(PROJECT_DIR)/scripts/load-profile.sh $(PROFILE))
+$(foreach line,$(PROFILE_VARS),$(eval $(line)))
+
+CPYTHON_DIR := $(DEPS_DIR)/$(PYTHON_SOURCE_DIR)
+WASI_SDK_DIR := $(DEPS_DIR)/$(WASI_SDK_DIR)
 OPENSSL_PREFIX := $(DEPS_DIR)/openssl-prefix
-HOST_TRIPLE := wasm32-wasip2
 PYTHON_WASM := $(CPYTHON_DIR)/cross-build/$(HOST_TRIPLE)/python.wasm
+PROFILE_BUILD_DIR := $(PROJECT_DIR)/$(BUILD_DIR)
+COMPOSED_WASM := $(PROFILE_BUILD_DIR)/python.composed.wasm
+
+# Export profile-derived env vars so child scripts inherit them without
+# re-parsing the TOML.
+export PROFILE
+export PYTHON_SOURCE_DIR PYTHON_VERSION HOST_TRIPLE
+export STATIC_OPENSSL STATIC_ZLIB WITH_V86_POSIX
+export COMPRESSION_MULTIPLEXER_WASM CRYPTO_HASH_MULTIPLEXER_WASM
+export HASHING_MULTIPLEXER_WASM OPENSSL_COMPONENT_WASM
+export SQLITE_COMPONENT_WASM PASSWORD_HASH_MULTIPLEXER_WASM
+export V86_POSIX_COMPONENT_WASM
+export PROFILE_BUILD_DIR COMPOSED_WASM
 
 .PHONY: all fetch-deps build run test clean distclean \
        web-deps web-stdlib web-transpile web-dev web-build web-clean \
        python-component-verify python-composed install-python-shims \
        test-compression-extension test-hash-extensions \
-       test-ssl-capability test-ssl-network composectl-plan
+       test-ssl-capability test-ssl-network composectl-plan \
+       show-profile
 
 all: fetch-deps build
 
+# Print resolved profile variables — useful when debugging "what's this
+# PROFILE actually using?"
+show-profile:
+	@echo "PROFILE=$(PROFILE)"
+	@echo "  PYTHON_VERSION=$(PYTHON_VERSION)"
+	@echo "  PYTHON_SOURCE_DIR=$(PYTHON_SOURCE_DIR)"
+	@echo "  CPYTHON_DIR=$(CPYTHON_DIR)"
+	@echo "  WASI_SDK_DIR=$(WASI_SDK_DIR)"
+	@echo "  HOST_TRIPLE=$(HOST_TRIPLE)"
+	@echo "  STATIC_OPENSSL=$(STATIC_OPENSSL)  STATIC_ZLIB=$(STATIC_ZLIB)  WITH_V86_POSIX=$(WITH_V86_POSIX)"
+	@echo "  BUILD_DIR=$(BUILD_DIR)"
+	@echo "  COMPOSED_WASM=$(COMPOSED_WASM)"
+
 fetch-deps:
 	bash scripts/fetch-sdk.sh
-	bash scripts/fetch-cpython.sh
+	bash scripts/fetch-cpython.sh $(PROFILE)
 	bash scripts/fetch-tzdata.sh
 
-# Componentize-python plan, Phase 3d: by default the build NO LONGER static-
-# links OpenSSL. The capability path (_ssl_capability + openssl-component +
-# ssl_capability.py) covers `import ssl` and `urllib.request.urlopen` via
-# composition (see docs/phase-3-tls.md). Without --with-openssl, CPython
-# auto-disables the static _ssl and _hashlib modules — both are superseded
-# by capabilities (_crypto_hash for hashlib; _ssl_capability for ssl).
-#
-# To opt back into the static path during the soak period: STATIC_OPENSSL=1 make build
-STATIC_OPENSSL ?=
+# Static OpenSSL / zlib toggles come from the profile now. When the
+# profile sets static_openssl=true (or static_zlib=true), the build also
+# runs the corresponding pre-build script to populate openssl-prefix or
+# zlib-build. Default profile keeps both off (capability path).
 ifeq ($(STATIC_OPENSSL),1)
     WITH_OPENSSL_FLAG := -- --with-openssl=$(OPENSSL_PREFIX)
     OPENSSL_STEP     := bash scripts/build-openssl.sh
 else
     WITH_OPENSSL_FLAG :=
-    OPENSSL_STEP     := @echo "build: static OpenSSL disabled (capability path is the default; set STATIC_OPENSSL=1 to re-enable)"
+    OPENSSL_STEP     := @echo "build: static OpenSSL disabled (profile $(PROFILE); cap path is the default)"
 endif
 
-# Tier A retires static libz the same way OpenSSL was retired in Phase 3d:
-# Lib/zlib.py shim routes `import zlib` through `_compress_cap.deflate_*`
-# (which itself routes to the compression-multiplexer capability). The
-# static C extension `Modules/zlibmodule.c` is disabled in Setup.local by
-# scripts/wire-cpython-ext.sh; build-zlib.sh therefore no longer needs to
-# run in the default build. Re-enable A/B testing with: STATIC_ZLIB=1 make build
-STATIC_ZLIB ?=
 ifeq ($(STATIC_ZLIB),1)
     ZLIB_STEP        := bash scripts/build-zlib.sh
 else
-    ZLIB_STEP        := @echo "build: static zlib disabled (capability path is the default; set STATIC_ZLIB=1 for A/B)"
+    ZLIB_STEP        := @echo "build: static zlib disabled (profile $(PROFILE); cap path is the default)"
 endif
-
-# pylon Phase 4.1 variant flag — when 0, omit the _v86_posix capability
-# extension + its subprocess.py shim + the v86-posix-stub plug in the
-# compose step. Produces a "browser" variant of python.composed.wasm
-# with a different sha256 (and a different pylon forge_identity)
-# than the default WITH_V86_POSIX=1 build.
-WITH_V86_POSIX ?= 1
-export WITH_V86_POSIX
 
 build: fetch-deps
 	$(ZLIB_STEP)
@@ -135,46 +157,46 @@ python-composed: build install-python-shims
 # work but via the capability path (no `-lz` link dep).
 install-python-shims:
 	@cp $(PROJECT_DIR)/cpython-ext/_ssl/ssl_capability.py \
-	    $(PROJECT_DIR)/deps/cpython/Lib/ssl_capability.py
-	@echo "installed: deps/cpython/Lib/ssl_capability.py"
+	    $(CPYTHON_DIR)/Lib/ssl_capability.py
+	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/ssl_capability.py"
 	@cp $(PROJECT_DIR)/cpython-ext/_ssl/ssl.py \
-	    $(PROJECT_DIR)/deps/cpython/Lib/ssl.py
-	@echo "installed: deps/cpython/Lib/ssl.py  (Phase 5.2: cap-route ssl through _ssl_capability; retires the stdlib ssl + static _ssl path)"
+	    $(CPYTHON_DIR)/Lib/ssl.py
+	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/ssl.py  (Phase 5.2: cap-route ssl through _ssl_capability)"
 	@cp $(PROJECT_DIR)/cpython-ext/_compression/bz2.py \
-	    $(PROJECT_DIR)/deps/cpython/Lib/bz2.py
-	@echo "installed: deps/cpython/Lib/bz2.py  (Tier A: routes to _compress_cap.bzip2_*)"
+	    $(CPYTHON_DIR)/Lib/bz2.py
+	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/bz2.py  (Tier A: routes to _compress_cap.bzip2_*)"
 	@cp $(PROJECT_DIR)/cpython-ext/_compression/lzma.py \
-	    $(PROJECT_DIR)/deps/cpython/Lib/lzma.py
-	@echo "installed: deps/cpython/Lib/lzma.py  (Tier A: routes to _compress_cap.lzma_* / FORMAT_XZ)"
+	    $(CPYTHON_DIR)/Lib/lzma.py
+	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/lzma.py  (Tier A: routes to _compress_cap.lzma_* / FORMAT_XZ)"
 	@cp $(PROJECT_DIR)/cpython-ext/_compression/zstd.py \
-	    $(PROJECT_DIR)/deps/cpython/Lib/compression/zstd/__init__.py
-	@echo "installed: deps/cpython/Lib/compression/zstd/__init__.py  (Tier A: routes to _compress_cap.zstd_*)"
+	    $(CPYTHON_DIR)/Lib/compression/zstd/__init__.py
+	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/compression/zstd/__init__.py  (Tier A: routes to _compress_cap.zstd_*)"
 	@cp $(PROJECT_DIR)/cpython-ext/_compression/zlib.py \
-	    $(PROJECT_DIR)/deps/cpython/Lib/zlib.py
-	@echo "installed: deps/cpython/Lib/zlib.py  (Tier A: routes to _compress_cap.deflate_* + C-speed crc32/adler32)"
+	    $(CPYTHON_DIR)/Lib/zlib.py
+	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/zlib.py  (Tier A: routes to _compress_cap.deflate_* + C-speed crc32/adler32)"
 	@cp $(PROJECT_DIR)/cpython-ext/_crypto_hash/_hashlib.py \
-	    $(PROJECT_DIR)/deps/cpython/Lib/_hashlib.py
-	@echo "installed: deps/cpython/Lib/_hashlib.py  (Phase 5.1 redesign: pure-Python pbkdf2_hmac so stdlib hashlib + CPython builtin _sha2/_sha3/_blake2 cover the full surface)"
+	    $(CPYTHON_DIR)/Lib/_hashlib.py
+	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/_hashlib.py  (Phase 5.1 redesign: pure-Python pbkdf2_hmac)"
 	@cp $(PROJECT_DIR)/cpython-ext/_sqlite_capability/sqlite3.py \
-	    $(PROJECT_DIR)/deps/cpython/Lib/sqlite3/__init__.py
-	@echo "installed: deps/cpython/Lib/sqlite3/__init__.py  (Tier B: routes to _sqlite_cap via sqlite:wasm capability)"
+	    $(CPYTHON_DIR)/Lib/sqlite3/__init__.py
+	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/sqlite3/__init__.py  (Tier B: routes to _sqlite_cap)"
 	@cp $(PROJECT_DIR)/cpython-ext/_mmap_shim/mmap.py \
-	    $(PROJECT_DIR)/deps/cpython/Lib/mmap.py
-	@echo "installed: deps/cpython/Lib/mmap.py  (Blocked-3: pure-Python mmap on bytearray + file I/O; no cap needed in single-process wasm)"
+	    $(CPYTHON_DIR)/Lib/mmap.py
+	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/mmap.py  (Blocked-3: pure-Python mmap on bytearray + file I/O)"
 	@cp $(PROJECT_DIR)/cpython-ext/_threading_shim/threading.py \
-	    $(PROJECT_DIR)/deps/cpython/Lib/threading.py
-	@echo "installed: deps/cpython/Lib/threading.py  (LOW-2: single-threaded shim — Thread.start() runs target() inline since wasm has no preemptive threads)"
+	    $(CPYTHON_DIR)/Lib/threading.py
+	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/threading.py  (LOW-2: single-threaded shim)"
 	@cp $(PROJECT_DIR)/cpython-ext/_ctypes_shim/__init__.py \
-	    $(PROJECT_DIR)/deps/cpython/Lib/ctypes/__init__.py
+	    $(CPYTHON_DIR)/Lib/ctypes/__init__.py
 	@cp $(PROJECT_DIR)/cpython-ext/_ctypes_shim/util.py \
-	    $(PROJECT_DIR)/deps/cpython/Lib/ctypes/util.py
-	@echo "installed: deps/cpython/Lib/ctypes/  (LOW-1: stub — import succeeds with c_* types; CDLL/cdll raise NotImplementedError since wasm has no native ABI)"
+	    $(CPYTHON_DIR)/Lib/ctypes/util.py
+	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/ctypes/  (LOW-1: stub for native ABI absence)"
 	@if [ "$(WITH_V86_POSIX)" = "1" ]; then \
 	    cp $(PROJECT_DIR)/cpython-ext/_v86_posix/subprocess.py \
-	        $(PROJECT_DIR)/deps/cpython/Lib/subprocess.py && \
-	    echo "installed: deps/cpython/Lib/subprocess.py  (Tier C: routes Popen/run through _v86_posix.spawn via v86:posix/process)"; \
+	        $(CPYTHON_DIR)/Lib/subprocess.py && \
+	    echo "installed: $(PYTHON_SOURCE_DIR)/Lib/subprocess.py  (Tier C: routes Popen/run through _v86_posix.spawn)"; \
 	else \
-	    rm -f $(PROJECT_DIR)/deps/cpython/Lib/subprocess.py && \
+	    rm -f $(CPYTHON_DIR)/Lib/subprocess.py && \
 	    echo "skipped: subprocess.py shim (WITH_V86_POSIX=0; using stdlib subprocess from Lib/)"; \
 	fi
 

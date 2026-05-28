@@ -1,0 +1,64 @@
+schema = "tegmentum:python-wasm/profile@0.1.0"
+
+# Default build profile for python-wasm. Captures every option that the
+# Makefile + scripts currently hardcode. A "profile" is the named set of
+# options applied to a build; producing the same profile twice from the
+# same inputs should yield the same artifact (modulo embedded timestamps).
+#
+# To add a new profile: copy this file to profiles/<name>.toml, change the
+# values, and `make python-composed PROFILE=<name>`. To inspect what a
+# Makefile invocation will resolve to: scripts/load-profile.sh <name>.
+#
+# pylon-forge consumes the resulting artifact and emits a post-build
+# `pyforge-manifest.toml` with the actual sha256s of every input and the
+# output — that's the *output* identity. This file is the *input* identity.
+
+[meta]
+description = "Default python-wasm build — CPython 3.14.3, v86-posix enabled, cap-routed (ssl, hashlib, compression)."
+
+[python]
+# CPython source tree identity.
+implementation = "cpython"
+version = "3.14.3"
+git_tag = "v3.14.3"
+# Directory under deps/ where the source tree lives. The Makefile expects
+# the tree at $PROJECT_DIR/deps/<source_dir>/ with the standard CPython
+# layout (Tools/wasm/wasi exists, Modules/ writable for extension wiring).
+source_dir = "cpython-3.14"
+
+[toolchain]
+wasi_sdk_version = "33.0"
+# Directory under deps/ for the wasi-sdk tarball extract.
+wasi_sdk_dir = "wasi-sdk-33.0-arm64-macos"
+host_triple = "wasm32-wasip2"
+
+[build]
+# Static-link OpenSSL into _ssl (legacy path). When false, the cap-routed
+# _ssl_capability handles TLS via the openssl-component plug.
+static_openssl = false
+# Static-link zlib into Modules/zlibmodule.c. When false, the cap-routed
+# zlib.py shim handles compression via _compress_cap + compression-mux.
+static_zlib = false
+# Whether to wire the _v86_posix cpython-ext and plug the v86-posix-stub
+# component into the compose step. Browser builds (PROFILE=*-browser)
+# turn this off; CLI builds keep it on.
+with_v86_posix = true
+
+# Capability components plugged into the composed wasm. Each entry is the
+# environment variable the compose script reads to locate the artifact; the
+# default value comes from compose-python-component.sh and points at the
+# sibling repo's release build. Override per-profile to pin a specific
+# build of any cap.
+[capabilities]
+compression_multiplexer = "${HOME}/git/compression-multiplexer/target/wasm32-wasip2/release/compression_multiplexer.wasm"
+crypto_hash_multiplexer = "${HOME}/git/crypto-hash-multiplexer/target/wasm32-wasip2/release/crypto_hash_multiplexer.wasm"
+hashing_multiplexer = "${HOME}/git/hashing-multiplexer/target/wasm32-wasip2/release/hashing_multiplexer.wasm"
+openssl_component = "${HOME}/git/openssl-wasm/build/openssl-component.wasm"
+sqlite_component = "${HOME}/git/sqlite-wasm/build/sqlite-core.wasm"
+password_hash_multiplexer = "${HOME}/git/password-hash-multiplexer/target/wasm32-wasip2/release/password_hash_multiplexer.wasm"
+v86_posix_component = "${HOME}/git/v86/target/wasm32-wasip2/release/v86_posix_stub.wasm"
+
+[output]
+# Per-profile build directory. Each profile gets its own subtree of build/
+# so multiple profiles can coexist without clobbering one another.
+build_dir = "build/3.14-current"

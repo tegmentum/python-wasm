@@ -3,12 +3,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-CPYTHON_DIR="$PROJECT_DIR/deps/cpython"
-HOST_TRIPLE="wasm32-wasip2"
+
+PROFILE="${PROFILE:-default}"
+eval "$(bash "$SCRIPT_DIR/load-profile.sh" "$PROFILE")"
+
+CPYTHON_DIR="$PROJECT_DIR/deps/$PYTHON_SOURCE_DIR"
 # Prefer the composed component (Phase 1/2/...). Fall back to the raw
 # wasi-sdk build only if no capability extensions are wired in.
 RAW_PYTHON_WASM="$CPYTHON_DIR/cross-build/$HOST_TRIPLE/python.wasm"
-COMPOSED_PYTHON_WASM="$PROJECT_DIR/build/python.composed.wasm"
+COMPOSED_PYTHON_WASM="$PROJECT_DIR/$BUILD_DIR/python.composed.wasm"
 if [ -f "$COMPOSED_PYTHON_WASM" ]; then
     PYTHON_WASM="$COMPOSED_PYTHON_WASM"
     echo "Transpiling COMPOSED python component (capabilities composed in)..."

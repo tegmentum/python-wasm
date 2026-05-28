@@ -10,8 +10,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-PYW="$PROJECT_DIR/deps/cpython/cross-build/wasm32-wasip2/python.wasm"
-OUT="$PROJECT_DIR/build/python.composed.wasm"
+
+# Load profile to derive paths. PROFILE comes from env (set by the Makefile)
+# or defaults to "default" for direct invocation. The loader emits the
+# capability env vars too, but only if the profile doesn't override what the
+# caller already exported — env wins via parameter expansion below.
+PROFILE="${PROFILE:-default}"
+eval "$(bash "$SCRIPT_DIR/load-profile.sh" "$PROFILE")"
+
+PYW="$PROJECT_DIR/deps/$PYTHON_SOURCE_DIR/cross-build/$HOST_TRIPLE/python.wasm"
+OUT_DIR="$PROJECT_DIR/$BUILD_DIR"
+OUT="$OUT_DIR/python.composed.wasm"
 
 # Capability artifacts — overridable via env vars. As capability components are
 # added to CPython's set of WIT imports (Phase 1, Phase 2, ...) they get plugged
@@ -52,7 +61,7 @@ for f in "${REQUIRED_PLUGS[@]}"; do
 done
 command -v wac >/dev/null 2>&1 || { echo "compose-python-component: 'wac' (wac-cli) is required on PATH." >&2; exit 1; }
 
-mkdir -p "$PROJECT_DIR/build"
+mkdir -p "$OUT_DIR"
 wac plug "$PYW" "${PLUG_ARGS[@]}" -o "$OUT"
 echo "==> $(du -h "$OUT" | cut -f1) $OUT"
 

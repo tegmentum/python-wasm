@@ -3,7 +3,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-CPYTHON_DIR="$PROJECT_DIR/deps/cpython"
+
+PROFILE="${PROFILE:-default}"
+eval "$(bash "$SCRIPT_DIR/load-profile.sh" "$PROFILE")"
+CPYTHON_DIR="$PROJECT_DIR/deps/$PYTHON_SOURCE_DIR"
 OUTPUT="$PROJECT_DIR/web/public/stdlib.tar.gz"
 
 if [ ! -d "$CPYTHON_DIR/Lib" ]; then

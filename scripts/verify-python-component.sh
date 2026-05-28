@@ -12,7 +12,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-PYW="$PROJECT_DIR/deps/cpython/cross-build/wasm32-wasip2/python.wasm"
+
+PROFILE="${PROFILE:-default}"
+eval "$(bash "$SCRIPT_DIR/load-profile.sh" "$PROFILE")"
+PYW="$PROJECT_DIR/deps/$PYTHON_SOURCE_DIR/cross-build/$HOST_TRIPLE/python.wasm"
 
 if [ ! -f "$PYW" ]; then
     echo "verify-python-component: $PYW not found — run 'make build' first." >&2
