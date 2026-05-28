@@ -808,14 +808,13 @@ static PyObject *SSLSocket_peer_cert_der(SSLSocketObject *self, PyObject *Py_UNU
         openssl_component_x509_borrow_certificate(info.peer_chain.ptr[0]);
     ssl_import_list_u8_t out;
     openssl_component_x509_x509_error_t err;
-    bool is_err = openssl_component_x509_method_certificate_encode(
+    bool ok = openssl_component_x509_method_certificate_encode(
         cert, OPENSSL_COMPONENT_PKEY_ENCODING_DER, &out, &err);
 
-    if (is_err) {
+    if (!ok) {
         PyErr_SetString(PyExc_RuntimeError,
                         "_ssl_capability.peer_cert_der: x509 encode failed");
-        /* Don't bother decoding err here — the openssl_component x509_error
-         * is a complex variant; simple message is fine for now. */
+        openssl_component_x509_x509_error_free(&err);
         openssl_component_tls_peer_info_free(&info);
         return NULL;
     }
