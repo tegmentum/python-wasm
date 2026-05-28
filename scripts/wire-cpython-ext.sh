@@ -49,13 +49,7 @@ EXT_DIR="$PROJECT_DIR/cpython-ext"
 # below based on env-var flags.
 declare -a EXTS=(
     "_compression|_compress_cap|_compressionmodule.c|compression_import.c|compression_import_component_type.o"
-    # "_zlib_cap|_zlib_cap|_zlib_capmodule.c|zlib_cap_import.c|zlib_cap_import_component_type.o"
-    # ↑ Commented out: zlib-wasm's component artifact is currently broken
-    #   (wasm-tools component new with no WIT adapter -> world root {} empty).
-    #   The C extension is scaffolded but can't be wired in until zlib-wasm
-    #   upstream is rebuilt with `wasm-tools component embed` or a
-    #   wit-bindgen-c-generated adapter. See docs/cap-fidelity-audit.md and
-    #   the WIP in cpython-ext/_zlib_cap/.
+    "_zlib_cap|_zlib_cap|_zlib_capmodule.c|zlib_cap_import.c|zlib_cap_import_component_type.o"
     "_crypto_hash|_crypto_hash|_crypto_hashmodule.c|crypto_hash_import.c|crypto_hash_import_component_type.o"
     "_xxhash|_xxhash|_xxhashmodule.c|xxhash_import.c|xxhash_import_component_type.o"
     "_ssl|_ssl_capability|_ssl_capability_module.c|ssl_import.c|ssl_import_component_type.o"

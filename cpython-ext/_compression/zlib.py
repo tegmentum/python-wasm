@@ -1,9 +1,18 @@
-"""zlib shim — routes deflate through the compression-multiplexer capability.
+"""zlib shim — routes deflate through the zlib-wasm capability directly.
 
 Drop-in replacement for the stdlib `zlib` C extension. Uses
-`_compress_cap.deflate_compress` / `deflate_decompress` for the raw
+`_zlib_cap.deflate_compress` / `deflate_decompress` for the raw
 DEFLATE primitive, and implements the RFC 1950 (zlib) and RFC 1952
-(gzip) wrappers, plus pure-Python adler32 and crc32, on top.
+(gzip) wrappers on top. crc32 and adler32 now route to zlib-wasm's
+checksum interface (C-speed, no more pure-Python fallback).
+
+The previous version of this shim routed through
+`tegmentum:compression-multiplexer/compression-dispatcher` via
+`_compress_cap`. That multiplexer's least-common-denominator WIT
+required Python-side workarounds for things zlib-wasm's per-codec WIT
+exposes naturally (wbits framing, total-in for consumed-bytes,
+crc32/adler32 as first-class operations). Now the path is
+python-wasm -> _zlib_cap -> zlib:compression@0.1.0 directly.
 
 Once this shim is installed, CPython no longer needs `Modules/zlibmodule.c`
 or static libz — saving ~150 KB on python.wasm and removing one more
@@ -67,7 +76,7 @@ __all__ = [
 ]
 
 import struct
-import _compress_cap
+import _zlib_cap
 
 
 # --------------------------------------------------------------------------
@@ -108,7 +117,7 @@ class error(Exception):
 
 
 # --------------------------------------------------------------------------
-# adler32 and crc32 — prefer the C implementations in _compress_cap (built
+# adler32 and crc32 — prefer the C implementations in _zlib_cap (built
 # in to the python-wasm cpython binary). Pure-Python fallback is kept as a
 # safety net in case this shim is reused outside python-wasm without the
 # capability extension. Both honor zlib's `value` running-state argument so
@@ -116,12 +125,12 @@ class error(Exception):
 # --------------------------------------------------------------------------
 
 try:
-    crc32   = _compress_cap.crc32      # C-speed, table-based IEEE 802.3
-    adler32 = _compress_cap.adler32    # C-speed
+    crc32   = _zlib_cap.crc32      # C-speed, table-based IEEE 802.3
+    adler32 = _zlib_cap.adler32    # C-speed
 except AttributeError:
-    # _compress_cap is present but predates the crc32/adler32 functions —
+    # _zlib_cap is present but predates the crc32/adler32 functions —
     # fall back to pure-Python implementations. Slow (10 MB takes ~2-3 s)
-    # but correct; once the bundled _compress_cap is rebuilt these get
+    # but correct; once the bundled _zlib_cap is rebuilt these get
     # shadowed by the C versions on next import.
 
     _MOD_ADLER = 65521  # largest prime < 2^16
@@ -278,7 +287,7 @@ def compress(data, level=Z_DEFAULT_COMPRESSION, wbits=MAX_WBITS):
     mode, _win = _decode_wbits(wbits)
     if mode == "auto":
         raise ValueError("auto-detect wbits is decompress-only")
-    raw = _compress_cap.deflate_compress(bytes(data), level)
+    raw = _zlib_cap.deflate_compress(bytes(data), level)
     if mode == "raw":
         return raw
     if mode == "zlib":
@@ -299,13 +308,13 @@ def decompress(data, wbits=MAX_WBITS, bufsize=DEF_BUF_SIZE):
         mode = "gzip" if data[:2] == _GZIP_MAGIC else "zlib"
     if mode == "raw":
         try:
-            return _compress_cap.deflate_decompress(bytes(data))
+            return _zlib_cap.deflate_decompress(bytes(data))
         except RuntimeError as e:
             raise error(f"Error -3 while decompressing: {e}") from None
     if mode == "zlib":
         body, expected_adler = _zlib_unwrap(bytes(data))
         try:
-            out = _compress_cap.deflate_decompress(body)
+            out = _zlib_cap.deflate_decompress(body)
         except RuntimeError as e:
             raise error(f"Error -3 while decompressing zlib stream: {e}") from None
         if adler32(out) != expected_adler:
@@ -314,7 +323,7 @@ def decompress(data, wbits=MAX_WBITS, bufsize=DEF_BUF_SIZE):
     if mode == "gzip":
         body, expected_crc, expected_isize = _gzip_unwrap(bytes(data))
         try:
-            out = _compress_cap.deflate_decompress(body)
+            out = _zlib_cap.deflate_decompress(body)
         except RuntimeError as e:
             raise error(f"Error -3 while decompressing gzip stream: {e}") from None
         if crc32(out) != expected_crc:
@@ -362,7 +371,7 @@ class _Compress:
         # The next .compress() will continue with a new sub-stream, which
         # won't be valid zlib if interleaved. For typical use (collect all,
         # then call flush(Z_FINISH)), the behavior matches stdlib.
-        raw = _compress_cap.deflate_compress(bytes(self._buf), self._level)
+        raw = _zlib_cap.deflate_compress(bytes(self._buf), self._level)
         if mode == Z_FINISH:
             self._closed = True
         if self._mode == "raw":
@@ -471,16 +480,16 @@ def _find_deflate_end(buf, wbits, expected_output):
     The remaining bytes are unused_data (gzip trailer, next member, …).
 
     Phase 5.x Blocked-4 fix: for raw deflate (wbits<0), the cap now
-    exposes `_compress_cap.deflate_decompress_counted` returning
+    exposes `_zlib_cap.deflate_decompress_counted` returning
     `(output, consumed)` from a single C call — O(1) vs the prior
     O(log N) binary search workaround. zlib/gzip framing wbits fall
     back to "claim all input" since the framing handler upstream of
     decompressobj already strips headers/trailers."""
     # Raw deflate — the cap exposes counted-decompress directly
     if wbits < 0:
-        if hasattr(_compress_cap, "deflate_decompress_counted"):
+        if hasattr(_zlib_cap, "deflate_decompress_counted"):
             try:
-                _, consumed = _compress_cap.deflate_decompress_counted(bytes(buf))
+                _, consumed = _zlib_cap.deflate_decompress_counted(bytes(buf))
                 return consumed
             except Exception:
                 pass
@@ -492,7 +501,7 @@ def _find_deflate_end(buf, wbits, expected_output):
 
 def _find_deflate_end_legacy(buf, wbits, expected_output):
     """Pre-Blocked-4 binary-search fallback. Kept for the rare case where
-    `_compress_cap.deflate_decompress_counted` isn't available (e.g. an
+    `_zlib_cap.deflate_decompress_counted` isn't available (e.g. an
     older bundled cap artifact predating the WIT revision)."""
     lo, hi = 1, len(buf)
     while lo < hi:
