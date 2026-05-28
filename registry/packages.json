@@ -141,6 +141,64 @@
     },
     {
       "dist": {
+        "name": "hashlib",
+        "version": "0.1.0",
+        "backends": [
+          {
+            "tier": "in-wasm",
+            "env": "a0006ecbc58cb8a20989ee7f7cdbe46cc1c86043823bfaeb56320213331ca937"
+          }
+        ]
+      },
+      "entries": [
+        {
+          "entry": "hashlib:new",
+          "doc": "Construct a hasher by algorithm name.",
+          "codecs": [
+            "msgpack",
+            "json"
+          ]
+        },
+        {
+          "entry": "hashlib:sha256",
+          "doc": "SHA-256 hasher constructor.",
+          "codecs": [
+            "msgpack",
+            "json"
+          ]
+        },
+        {
+          "entry": "hashlib:sha512",
+          "doc": "SHA-512 hasher constructor.",
+          "codecs": [
+            "msgpack",
+            "json"
+          ]
+        },
+        {
+          "entry": "hashlib:blake2b",
+          "doc": "BLAKE2b hasher constructor.",
+          "codecs": [
+            "msgpack",
+            "json"
+          ]
+        }
+      ],
+      "source": {
+        "pattern": "A",
+        "extension": "cpython-ext/_crypto_hash",
+        "shim": "cpython-ext/_crypto_hash/hashlib.py",
+        "capabilities": [
+          "tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0"
+        ],
+        "purpose": "Phase 5.1: cap-route hashlib through _crypto_hash (retires static _hashlib)",
+        "forges": [
+          "python-wasm-browser"
+        ]
+      }
+    },
+    {
+      "dist": {
         "name": "hashlib_capability",
         "version": "0.1.0",
         "backends": [
@@ -158,7 +216,7 @@
         "capabilities": [
           "tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0"
         ],
-        "purpose": "Cap-route hashlib through _crypto_hash (POC, not yet baked — pending Phase 5 OpenSSL retirement)",
+        "purpose": "Backwards-compat shim for code that opted in via `import hashlib_capability` (Phase 5.1: superseded by Lib/hashlib.py auto-install)",
         "forges": [
           "python-wasm-browser"
         ]

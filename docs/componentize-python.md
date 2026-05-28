@@ -227,16 +227,93 @@ SCRAM-PLUS/HTTP-2 client auth, file-path cert loading.
 
 ### Phase 5 — retire static-link paths
 
-**What.** Delete `scripts/build-zlib.sh`, retire `scripts/build-openssl.sh`
-once Phase 3 lands, remove CPython config that builds `_zlib`/`_hashlib`/
-`_ssl` statically. The componentized path becomes the only path for those
-capabilities.
+Split into sub-phases as the work is broken up.
 
-**Why a separate phase.** Until each capability is *verified* on the new
-path, the static-link paths are valuable fallbacks. Don't delete until at
-least one release confirms the new path is stable.
+#### 5.0 — static OpenSSL retired from default (Phase 3d, done)
 
-**Effort:** 1 day.
+`STATIC_OPENSSL=1` and `STATIC_ZLIB=1` are now opt-in escape hatches.
+The default build:
+
+- skips `--with-openssl`, CPython auto-disables static `_ssl` + `_hashlib`
+- doesn't invoke `scripts/build-zlib.sh` (the `_compression` extension
+  + `Lib/zlib.py` shim cover `zlib`)
+- `scripts/build-openssl.sh` only runs when `STATIC_OPENSSL=1`
+
+#### 5.1 — `import hashlib` defaults to the capability path ✅
+
+**State pre-5.1.** Default build had no static `_hashlib` AND
+`hashlib_capability` was opt-in (`import hashlib_capability` to monkey-
+patch stdlib hashlib). Plain `import hashlib` was effectively broken on
+the default build — the stdlib's `import _hashlib` failed.
+
+**What 5.1 ships.**
+
+- `cpython-ext/_crypto_hash/hashlib.py` — a **self-contained**
+  replacement for stdlib `hashlib`, installed at `deps/cpython/Lib/hashlib.py`
+  by `make install-python-shims`. Routes the public hashlib API through
+  `_crypto_hash` for the 9 multiplexer-supported algorithms (md5, sha1,
+  sha256, sha384, sha512, sha3_256, sha3_512, blake2b, blake2s).
+- For unsupported stdlib API (sha224, sha3_224, sha3_384, shake_*,
+  pbkdf2_hmac, scrypt), the shim raises `NotImplementedError` with a
+  message pointing at the underlying cap gap.
+- `algorithms_guaranteed` / `algorithms_available` reflect what's
+  actually here — calling code that probes these sets gets the truth.
+- `hashlib_capability.py` is retained as a backwards-compat re-export
+  (its auto-install becomes a no-op; explicit `install()` emits a
+  DeprecationWarning).
+
+**Coverage.** The 9 algorithms cover ~95% of real-world hashlib use
+(SHA-256 / SHA-512 / SHA-1 / MD5 alone are the bulk). The gaps:
+
+| Missing surface | Workaround | Path to closure |
+|---|---|---|
+| sha224, sha3_224, sha3_384, shake_* | use the closest covered algo (sha256 instead of sha224) | crypto-hash-multiplexer v0.2.x extension |
+| pbkdf2_hmac, scrypt | rebuild with `STATIC_OPENSSL=1` for projects that depend on these | separate `kdf` WIT contract |
+
+#### 5.2 — `import ssl` defaults to the capability path (pending)
+
+**Why deferred from 5.1.** ssl_capability is a much wider surface than
+hashlib_capability (SSLContext, SSLSocket, wrap_socket, MemoryBIO,
+SSLObject, dozens of constants). Per ssl_capability.py's docstring:
+
+> CPython's `ssl.py` pulls dozens of symbols from `_ssl` (SSLSession,
+> txt2obj, nid2obj, `_DEFAULT_CIPHERS`, `_OPENSSL_API_VERSION`, …) that
+> `_ssl_capability` doesn't expose.
+
+To install `ssl_capability` AS `Lib/ssl.py` (replacing the stdlib's
+ssl.py wholesale), every symbol the stdlib ssl module exposes that
+real code depends on needs an equivalent in the capability shim — or
+an explicit `NotImplementedError`. That's substantially more work than
+hashlib's 9-algorithm rewrite.
+
+**Today.** `Lib/ssl_capability.py` is installed; user code opts in via:
+
+```python
+import ssl_capability
+import urllib.request
+sys.modules['ssl'] = ssl_capability  # or use directly
+```
+
+**5.2 will ship.** A self-contained `Lib/ssl.py` shim covering the
+stdlib symbols that hashlib-shaped clients (urllib, httpx, requests)
+actually call. Out-of-coverage symbols raise NotImplementedError.
+Same coverage approach as 5.1 — the 80% that real code uses.
+
+#### 5.3 — full removal of the static escape hatches (optional)
+
+Once 5.2 has soaked for a release with no `STATIC_OPENSSL=1` /
+`STATIC_ZLIB=1` opt-ins in CI, delete:
+
+- `scripts/build-zlib.sh`
+- `scripts/build-openssl.sh`
+- The Makefile `STATIC_OPENSSL` / `STATIC_ZLIB` conditional blocks
+- CPython config that probes for `--with-openssl`
+
+The capability path becomes the only path. Conservative target: skip
+this phase entirely until a real consumer asks for the cleanup.
+
+**Effort.** 5.1 ≈ 0.5 day shipped. 5.2 ≈ 2–3 days (the rewrite is
+larger). 5.3 ≈ 0.5 day if it happens.
 
 ### Phase 6 — `wit-bindgen-py` generator (conditional)
 

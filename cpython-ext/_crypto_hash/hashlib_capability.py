@@ -1,78 +1,58 @@
-"""hashlib_capability — proof-of-concept shim wiring _crypto_hash into hashlib's
-public API so `hashlib.sha256(b'abc').hexdigest()` resolves to the capability
-component instead of OpenSSL's `_hashlib`.
+"""hashlib_capability — backwards-compatibility shim (Phase 5.1+).
 
-This module isn't installed automatically yet (Phase 5 retires the static
-OpenSSL `_hashlib`); for now you opt in:
+Before Phase 5.1, this module was the **opt-in** entrypoint to the
+crypto-hash capability: `import hashlib_capability` monkey-patched the
+stdlib hashlib to route through `_crypto_hash`.
 
-    import hashlib_capability  # registers as hashlib.new backend
+After Phase 5.1 (committed alongside this file), the default `Lib/hashlib.py`
+already routes through `_crypto_hash` — there's nothing to monkey-patch.
+This shim is kept installed so that:
 
-Run it through python.composed.wasm to see the cross-validation against the
-existing static `_hashlib` (OpenSSL) output.
+    import hashlib_capability  # no-op against the already-routing hashlib
+
+still works (re-exports the public surface from the new hashlib for any
+code that pulled symbols directly from this module). New code should
+just use `hashlib` — `import hashlib_capability` is deprecated and may
+be removed in a future release.
+
+The auto-install at module-import time is now a no-op for the same
+reason — the new Lib/hashlib.py is its own self-contained replacement,
+not a target for monkey-patching.
 """
 
 from __future__ import annotations
 
-import hashlib as _hashlib_stdlib
-import _crypto_hash
+import warnings
 
+# Re-export everything the new self-contained Lib/hashlib.py exposes.
+# Importing it (rather than _crypto_hash directly) keeps the two paths
+# in lockstep — if Lib/hashlib.py changes, this shim follows.
+from hashlib import (  # noqa: F401  re-exports
+    _CapHasher as _CapabilityHasher,
+    new,
+    algorithms_available,
+    algorithms_guaranteed,
+)
 
-class _CapabilityHasher:
-    """A minimal hashlib-shaped wrapper around _crypto_hash.hasher."""
-
-    __slots__ = ("_inner",)
-
-    def __init__(self, name: str, data: bytes = b"") -> None:
-        self._inner = _crypto_hash.new(name)
-        if data:
-            self._inner.update(data)
-
-    @property
-    def name(self) -> str:
-        return self._inner.name
-
-    @property
-    def digest_size(self) -> int:
-        return self._inner.digest_size
-
-    @property
-    def block_size(self) -> int:
-        # Not exposed by the capability — return a sane default for compatibility.
-        return 64
-
-    def update(self, data: bytes) -> None:
-        self._inner.update(data)
-
-    def digest(self) -> bytes:
-        return self._inner.digest()
-
-    def hexdigest(self) -> str:
-        return self._inner.hexdigest()
-
-    def copy(self) -> "_CapabilityHasher":
-        clone = object.__new__(_CapabilityHasher)
-        clone._inner = self._inner.copy()
-        return clone
-
-    def __repr__(self) -> str:
-        return f"<_CapabilityHasher {self.name}>"
-
-
-_SUPPORTED = frozenset(_crypto_hash.algorithms())
-
-
-def new(name: str, data: bytes = b"") -> _CapabilityHasher:
-    if name not in _SUPPORTED:
-        raise ValueError(f"unsupported hash algorithm via capability: {name}")
-    return _CapabilityHasher(name, data)
+_SUPPORTED = algorithms_available
 
 
 def install() -> None:
-    """Override hashlib.new + the per-algorithm constructors with the capability."""
-    _hashlib_stdlib.new = new  # type: ignore[assignment]
-    for name in _SUPPORTED:
-        setattr(_hashlib_stdlib, name, lambda data=b"", _n=name: new(_n, data))
+    """No-op since Phase 5.1.
+
+    Pre-5.1, install() monkey-patched the stdlib hashlib to route
+    through the capability. The new Lib/hashlib.py is the capability
+    route by default, so there's nothing to install. Kept for source
+    compatibility with code that called install() explicitly."""
+    warnings.warn(
+        "hashlib_capability.install() is a no-op since Phase 5.1 — "
+        "Lib/hashlib.py already routes through the crypto-hash capability. "
+        "Just use `import hashlib`.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
 
-# Auto-install on import so `import hashlib_capability` does the wiring.
-install()
+# Pre-5.1 behavior was install() at module import. Now a no-op (silent)
+# so existing `import hashlib_capability` calls don't spam warnings.
+# Explicit install() calls do emit the deprecation warning above.

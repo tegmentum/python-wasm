@@ -148,6 +148,12 @@ install-python-shims:
 	@cp $(PROJECT_DIR)/cpython-ext/_compression/zlib.py \
 	    $(PROJECT_DIR)/deps/cpython/Lib/zlib.py
 	@echo "installed: deps/cpython/Lib/zlib.py  (Tier A: routes to _compress_cap.deflate_* + C-speed crc32/adler32)"
+	@cp $(PROJECT_DIR)/cpython-ext/_crypto_hash/hashlib.py \
+	    $(PROJECT_DIR)/deps/cpython/Lib/hashlib.py
+	@echo "installed: deps/cpython/Lib/hashlib.py  (Phase 5.1: cap-route hashlib through _crypto_hash; retires the stdlib hashlib + static _hashlib path)"
+	@cp $(PROJECT_DIR)/cpython-ext/_crypto_hash/hashlib_capability.py \
+	    $(PROJECT_DIR)/deps/cpython/Lib/hashlib_capability.py
+	@echo "installed: deps/cpython/Lib/hashlib_capability.py  (Phase 5.1: backwards-compat shim; import-then-install() is now a no-op against the already-routing Lib/hashlib.py)"
 	@cp $(PROJECT_DIR)/cpython-ext/_sqlite_capability/sqlite3.py \
 	    $(PROJECT_DIR)/deps/cpython/Lib/sqlite3/__init__.py
 	@echo "installed: deps/cpython/Lib/sqlite3/__init__.py  (Tier B: routes to _sqlite_cap via sqlite:wasm capability)"
