@@ -5,10 +5,13 @@ content-addressed substrate, the way `fijivm` treats a JVM build. The
 practical motivator is python-wasm: every `python.composed.wasm` we ship is
 already a forged artifact in this sense — assembled from a specific
 wasi-sdk + specific CPython source + N capability components at specific
-digests + a Python-level shim overlay. Today that identity is implicit,
-scattered across `Makefile`, `scripts/compose-python-component.sh`, the
-`cpython-ext/` tree, and several sibling cap repos. This doc sketches the
-explicit version.
+digests + a Python-level shim overlay. Today that identity is partly
+explicit (the *inputs* — wasi-sdk version, CPython version, cap selection,
+build flags — are captured in `profiles/*.toml`; see
+[docs/build-profiles.md](build-profiles.md)) and partly implicit (the
+*outputs* — sha256s of every input and the produced wasm — are emitted on
+demand by `pylon emit-manifest`). This doc sketches the schema both halves
+share.
 
 ## Motivation: why Python needs more granularity than Java
 

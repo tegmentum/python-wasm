@@ -36,28 +36,47 @@ The WASI SDK is fetched automatically. wasmtime must be on your `PATH`
 ## Quick start (CLI)
 
 ```sh
-make all          # fetch the WASI SDK + CPython source, then cross-build python.wasm
+make all                            # fetch SDK + CPython source, cross-build python.wasm
+make python-composed                # compose with cap multiplexers -> python.composed.wasm
 make run ARGS='-c "print(1+1)"'
-make test         # WASI CLI smoke tests
+make test                           # WASI CLI smoke tests
 ```
 
 `make all` does two things:
 
 1. `fetch-deps` — downloads the WASI SDK (`scripts/fetch-sdk.sh`) and clones
-   CPython at the pinned tag, applying the patch in `patches/`
-   (`scripts/fetch-cpython.sh`).
+   CPython at the version named by the active profile, applying any
+   per-version patches under `patches/<py-minor>/` (`scripts/fetch-cpython.sh`).
 2. `build` — runs CPython's own `Tools/wasm/wasi build` to produce
-   `deps/cpython/cross-build/wasm32-wasip2/python.wasm`.
+   `deps/<profile-source-dir>/cross-build/wasm32-wasip2/python.wasm`.
+
+### Build profiles
+
+Multi-version, multi-variant builds are driven by `profiles/*.toml`. Each
+profile names: a CPython version + source tree, the wasi-sdk version, the
+static-vs-cap toggles (OpenSSL, zlib, v86), the cap artifact paths plugged
+in at compose time, and the per-profile output dir. Default profile
+(`profiles/default.toml`, symlinked to `3.14-current`) is CPython 3.14.3
+with v86 enabled — the historical build behavior.
+
+```sh
+make python-composed                            # default profile -> build/3.14-current/
+make python-composed PROFILE=3.13-current       # CPython 3.13.9 -> build/3.13-current/
+make show-profile PROFILE=3.13-current          # dump resolved variables
+```
+
+See `docs/build-profiles.md` for the schema and adding new profiles.
 
 Run Python directly:
 
 ```sh
 make run ARGS='--version'
 make run ARGS='/path/to/script.py'      # paths resolve inside the mounted CPython tree
+make run PROFILE=3.13-current ARGS='--version'
 ```
 
-`scripts/run-python.sh` invokes wasmtime with the CPython checkout mounted at `/`
-and `PYTHONPATH` pointed at the cross-build's stdlib.
+`scripts/run-python.sh` invokes wasmtime with the CPython checkout (per profile)
+mounted at `/` and `PYTHONPATH` pointed at the cross-build's stdlib.
 
 ## Web demo
 
