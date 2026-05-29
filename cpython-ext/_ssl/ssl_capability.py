@@ -208,21 +208,34 @@ class SSLSocket:
 
     def __init__(self, inner):
         self._inner = inner
+        # httpx/httpcore reach for `_sslobj` (the stdlib's internal _ssl
+        # C-extension SSL object) to introspect the connection. We don't
+        # expose a separate C-level object — the inner cap IS that level —
+        # so present self as the sslobj.
+        self._sslobj = self
 
     # --- I/O ---
     def read(self, buflen: int = 8192) -> bytes:
-        # openssl-component's C layer has a sharp edge around clean peer
-        # shutdown: once it raises SSLError("SSL connection is closed"),
-        # all further reads also raise — buffered TLS records that arrived
-        # before close-notify can be lost. For Connection: close traffic
-        # (one request → server closes) that means losing chunked-encoding
-        # trailers like `0\r\n\r\n`.
+        # Known trade-off: openssl-component's C layer loses TLS records
+        # that arrived between the last data record and close-notify. For
+        # Connection: close + chunked-encoding traffic, the chunk-end
+        # sentinel `0\r\n\r\n` ships in a separate small TLS record after
+        # the body — and that record gets eaten when we re-enter SSL_read
+        # after the body and trigger close-notify processing.
         #
-        # Workaround: after a successful read, ONLY drain if pending() says
-        # data is already buffered in OpenSSL. Never issue a follow-up
-        # blocking read — that breaks keepalive connections (urllib3/pip)
-        # because the next read blocks for data the server isn't sending
-        # until the next request goes out.
+        # An eager-drain workaround (one extra inner.read after every
+        # successful read) catches the trailing record, but the cap's
+        # inner.read BLOCKS on Connection: keep-alive when no follow-up
+        # is pending — breaks urllib3/pip download paths that read
+        # response then expect to send the next request.
+        #
+        # No safe answer at this layer without a non-blocking peek in
+        # openssl-component. Until v0.2.x exposes one, the conservative
+        # rule wins: only drain what's already in pending() (non-blocking,
+        # in-OpenSSL plaintext). Consequence: urllib + Connection: close
+        # responses with chunked-encoding may raise IncompleteRead at the
+        # body trailer. Workarounds: use Connection: keep-alive, or use
+        # requests / urllib3 (which read via different code paths).
         try:
             data = self._inner.read(buflen)
         except SSLError as e:

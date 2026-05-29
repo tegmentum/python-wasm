@@ -41,3 +41,28 @@ if "_ssl" not in sys.modules:
         sys.modules["_ssl"] = _ssl
     except ImportError:
         pass
+
+
+# asyncio's BaseSelectorEventLoop._make_self_pipe wants socket.socketpair()
+# to cross-signal a real selector wake-up. WASI Preview 2 has no socketpair
+# primitive; Lib/socket.py's _fallback_socketpair (bind/listen/connect)
+# fails on PermissionError before -S inherit-network and OSError after.
+# In a single-threaded wasi-p2 guest we have neither signals nor concurrent
+# threads, so the self-pipe is dead code: nothing ever calls _write_to_self.
+# Replace the four methods that touch the pipe with no-ops so asyncio.run()
+# can construct an event loop without trying to socketpair.
+try:
+    import asyncio.selector_events as _se
+
+    def _no_self_pipe(self):
+        self._ssock = None
+        self._csock = None
+        self._internal_fds = 0
+
+    _se.BaseSelectorEventLoop._make_self_pipe   = _no_self_pipe
+    _se.BaseSelectorEventLoop._close_self_pipe  = lambda self: None
+    _se.BaseSelectorEventLoop._process_self_data = lambda self, data: None
+    _se.BaseSelectorEventLoop._write_to_self    = lambda self: None
+    del _se
+except ImportError:
+    pass
