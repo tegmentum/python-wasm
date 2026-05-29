@@ -1096,6 +1096,16 @@ extern bool openssl_component_tls_static_client_connect(ssl_import_string_t *hos
 extern bool openssl_component_tls_method_client_write(openssl_component_tls_borrow_client_t self, ssl_import_list_u8_t *data, uint32_t *ret, openssl_component_tls_tls_error_t *err);
 // Read plaintext; returns empty list on clean close.
 extern bool openssl_component_tls_method_client_read(openssl_component_tls_borrow_client_t self, uint32_t max_bytes, ssl_import_list_u8_t *ret, openssl_component_tls_tls_error_t *err);
+// True if OpenSSL has data buffered (decrypted plaintext OR
+// unprocessed ciphertext in its BIO) that a subsequent `read`
+// can return without blocking on the network. Wraps
+// `SSL_has_pending` (OpenSSL ≥1.1.0). Use this to safely drain
+// trailing TLS records (e.g. the chunk-end sentinel after the
+// final HTTP body record) before close-notify processing
+// throws the data away. Distinct from `pending` (count of
+// already-decrypted bytes) which our existing `read` already
+// covers transparently.
+extern bool openssl_component_tls_method_client_has_pending(openssl_component_tls_borrow_client_t self);
 // 0-RTT data; valid only before the first `read`/`write` when
 // `enable-early-data` is set and a session ticket is supplied.
 extern bool openssl_component_tls_method_client_write_early(openssl_component_tls_borrow_client_t self, ssl_import_list_u8_t *data, uint32_t *ret, openssl_component_tls_tls_error_t *err);
@@ -1118,6 +1128,8 @@ extern uint16_t openssl_component_tls_method_server_listener_local_port(openssl_
 extern void openssl_component_tls_static_server_listener_close(openssl_component_tls_own_server_listener_t l);
 extern bool openssl_component_tls_method_server_write(openssl_component_tls_borrow_server_t self, ssl_import_list_u8_t *data, uint32_t *ret, openssl_component_tls_tls_error_t *err);
 extern bool openssl_component_tls_method_server_read(openssl_component_tls_borrow_server_t self, uint32_t max_bytes, ssl_import_list_u8_t *ret, openssl_component_tls_tls_error_t *err);
+// Server-side counterpart of `client.has-pending`. See there.
+extern bool openssl_component_tls_method_server_has_pending(openssl_component_tls_borrow_server_t self);
 extern void openssl_component_tls_method_server_peer(openssl_component_tls_borrow_server_t self, openssl_component_tls_peer_info_t *ret);
 // Take buffered NSS-format keylog lines. Empty unless
 // `keylog` was set in the listener's server-config.

@@ -156,6 +156,16 @@ interface tls {
         write: func(data: list<u8>) -> result<u32, tls-error>;
         /// Read plaintext; returns empty list on clean close.
         read: func(max-bytes: u32) -> result<list<u8>, tls-error>;
+        /// True if OpenSSL has data buffered (decrypted plaintext OR
+        /// unprocessed ciphertext in its BIO) that a subsequent `read`
+        /// can return without blocking on the network. Wraps
+        /// `SSL_has_pending` (OpenSSL ≥1.1.0). Use this to safely drain
+        /// trailing TLS records (e.g. the chunk-end sentinel after the
+        /// final HTTP body record) before close-notify processing
+        /// throws the data away. Distinct from `pending` (count of
+        /// already-decrypted bytes) which our existing `read` already
+        /// covers transparently.
+        has-pending: func() -> bool;
 
         /// 0-RTT data; valid only before the first `read`/`write` when
         /// `enable-early-data` is set and a session ticket is supplied.
@@ -189,6 +199,8 @@ interface tls {
     resource server {
         write: func(data: list<u8>) -> result<u32, tls-error>;
         read: func(max-bytes: u32) -> result<list<u8>, tls-error>;
+        /// Server-side counterpart of `client.has-pending`. See there.
+        has-pending: func() -> bool;
         peer: func() -> peer-info;
         /// Take buffered NSS-format keylog lines. Empty unless
         /// `keylog` was set in the listener's server-config.

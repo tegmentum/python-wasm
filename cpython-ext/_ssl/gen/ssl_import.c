@@ -223,6 +223,9 @@ extern void __wasm_import_openssl_component_tls_method_client_write(int32_t, uin
 __attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]client.read")))
 extern void __wasm_import_openssl_component_tls_method_client_read(int32_t, int32_t, uint8_t *);
 
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]client.has-pending")))
+extern int32_t __wasm_import_openssl_component_tls_method_client_has_pending(int32_t);
+
 __attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]client.write-early")))
 extern void __wasm_import_openssl_component_tls_method_client_write_early(int32_t, uint8_t *, size_t, uint8_t *);
 
@@ -258,6 +261,9 @@ extern void __wasm_import_openssl_component_tls_method_server_write(int32_t, uin
 
 __attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]server.read")))
 extern void __wasm_import_openssl_component_tls_method_server_read(int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]server.has-pending")))
+extern int32_t __wasm_import_openssl_component_tls_method_server_has_pending(int32_t);
 
 __attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]server.peer")))
 extern void __wasm_import_openssl_component_tls_method_server_peer(int32_t, uint8_t *);
@@ -5830,6 +5836,11 @@ bool openssl_component_tls_method_client_read(openssl_component_tls_borrow_clien
   }
 }
 
+bool openssl_component_tls_method_client_has_pending(openssl_component_tls_borrow_client_t self) {
+  int32_t ret = __wasm_import_openssl_component_tls_method_client_has_pending((self).__handle);
+  return ret;
+}
+
 bool openssl_component_tls_method_client_write_early(openssl_component_tls_borrow_client_t self, ssl_import_list_u8_t *data, uint32_t *ret, openssl_component_tls_tls_error_t *err) {
   __attribute__((__aligned__(8)))
   uint8_t ret_area[(16+4*sizeof(void*))];
@@ -6326,6 +6337,11 @@ bool openssl_component_tls_method_server_read(openssl_component_tls_borrow_serve
     *err = result.val.err;
     return 0;
   }
+}
+
+bool openssl_component_tls_method_server_has_pending(openssl_component_tls_borrow_server_t self) {
+  int32_t ret = __wasm_import_openssl_component_tls_method_server_has_pending((self).__handle);
+  return ret;
 }
 
 void openssl_component_tls_method_server_peer(openssl_component_tls_borrow_server_t self, openssl_component_tls_peer_info_t *ret) {

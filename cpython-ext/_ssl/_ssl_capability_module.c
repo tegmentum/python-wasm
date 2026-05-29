@@ -732,10 +732,17 @@ static PyObject *SSLSocket_write(SSLSocketObject *self, PyObject *args)
 
 static PyObject *SSLSocket_pending(SSLSocketObject *self, PyObject *Py_UNUSED(args))
 {
-    /* openssl:component/tls doesn't expose SSL_pending; gap inventory item #1.
-     * Return 0 — the only consequence is that SSLObject.pending() is uninformative;
-     * read() still works (it just blocks at the TLS layer until a record arrives). */
-    return PyLong_FromLong(0);
+    /* openssl:component/tls@0.2.x adds has-pending (true if OpenSSL has
+     * data buffered — decrypted plaintext OR unprocessed ciphertext in
+     * its BIO — such that the next read() won't block on the network).
+     * Stdlib SSLSocket.pending() returns a byte count but our callers
+     * (the SSLSocket.read drain) only care about the boolean. Return 1
+     * when has-pending, 0 otherwise. */
+    if (!self->has_handle) return PyLong_FromLong(0);
+    openssl_component_tls_borrow_client_t b =
+        openssl_component_tls_borrow_client(self->handle);
+    bool any = openssl_component_tls_method_client_has_pending(b);
+    return PyLong_FromLong(any ? 1 : 0);
 }
 
 static PyObject *SSLSocket_shutdown(SSLSocketObject *self, PyObject *Py_UNUSED(args))
@@ -858,7 +865,7 @@ static PyMethodDef SSLSocket_methods[] = {
     {"write",                   (PyCFunction) SSLSocket_write,                   METH_VARARGS,
      "write(data: bytes) -> int — bytes encrypted+sent."},
     {"pending",                 (PyCFunction) SSLSocket_pending,                 METH_NOARGS,
-     "pending() -> int — always 0 in v1 (openssl-component doesn't expose SSL_pending)."},
+     "pending() -> int — 1 if openssl-component has buffered data the next read() can return without blocking; 0 otherwise. v0.2.x wires SSL_has_pending; v1 returned a hardcoded 0."},
     {"shutdown",                (PyCFunction) SSLSocket_shutdown,                METH_NOARGS,
      "shutdown() -> None — close the TLS connection (sends close_notify, closes TCP)."},
     {"version",                 (PyCFunction) SSLSocket_version,                 METH_NOARGS,

@@ -216,26 +216,20 @@ class SSLSocket:
 
     # --- I/O ---
     def read(self, buflen: int = 8192) -> bytes:
-        # Known trade-off: openssl-component's C layer loses TLS records
-        # that arrived between the last data record and close-notify. For
-        # Connection: close + chunked-encoding traffic, the chunk-end
-        # sentinel `0\r\n\r\n` ships in a separate small TLS record after
-        # the body — and that record gets eaten when we re-enter SSL_read
-        # after the body and trigger close-notify processing.
+        # openssl-component@0.2.x wires `SSL_has_pending` through as
+        # `pending() -> int` (1 if buffered, 0 otherwise — see the C ext
+        # comment for v1 vs v2 semantics). That lets us safely drain
+        # trailing TLS records without blocking on keepalive:
         #
-        # An eager-drain workaround (one extra inner.read after every
-        # successful read) catches the trailing record, but the cap's
-        # inner.read BLOCKS on Connection: keep-alive when no follow-up
-        # is pending — breaks urllib3/pip download paths that read
-        # response then expect to send the next request.
-        #
-        # No safe answer at this layer without a non-blocking peek in
-        # openssl-component. Until v0.2.x exposes one, the conservative
-        # rule wins: only drain what's already in pending() (non-blocking,
-        # in-OpenSSL plaintext). Consequence: urllib + Connection: close
-        # responses with chunked-encoding may raise IncompleteRead at the
-        # body trailer. Workarounds: use Connection: keep-alive, or use
-        # requests / urllib3 (which read via different code paths).
+        #   * Connection: close + chunked-encoding: the chunk-end
+        #     sentinel `0\r\n\r\n` ships in a separate small TLS record
+        #     after the body. has-pending becomes true while that record
+        #     sits in OpenSSL's BIO, so we read it before close-notify
+        #     processing throws it away.
+        #   * Connection: keep-alive: after a normal response,
+        #     has-pending returns false (server isn't sending anything),
+        #     so the drain loop exits and we return without blocking on
+        #     a network read that would wait forever.
         try:
             data = self._inner.read(buflen)
         except SSLError as e:
@@ -247,9 +241,9 @@ class SSLSocket:
         if not data:
             return data  # natural EOF
 
-        # Drain only what's already plaintext-decoded and waiting. pending()
-        # is non-blocking; a value > 0 means we can safely read more without
-        # waiting on the network.
+        # Drain any data OpenSSL has buffered. has-pending covers both
+        # already-decrypted plaintext AND undecrypted ciphertext in the
+        # BIO that next read() can safely process.
         while self._inner.pending() > 0:
             try:
                 extra = self._inner.read(buflen)
