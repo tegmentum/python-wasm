@@ -1,0 +1,53 @@
+schema = "tegmentum:pylon-pyforge/pkg@0.1.0"
+
+# Shim-only meta-package: the shared Lib/ overlays for the four
+# compression codec extensions. No C extension of its own — exists
+# because the four codec-cap extensions (_bz2_cap, _lzma_cap, _zlib_cap,
+# _zstd_cap) all consume helper code (wbits decoders, format wrappers)
+# best shared in one place.
+#
+# The codec-cap pyforge-pkg.toml files declare the per-codec
+# [[provides]] entries pointing back at this dir. This file just
+# declares the meta-identity so `pylon pkg verify` doesn't flag the
+# directory as orphaned.
+
+[package]
+name = "compression-shims"
+version = "0.1.0"
+description = "Shared Lib/ overlays for the per-codec cpython-ext extensions (bz2, lzma, zlib, compression.zstd)"
+pattern = "shim-only"
+
+# No [extension] block — there's no C extension in this dir.
+# No [[capabilities.required]] — shims don't import WIT directly.
+
+[[provides]]
+module = "bz2"
+shim = "bz2.py"
+dest = "Lib/bz2.py"
+purpose = "Tier A bz2 overlay (used by [_bz2_cap])"
+version = "0.1.0"
+
+[[provides]]
+module = "lzma"
+shim = "lzma.py"
+dest = "Lib/lzma.py"
+purpose = "Tier A lzma overlay (used by [_lzma_cap])"
+version = "0.1.0"
+
+[[provides]]
+module = "zlib"
+shim = "zlib.py"
+dest = "Lib/zlib.py"
+purpose = "Tier A zlib overlay (used by [_zlib_cap]; also disables the stock `zlib` C ext)"
+version = "0.1.0"
+
+[[provides]]
+module = "compression.zstd"
+shim = "zstd.py"
+dest = "Lib/compression/zstd/__init__.py"
+purpose = "Tier A compression.zstd overlay (used by [_zstd_cap]; 3.14+ only)"
+version = "0.1.0"
+
+[gating]
+include_forges = []
+exclude_forges = []

@@ -1,0 +1,28 @@
+schema = "tegmentum:pylon-pyforge/pkg@0.1.0"
+
+# threading single-threaded shim. wasi-p2 has no preemptive threads.
+# The overlay's Thread.start() runs the target inline (synchronously)
+# so code that only needs correctness (not parallelism) works as
+# expected — Lock / RLock / Condition / Semaphore / Event are all
+# usable as the no-contention objects they are in single-threaded code.
+# For real parallelism see Phase 6 (OffloadPool, host workers).
+
+[package]
+name = "threading-shim"
+version = "0.1.0"
+description = "Single-threaded threading.Thread shim (no parallelism; correctness-preserving)"
+pattern = "shim-only"
+
+# No [extension] — pure-Python shim.
+# No [[capabilities.required]] — no wit imports.
+
+[[provides]]
+module = "threading"
+shim = "threading.py"
+dest = "Lib/threading.py"
+purpose = "LOW-2: Thread.start() runs inline (wasi-p2 has no preemptive threads)"
+version = "0.1.0"
+
+[gating]
+include_forges = []
+exclude_forges = []

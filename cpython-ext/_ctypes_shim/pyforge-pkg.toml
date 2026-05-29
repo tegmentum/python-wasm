@@ -1,0 +1,36 @@
+schema = "tegmentum:pylon-pyforge/pkg@0.1.0"
+
+# ctypes stub. wasi-p2 has no dlopen / no native ABI, so `import ctypes`
+# can't load any shared library. This package overlays Lib/ctypes/ with
+# a small shim that raises NotImplementedError on CDLL/PyDLL/WinDLL
+# construction with a clear message. The stdlib ctypes module then
+# imports cleanly (a lot of pure-Python code does `import ctypes` at
+# module-load time for type definitions only), but instantiation fails
+# loudly.
+
+[package]
+name = "ctypes-stub"
+version = "0.1.0"
+description = "ctypes import-only stub for wasi-p2 (raises on CDLL/PyDLL because there's no dlopen)"
+pattern = "shim-only"
+
+# No [extension] — there's no C extension in this dir.
+# No [[capabilities.required]] — pure-Python stub.
+
+[[provides]]
+module = "ctypes"
+shim = "__init__.py"
+dest = "Lib/ctypes/__init__.py"
+purpose = "LOW-1: stub for native ABI absence (no dlopen on wasi-p2)"
+version = "0.1.0"
+
+[[provides]]
+module = "ctypes.util"
+shim = "util.py"
+dest = "Lib/ctypes/util.py"
+purpose = "Sibling stub for ctypes.util.find_library() (returns None on every host)"
+version = "0.1.0"
+
+[gating]
+include_forges = []
+exclude_forges = []

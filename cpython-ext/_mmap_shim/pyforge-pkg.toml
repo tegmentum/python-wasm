@@ -1,0 +1,27 @@
+schema = "tegmentum:pylon-pyforge/pkg@0.1.0"
+
+# mmap pure-Python shim. wasi-p2 has no shared-memory primitives or
+# MAP_SHARED, so the stock C `mmap` extension can't be built. This
+# overlay implements the mmap.mmap surface against a bytearray + the
+# normal file API — same Python-visible behavior for unshared (per-
+# process anonymous + file-backed) cases. Truly-shared mappings raise.
+
+[package]
+name = "mmap-shim"
+version = "0.1.0"
+description = "Pure-Python mmap implementation backed by bytearray + file I/O (no MAP_SHARED)"
+pattern = "shim-only"
+
+# No [extension] — pure-Python shim, no C ext required.
+# No [[capabilities.required]] — only wasi:filesystem (already required by the runtime).
+
+[[provides]]
+module = "mmap"
+shim = "mmap.py"
+dest = "Lib/mmap.py"
+purpose = "Blocked-3: replace the missing C mmap extension with a pure-Python shim"
+version = "0.1.0"
+
+[gating]
+include_forges = []
+exclude_forges = []

@@ -1,0 +1,44 @@
+schema = "tegmentum:pylon-pyforge/pkg@0.1.0"
+
+# WASI compatibility shims applied at interpreter startup via
+# Lib/sitecustomize.py. Covers three needs surfaced by pip,
+# urllib3, and modern async code on a wasi-p2 build:
+#
+#  1. POSIX user/group stubs (os.getuid/geteuid/...) — pip's
+#     bundled platformdirs imports getuid unconditionally and
+#     wasi-p2's posix C ext doesn't expose it. Returns container-
+#     style identity (uid/gid 0, ppid 1, login "wasi").
+#  2. os.umask round-trip stub — pip uses it to mask wheel-install
+#     file modes.
+#  3. _ssl alias for _ssl_capability — pip's has_tls() probes
+#     `import _ssl` to detect TLS support; the cap is shipped under
+#     a different name.
+#  4. asyncio._make_self_pipe no-op replacement — Phase 2.
+#     socket.socketpair() is unavailable; the self-pipe is dead
+#     code under our single-threaded model anyway.
+#  5. Phase 4: _offload_shim.install_from_env() auto-installs the
+#     py-offload importhook when OFFLOAD_MAILBOX_DIR /
+#     OFFLOAD_PACKAGES are set.
+#  6. Phase 6: when OFFLOAD_POOL_DIR is set, replace
+#     multiprocessing.Pool with the OffloadPool factory so stock
+#     multiprocessing code parallelizes via host workers.
+
+[package]
+name = "posix-user-shim"
+version = "0.1.0"
+description = "sitecustomize.py with WASI compat stubs, asyncio self-pipe disable, and offload-hook auto-install"
+pattern = "shim-only"
+
+# No [extension] — sitecustomize.py is pure Python.
+# No [[capabilities.required]] — only stdlib + _offload_shim (separately wired).
+
+[[provides]]
+module = "sitecustomize"
+shim = "sitecustomize.py"
+dest = "Lib/sitecustomize.py"
+purpose = "Phase 1/2/4/6: cross-cutting WASI compat shims at interpreter startup"
+version = "0.1.0"
+
+[gating]
+include_forges = []
+exclude_forges = []

@@ -1,0 +1,46 @@
+schema = "tegmentum:pylon-pyforge/pkg@0.1.0"
+
+# bz2 codec extension. Imports bzip2-wasm's per-codec WIT directly
+# (bzip2:compression@0.1.0). Pattern A static linkage; stdlib `bz2`
+# is overlaid with cpython-ext/_compression/bz2.py.
+
+[package]
+name = "bz2-cap"
+version = "0.1.0"
+description = "bz2 codec extension over bzip2-wasm (replaces the missing-on-wasi _bz2 C extension)"
+pattern = "A"
+
+[extension]
+srcdir = "_bz2_cap"
+module_name = "_bz2_cap"
+c_file = "_bz2_capmodule.c"
+wit_dir = "wit"
+gen_dir = "gen"
+gen_import_c = "bz2_cap_import.c"
+gen_import_obj = "bz2_cap_import_component_type.o"
+
+[[capabilities.required]]
+interface = "bzip2:compression/simple"
+version = "0.1.0"
+
+[[capabilities.required]]
+interface = "bzip2:compression/streaming"
+version = "0.1.0"
+
+[[capabilities.required]]
+interface = "bzip2:compression/info"
+version = "0.1.0"
+
+# Lib/bz2.py — pure-Python shim routing through this extension.
+# Lives in the sister _compression/ dir so the four codec shims
+# (bz2, lzma, zlib, compression.zstd) can share their wrap helpers.
+[[provides]]
+module = "bz2"
+shim = "../_compression/bz2.py"
+dest = "Lib/bz2.py"
+purpose = "Tier A: cap-route bz2 through _bz2_cap"
+version = "0.1.0"
+
+[gating]
+include_forges = []
+exclude_forges = []

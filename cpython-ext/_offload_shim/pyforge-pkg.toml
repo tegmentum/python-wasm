@@ -1,0 +1,41 @@
+schema = "tegmentum:pylon-pyforge/pkg@0.1.0"
+
+# Phase 4 + Phase 6: py-offload importhook + OffloadPool.
+#
+# Vendored client-side slice of reference-worker/py_offload/. Lets
+# python-wasm route imports of "native-only" packages (numpy, scipy,
+# cryptography, lxml, …) through the tegmentum:py-offload@0.1.0 WIT
+# contract to a host-side native CPython worker.
+#
+# Today the transport is a file mailbox over a shared directory; a
+# future Phase moves the worker into a v86 wasmmachine guest without
+# changing the guest-side wiring.
+
+[package]
+name = "offload-shim"
+version = "0.1.0"
+description = "py-offload meta_path importhook + OffloadPool (Phase 4 + Phase 6)"
+pattern = "shim-only"
+
+# No [extension] — pure Python.
+# No [[capabilities.required]] — only stdlib (os, importlib, sys).
+# The offload contract is reached over the wasi:filesystem mailbox;
+# no separately-imported WIT interface.
+
+[[provides]]
+module = "_offload_shim"
+shim = "."
+dest = "Lib/_offload_shim/"
+purpose = "Phase 4: meta_path importhook proxying native packages to a host worker"
+version = "0.1.0"
+
+[[provides]]
+module = "_offload_shim.pool"
+shim = "pool.py"
+dest = "Lib/_offload_shim/pool.py"
+purpose = "Phase 6: OffloadPool — multiprocessing.Pool-shaped fan-out"
+version = "0.1.0"
+
+[gating]
+include_forges = []
+exclude_forges = []

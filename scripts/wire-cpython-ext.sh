@@ -40,37 +40,66 @@ fi
 
 EXT_DIR="$PROJECT_DIR/cpython-ext"
 
-# Resolve each cpython-ext/<srcdir>/ to its (module_name, srcdir, c_file,
-# gen_import_c, gen_import_obj). Conventional case = all five derive from
-# srcdir; the special-case table below handles the historical _ssl mapping.
+# Phase 8: pyforge-pkg.toml is the single source of truth for each
+# extension's identity (srcdir, module_name, c_file, gen_import_c,
+# gen_import_obj). Glob cpython-ext/*/pyforge-pkg.toml and parse the
+# [extension] section. Shim-only directories (no [extension] block,
+# pattern = "shim-only") are filtered out — they're install-python-
+# shims-side, not Modules/Setup.local-side.
 #
-# Format: srcdir|module_name|c_file|gen_import_c|gen_import_obj
-# Capability extensions always wired in. Per-variant ones are appended
-# below based on env-var flags.
-declare -a EXTS=(
-    "_zlib_cap|_zlib_cap|_zlib_capmodule.c|zlib_cap_import.c|zlib_cap_import_component_type.o"
-    "_bz2_cap|_bz2_cap|_bz2_capmodule.c|bz2_cap_import.c|bz2_cap_import_component_type.o"
-    "_lzma_cap|_lzma_cap|_lzma_capmodule.c|lzma_cap_import.c|lzma_cap_import_component_type.o"
-    "_zstd_cap|_zstd_cap|_zstd_capmodule.c|zstd_cap_import.c|zstd_cap_import_component_type.o"
-    "_lz4_cap|_lz4_cap|_lz4_capmodule.c|lz4_cap_import.c|lz4_cap_import_component_type.o"
-    "_openzl_cap|_openzl_cap|_openzl_capmodule.c|openzl_cap_import.c|openzl_cap_import_component_type.o"
-    "_crypto_hash|_crypto_hash|_crypto_hashmodule.c|crypto_hash_import.c|crypto_hash_import_component_type.o"
-    "_xxhash|_xxhash|_xxhashmodule.c|xxhash_import.c|xxhash_import_component_type.o"
-    "_ssl|_ssl_capability|_ssl_capability_module.c|ssl_import.c|ssl_import_component_type.o"
-    "_sqlite_capability|_sqlite_cap|_sqlite_capability_module.c|sqlite_import.c|sqlite_import_component_type.o"
-    "_kdf_cap|_kdf_cap|_kdf_capmodule.c|kdf_cap_import.c|kdf_cap_import_component_type.o"
-)
+# Use python3's tomllib because it's already required elsewhere in
+# the build. Filter via OFFLOAD_PKGS_INCLUDE / OFFLOAD_PKGS_EXCLUDE
+# from the env so subset builds (e.g. scripts/build-from-pkgs.sh)
+# can opt in/out of specific packages.
+EXTS_FILE="$(mktemp)"
+trap 'rm -f "$EXTS_FILE"' EXIT
 
-# pylon Phase 4.1 variant: _v86_posix is omitted from the browser
-# build (WITH_V86_POSIX=0). Default ON preserves the existing v86-
-# composed shape used by every current build script + test. See
-# pylon-pyforge-implementation.md §4.1.
-if [ "${WITH_V86_POSIX:-1}" = "1" ]; then
-    # The v86:posix/process import is plugged in by
-    # compose-python-component.sh via V86_POSIX_COMPONENT (default:
-    # v86-posix-stub — every spawn returns guest-not-ready until v86-
-    # component proper grows the real impl).
-    EXTS+=("_v86_posix|_v86_posix|_v86_posixmodule.c|v86_posix_import.c|v86_posix_import_component_type.o")
+python3 - "$EXT_DIR" "${PYFORGE_PKGS_INCLUDE:-}" "${PYFORGE_PKGS_EXCLUDE:-}" > "$EXTS_FILE" <<'PYEOF'
+import os
+import pathlib
+import sys
+import tomllib
+
+ext_dir = pathlib.Path(sys.argv[1])
+include = {n for n in sys.argv[2].split(",") if n}
+exclude = {n for n in sys.argv[3].split(",") if n}
+
+for manifest in sorted(ext_dir.glob("*/pyforge-pkg.toml")):
+    with open(manifest, "rb") as fh:
+        pkg = tomllib.load(fh)
+    name = pkg.get("package", {}).get("name", manifest.parent.name)
+    if include and name not in include:
+        continue
+    if exclude and name in exclude:
+        continue
+    ext = pkg.get("extension")
+    if not ext:
+        continue                     # shim-only — no Setup.local entry
+    print("|".join([
+        ext["srcdir"],
+        ext["module_name"],
+        ext["c_file"],
+        ext["gen_import_c"],
+        ext["gen_import_obj"],
+    ]))
+PYEOF
+
+declare -a EXTS=()
+while IFS= read -r line; do
+    [ -n "$line" ] && EXTS+=("$line")
+done < "$EXTS_FILE"
+
+# Per-variant gating that the pyforge schema doesn't yet model:
+# WITH_V86_POSIX=0 (browser builds) drops _v86_posix from the build.
+if [ "${WITH_V86_POSIX:-1}" != "1" ]; then
+    NEW_EXTS=()
+    for entry in "${EXTS[@]}"; do
+        case "$entry" in
+            _v86_posix\|*) ;;        # skip
+            *) NEW_EXTS+=("$entry") ;;
+        esac
+    done
+    EXTS=("${NEW_EXTS[@]}")
 fi
 
 SETUP_LOCAL="$CPYTHON_DIR/Modules/Setup.local"

@@ -298,15 +298,82 @@ A third option only worth recording for completeness: **Path C — write a new w
 
 ---
 
-## Phase 8 — pip-installable cpython-ext wheels (2 weeks; end-state polish)
+## Phase 8 — Recipe-driven extension install ✅ DONE (2026-05-29)
 
-Tier 3.5. Closes the loop: the static cpython-ext modules we ship (e.g., `_zlib_cap`) become wheel-installable so external users can opt in.
+Tier 3.5, revised for the dlopen reality. The original framing
+("`pip install _zlib_cap`, import succeeds") is unachievable on wasi-p2
+for the same reason Phase 4's wheel pivot was: no dlopen. What's
+deliverable is a **recipe-driven rebuild** model — declare extensions
+via `pyforge-pkg.toml`, point a build script at the recipes, get a
+custom python.composed.wasm with exactly those extensions statically
+linked. Same end-user outcome as a pip install ("the module shows up
+on `sys.builtin_module_names`"), different mechanism.
 
-- [ ] Decide one Pattern-A extension as the pilot — likely `_zstd_cap` since it has the largest API surface.
-- [ ] Produce a pyforge manifest and pylon-forge artifact for it.
-- [ ] Verify `pip install --find-links … _zstd_cap` against a vanilla python-wasm without it baked in.
+What landed:
 
-**Exit criterion.** One cpython-ext extension installs as a wheel into a python-wasm runtime that didn't have it pre-baked, and imports successfully.
+- **`pyforge-pkg.toml` for all 18 `cpython-ext/<dir>/`**. The spec
+  ([`pyforge-pkg-spec.md`](pyforge-pkg-spec.md)) had been on disk for a
+  while but only 7 of 18 dirs declared themselves. Now all 18 do —
+  11 caps with C extensions + 7 shim-only directories (overlays for
+  ctypes, mmap, threading, sitecustomize, …).
+- **`scripts/wire-cpython-ext.sh`** — was a hand-edited `EXTS=`
+  table; now derives the same list by globbing
+  `cpython-ext/*/pyforge-pkg.toml` and parsing `[extension]`. Single
+  source of truth per the spec.
+- **`scripts/pyforge-pkg-verify.sh` (new)** — validates the manifests
+  against on-disk reality: schema, name/version, srcdir matches dir
+  name, referenced `c_file`/`gen_import_c`/`gen_import_obj`/`shim`
+  paths exist, no orphan directories. Run pre-commit / in CI.
+  Currently 18 of 18 pass.
+- **`scripts/build-from-pkgs.sh` (new)** — recipe-driven build.
+  `--include name1,name2,…` or `--exclude name1,name2,…` opts in or
+  out of specific packages; `--variant <name>` lands the output at
+  `build/<profile>-<variant>/python.composed.wasm`. The exclusion
+  step physically drops the extension's `Modules/<srcdir>/` from
+  the wasi cross-build tree, so the next `Tools/wasm/wasi build`
+  link actually omits them.
+- **`docs/extension-recipe.md` (new)** — covers the install model,
+  the tooling, an end-to-end example, and a sketch of what a future
+  wheel-shaped distribution wrapper would look like.
+
+Verified end-to-end:
+
+```
+$ ./scripts/build-from-pkgs.sh --variant minimal \
+      --exclude lz4-cap,openzl-cap,zstd-cap
+==>  13M build/default-minimal/python.composed.wasm  (stripped)
+
+$ wasmtime … build/default-minimal/python.composed.wasm -c \
+      "for m in '_zstd_cap','_lz4_cap','_openzl_cap': … __import__(m)"
+MISS _zstd_cap
+MISS _lz4_cap
+MISS _openzl_cap
+$ wasmtime … build/3.14-current/python.composed.wasm  -c \
+      "for m in '_zstd_cap','_lz4_cap','_openzl_cap': … __import__(m)"
+HAVE _zstd_cap
+HAVE _lz4_cap
+HAVE _openzl_cap
+```
+
+The 13 MiB variant vs. 16 MiB default = 3 MiB of code that was just the
+three excluded codec extensions; their absence is literal, not stub.
+
+**Exit criterion met (revised).** Recipe-driven build produces a custom
+python.composed.wasm with a chosen subset of cpython-ext extensions
+statically linked. The wheel-shaped pip distribution wrapper is the
+next layer up — sketched in `extension-recipe.md`, not blocking.
+
+Out of scope for Phase 8:
+
+- The pip install wrapper itself (the `mypackage-…whl` skeleton in
+  `extension-recipe.md`). Would land sources under
+  `~/.python-wasm/extensions/` and trigger build-from-pkgs.
+- Composectl-emit integration. `compose-python-component.sh` is the
+  wac-plug fast path today; `composectl emit build` is still gapped
+  upstream per `memory/composectl-is-the-substrate.md`.
+- Pattern N (offload-to-v86 native packages) recipes. The spec exists
+  ([`pyforge-pkg-native-spec.md`](pyforge-pkg-native-spec.md)); no
+  declared packages today.
 
 ---
 
