@@ -420,7 +420,14 @@ class _Decompress:
 
     @property
     def unused_data(self):
-        return self._unused
+        # Stdlib's _ZlibDecompressor only exposes unused_data once the
+        # deflate stream has fully ended AND the output is drained.
+        # gzip._GzipReader checks decompressor.unused_data on every read
+        # iteration and prepends those bytes back onto its file buffer;
+        # if we returned the bytes early (before output drained), the
+        # repeated prepends corrupt _PaddedFile's read cursor. Defer
+        # until eof reports True.
+        return self._unused if (self._eof and not self._unconsumed) else b""
 
     @property
     def unconsumed_tail(self):
