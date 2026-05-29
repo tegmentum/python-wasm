@@ -221,6 +221,28 @@ class VerifyFlags(_enum.IntFlag):
 # Module-level aliases that stdlib defines too (for `from ssl import *`)
 PROTOCOL_TLS = PROTOCOL_TLS_CLIENT  # alias; TLS_CLIENT is the only one we support
 
+# urllib3 (>=2) imports these as bare names from ssl, not via Options/VerifyFlags
+# enums. Stdlib defines them at module level too.
+OP_NO_COMPRESSION         = Options.OP_NO_COMPRESSION.value
+OP_CIPHER_SERVER_PREFERENCE = Options.OP_CIPHER_SERVER_PREFERENCE.value
+OP_SINGLE_DH_USE          = Options.OP_SINGLE_DH_USE.value
+OP_SINGLE_ECDH_USE        = Options.OP_SINGLE_ECDH_USE.value
+OP_NO_SSLv2               = Options.OP_NO_SSLv2.value
+OP_NO_SSLv3               = Options.OP_NO_SSLv3.value
+OP_NO_TLSv1               = Options.OP_NO_TLSv1.value
+OP_NO_TLSv1_1             = Options.OP_NO_TLSv1_1.value
+OP_NO_TLSv1_2             = Options.OP_NO_TLSv1_2.value
+OP_NO_TLSv1_3             = Options.OP_NO_TLSv1_3.value
+OP_NO_TICKET              = Options.OP_NO_TICKET.value
+OP_NO_RENEGOTIATION       = Options.OP_NO_RENEGOTIATION.value
+VERIFY_DEFAULT            = VerifyFlags.VERIFY_DEFAULT.value
+VERIFY_CRL_CHECK_LEAF     = VerifyFlags.VERIFY_CRL_CHECK_LEAF.value
+VERIFY_CRL_CHECK_CHAIN    = VerifyFlags.VERIFY_CRL_CHECK_CHAIN.value
+VERIFY_X509_STRICT        = VerifyFlags.VERIFY_X509_STRICT.value
+VERIFY_X509_TRUSTED_FIRST = VerifyFlags.VERIFY_X509_TRUSTED_FIRST.value
+VERIFY_ALLOW_PROXY_CERTS  = VerifyFlags.VERIFY_ALLOW_PROXY_CERTS.value
+VERIFY_X509_PARTIAL_CHAIN = VerifyFlags.VERIFY_X509_PARTIAL_CHAIN.value
+
 
 # ---------------------------------------------------------------------------
 # NotImplementedError stubs for deferred-to-v1.1 surface

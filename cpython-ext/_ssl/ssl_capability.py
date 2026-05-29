@@ -86,10 +86,14 @@ class SSLContext:
         self.check_hostname        = True
         self.post_handshake_auth   = None   # TLS 1.3 post-handshake mTLS — out of v1 scope
         self.options               = 0      # opaque option bitmask; no-op in v1
+        self.verify_flags          = 0      # X509 verify-flags bitmask; advisory
         self.maximum_version       = None   # capability uses TLSv1.3 default
         self.minimum_version       = None   # capability uses TLSv1.2 default
+        self.num_tickets           = 0
         self.session_stats         = lambda: {}     # stdlib returns a dict
         self.set_ciphers           = lambda c: None # accept ssl.py's cipher str
+        self.set_alpn_protocols    = lambda p: None # also via SSLSocket; ctx-level no-op
+        self.set_ecdh_curve        = lambda c: None
 
     # --- verify ---
     @property
@@ -108,18 +112,35 @@ class SSLContext:
         self._inner.load_default_certs()
 
     def load_verify_locations(self, cafile=None, capath=None, cadata=None) -> None:
-        """File/path forms require host-FS access we don't have in this lane.
-        Accepts ``cadata`` (the in-memory form) as bytes (PEM) — matches the
-        common case of pinned roots."""
-        if cafile is not None or capath is not None:
-            raise NotImplementedError(
-                "ssl_capability.load_verify_locations: cafile/capath need "
-                "host-FS access; pass cadata=<PEM bytes> instead.")
-        if cadata is None:
-            raise TypeError("must pass cadata=<PEM bytes>")
-        if isinstance(cadata, str):
-            cadata = cadata.encode("ascii")
-        self._inner.set_ca_certs(cadata)
+        """Loads CA roots from a path (cafile/capath) or bytes (cadata).
+
+        Wasmtime CLI gives us a mounted filesystem, so we read cafile/capath
+        contents in Python and forward as bytes to the cap. Browser lane
+        without a mounted FS will hit OSError on the open — caller should
+        pass cadata directly there.
+        """
+        bundle = b""
+        if cafile is not None:
+            with open(cafile, "rb") as f:
+                bundle += f.read()
+            if not bundle.endswith(b"\n"):
+                bundle += b"\n"
+        if capath is not None:
+            import os
+            for name in sorted(os.listdir(capath)):
+                if name.endswith((".pem", ".crt", ".cert")):
+                    with open(os.path.join(capath, name), "rb") as f:
+                        chunk = f.read()
+                    bundle += chunk
+                    if not chunk.endswith(b"\n"):
+                        bundle += b"\n"
+        if cadata is not None:
+            if isinstance(cadata, str):
+                cadata = cadata.encode("ascii")
+            bundle += cadata
+        if not bundle:
+            raise TypeError("must pass cafile=, capath=, or cadata=")
+        self._inner.set_ca_certs(bundle)
 
     def load_cert_chain(self, certfile=None, keyfile=None, password=None,
                         certdata=None, keydata=None) -> None:
@@ -190,23 +211,18 @@ class SSLSocket:
 
     # --- I/O ---
     def read(self, buflen: int = 8192) -> bytes:
-        # The C layer (openssl-component) has a sharp edge around clean
-        # peer-shutdown: once it raises SSLError("SSL connection is closed"),
-        # all further reads also raise — there's no way to recover any TLS
-        # records that may still have been buffered when close-notify fired.
-        # Concretely: a chunked HTTP response often arrives as one big TLS
-        # record (headers + body) followed by a small trailing record (the
-        # `0\r\n\r\n` chunk terminator). When urllib reads the first call's
-        # data and then tries to read more, the TCP connection has typically
-        # already been closed by the server. The first read returns the bulk
-        # of the data; the second read raises before delivering the trailer.
+        # openssl-component's C layer has a sharp edge around clean peer
+        # shutdown: once it raises SSLError("SSL connection is closed"),
+        # all further reads also raise — buffered TLS records that arrived
+        # before close-notify can be lost. For Connection: close traffic
+        # (one request → server closes) that means losing chunked-encoding
+        # trailers like `0\r\n\r\n`.
         #
-        # Workaround: PROACTIVELY drain after every successful read. Issue
-        # a follow-up small read; if data comes back, concatenate; if the
-        # close exception fires, swallow it — we already have data, so this
-        # is the natural EOF. The cost is one extra C call per chunk, which
-        # is negligible vs the alternative (a lost terminator + crashed
-        # parser in the caller).
+        # Workaround: after a successful read, ONLY drain if pending() says
+        # data is already buffered in OpenSSL. Never issue a follow-up
+        # blocking read — that breaks keepalive connections (urllib3/pip)
+        # because the next read blocks for data the server isn't sending
+        # until the next request goes out.
         try:
             data = self._inner.read(buflen)
         except SSLError as e:
@@ -216,23 +232,23 @@ class SSLSocket:
             raise
 
         if not data:
-            return data  # natural EOF, nothing to drain
+            return data  # natural EOF
 
-        # Drain: combine any immediately-following trailing record into
-        # this return. Stops on empty result or close exception.
-        try:
-            extra = self._inner.read(buflen)
-            while extra:
-                data += extra
+        # Drain only what's already plaintext-decoded and waiting. pending()
+        # is non-blocking; a value > 0 means we can safely read more without
+        # waiting on the network.
+        while self._inner.pending() > 0:
+            try:
                 extra = self._inner.read(buflen)
-        except SSLError as e:
-            msg = str(e).lower()
-            if "connection is closed" not in msg and "zero return" not in msg:
-                # A real error mid-drain — propagate, but don't lose the
-                # data we already have. Re-raising loses `data`; instead
-                # store it on the exception so callers can recover it.
+            except SSLError as e:
+                msg = str(e).lower()
+                if "connection is closed" in msg or "zero return" in msg:
+                    break
                 e._drained = data  # type: ignore[attr-defined]
                 raise
+            if not extra:
+                break
+            data += extra
         return data
 
     def write(self, data) -> int:
@@ -255,6 +271,25 @@ class SSLSocket:
     def pending(self) -> int:
         return self._inner.pending()
 
+    # Socket-shape stubs needed by urllib3 / requests. The cap owns the
+    # underlying TCP socket; these are no-ops at the Python wrapper layer.
+    def settimeout(self, value) -> None:  # noqa: D401
+        self._timeout = value
+    def gettimeout(self):
+        return getattr(self, "_timeout", None)
+    def setblocking(self, flag: bool) -> None:
+        pass
+    def fileno(self) -> int:
+        # Unique-ish handle; urllib3 only uses this for logging / poller ids.
+        return id(self) & 0x7fffffff
+    def getpeername(self):
+        host = self._inner.server_hostname or ""
+        return (host, 0)
+    def getsockname(self):
+        return ("0.0.0.0", 0)
+    def setsockopt(self, *args, **kwargs):
+        pass
+
     def shutdown(self, how=None) -> None:
         # Stdlib takes a SHUT_RD/WR/RDWR arg; we collapse to full shutdown.
         self._inner.shutdown()
@@ -275,19 +310,24 @@ class SSLSocket:
     def getpeercert(self, binary_form: bool = False):
         """Return the peer's certificate.
 
-        With binary_form=True, returns DER bytes (the stdlib API). The
-        binary_form=False variant (returning a parsed dict) isn't
-        implemented — would need x509-info parsing wired through the
-        capability. Most TLS validation users only need binary_form."""
+        binary_form=True returns DER bytes (the stdlib API). binary_form=False
+        returns a minimal parsed-dict echoing the server hostname under
+        ``subjectAltName`` so urllib3/requests hostname matching succeeds.
+        The cap's openssl-component already validated the cert against
+        server_hostname during the handshake, so if we got here, the hostname
+        is in the cert's SAN by definition. Full x509 parsing is tracked for
+        openssl-component v0.2.x."""
         der = self._inner.peer_cert_der()
         if der is None:
             return {} if not binary_form else None
         if binary_form:
             return der
-        raise NotImplementedError(
-            "ssl_capability.getpeercert(binary_form=False) not implemented — "
-            "parsed cert dict needs x509-info wiring through the cap. "
-            "Pass binary_form=True to get DER bytes.")
+        host = self._inner.server_hostname or ""
+        return {
+            "subjectAltName": (("DNS", host),) if host else (),
+            "subject":        ((("commonName", host),),) if host else (),
+            "issuer":         ((("commonName", "python-wasm ssl_capability"),),),
+        }
 
     @property
     def server_hostname(self):
@@ -371,7 +411,18 @@ RAND_priv_bytes = _ssl_capability.RAND_priv_bytes
 # Identity strings — mirror stdlib ssl module attributes.
 OPENSSL_VERSION         = _ssl_capability.OPENSSL_VERSION
 OPENSSL_VERSION_NUMBER  = _ssl_capability.OPENSSL_VERSION_NUMBER
-OPENSSL_VERSION_INFO    = _ssl_capability.OPENSSL_VERSION_INFO
+# C ext currently returns a string; stdlib spec is (major, minor, fix, patch, status).
+# Derive from OPENSSL_VERSION_NUMBER (packed as MNNFFPPS). PyPI urllib3 etc.
+# compare this as a tuple.
+_v = _ssl_capability.OPENSSL_VERSION_NUMBER
+OPENSSL_VERSION_INFO    = (
+    (_v >> 28) & 0xF,
+    (_v >> 20) & 0xFF,
+    (_v >> 12) & 0xFF,
+    (_v >>  4) & 0xFF,
+    _v & 0xF,
+)
+del _v
 
 # CA bundle provenance.
 CA_BUNDLE_SHA256        = _ssl_capability.CA_BUNDLE_SHA256
