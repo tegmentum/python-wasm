@@ -71,11 +71,14 @@ Possible but discouraged. uv-core is a large reactor component and embedding it 
 
 | Issue | Workaround | Tracking |
 |---|---|---|
-| Multi-package install step hangs in `Installing collected packages` | install one wheel at a time | Phase 1 polish |
-| `OSError(8, 'Bad file descriptor')` on every download (retried successfully) | tolerated by pip's retry logic; openssl-component closes the connection prematurely | Phase 2 (asyncio + TLS) |
+| Multi-package install step hangs in `Installing collected packages` | install one wheel at a time | Phase 2 — investigated, defer (file traces show downloads complete, hang is in the install/copy step between packages) |
+| `OSError(8, 'Bad file descriptor')` on every download (retried successfully) | tolerated by pip's retry logic; openssl-component closes the connection prematurely after the response, before urllib3 expects a clean keepalive | Phase 8 — needs openssl-component v0.2.x non-blocking peek to safely drain TLS records before close-notify |
 | `--use-deprecated=legacy-certs` required | pip ships truststore which expects native SSLContext subclassing; our wrapper doesn't satisfy `super().verify_mode.__set__` | Phase 8 — openssl-component v0.2.x |
 | `getpeercert(binary_form=False)` returns synthetic dict | openssl-component validates hostname during handshake, so the synthetic SAN matches | Phase 8 — openssl-component v0.2.x |
-| `asyncio.run()` fails at `socket.socketpair()` | use sync HTTP for now | Phase 2 |
+| `asyncio.run()` works ✅ | self-pipe stubbed via sitecustomize (Phase 2) | done |
+| `httpx`/`httpcore` async HTTP fails on `select.poll(socket)` | wait for openssl-component v0.2.x or use `requests` | Phase 8 |
+| `aiohttp` won't install (sdist-only, C exts) | use `requests` for HTTP today | Phase 4 (C-ext wheel pipeline) |
+| `urllib` chunked + Connection:close raises IncompleteRead | use Connection: keep-alive header, or use `requests` (different read path) | Phase 8 — same root cause as the download retries |
 
 ## What the sitecustomize.py does
 

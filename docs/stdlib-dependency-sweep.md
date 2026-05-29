@@ -74,7 +74,7 @@ Modules that load but where specific operations fail:
 | Module | What works | What's broken | Reason |
 |---|---|---|---|
 | `threading` | imports, locks, condition vars, RLock, **`Thread.start()` runs inline** | actual parallelism | `Lib/threading.py` shim runs targets inline (no preemption); is_alive() correctly returns False after target completes |
-| `asyncio` | imports, coroutine objects, `asyncio.sleep`, the event-loop classes | **`asyncio.run()`** at module top level | `_make_self_pipe()` → `socket.socketpair()` → fallback bind/listen/connect fails with `OSError: Socket not connected` even with `-S inherit-network`. **New finding 2026-05-28.** Tracked for Phase 2. |
+| `asyncio` | imports, `asyncio.run`, `gather`, `sleep`, `create_task`, `cancel`, `Queue`, full single-task event loop (fixed in Phase 2 2026-05-29) | `to_thread` (needs real threading), HTTP-async via `httpx`/`aiohttp` (needs Phase 8 TLS surface + Phase 4 C-ext build) | Self-pipe stubbed via sitecustomize (no signals/threads to wake the loop in wasi-p2 anyway) |
 | `os` | most stat/file/env operations | `os.fork`, `os.execvp`, `os.popen` | no process model in pure wasm |
 | `socket` | TCP via `wasi:sockets/tcp`, **DNS via `wasi:sockets/ip-name-lookup`** | `socketpair()` (see asyncio above), raw sockets | wasi-p2 has no socketpair primitive; fallback path doesn't work in wasmtime today |
 | `subprocess` | imports + Popen object | `Popen.spawn()` | `v86-posix-stub` returns `GuestNotReady` until v86 component lands |
@@ -137,7 +137,8 @@ Against `build/3.14-current/python.composed.wasm` post-`c2fc788`:
 | `zoneinfo.ZoneInfo('America/New_York')` | ✅ |
 | `threading.Lock` / `acquire` / `release` | ✅ |
 | `threading.Thread(target=...).start()` | ✅ runs inline (no parallelism) |
-| `asyncio.run(coro)` | ❌ `OSError: Socket not connected` in `_make_self_pipe` (Phase 2 target) |
+| `asyncio.run(coro)` | ✅ via Phase 2 sitecustomize stub of `_make_self_pipe` |
+| `asyncio.gather(*tasks)` | ✅ concurrent task scheduling works |
 | `os.fork()` | ❌ no fork |
 | `subprocess.run(...)` (default build) | ❌ `GuestNotReady` (waiting for v86) |
 
