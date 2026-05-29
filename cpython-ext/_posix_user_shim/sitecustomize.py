@@ -43,6 +43,67 @@ if "_ssl" not in sys.modules:
         pass
 
 
+# httpcore checks connection liveness via select.poll on the socket's
+# fileno(). Across the wasm component boundary, an fd from
+# openssl-component doesn't map to anything Python's select can poll
+# (separate fd tables per component). Replace is_socket_readable with a
+# wrapper that uses our cap-routed SSLSocket.socket_readable() when the
+# socket is one of ours, and falls back to the real poll otherwise.
+# Deferred until httpcore._utils is actually imported — sitecustomize
+# runs before user code can pip-install httpcore.
+def _install_httpcore_patch():
+    import importlib.abc
+    import importlib.machinery
+    import sys
+
+    class _Loader(importlib.abc.Loader):
+        def __init__(self, real_loader):
+            self.real_loader = real_loader
+        def create_module(self, spec):
+            return self.real_loader.create_module(spec)
+        def exec_module(self, module):
+            self.real_loader.exec_module(module)
+            # Patch is_socket_readable to handle our SSLSocket.
+            orig = getattr(module, "is_socket_readable", None)
+            if orig is None:
+                return
+            def patched(sock):
+                # `sock` may be an SSL-wrapped socket; check the inner
+                # cap for socket_readable. If absent (not our SSL),
+                # delegate to the original poll-based check.
+                inner = getattr(sock, "_inner", None)
+                if inner is not None and hasattr(inner, "socket_readable"):
+                    try:
+                        return inner.socket_readable()
+                    except Exception:
+                        pass
+                return orig(sock)
+            module.is_socket_readable = patched
+
+    class _Finder(importlib.abc.MetaPathFinder):
+        def find_spec(self, name, path, target=None):
+            if name != "httpcore._utils":
+                return None
+            # Drop self to avoid recursion; let the real finder run.
+            sys.meta_path.remove(self)
+            try:
+                spec = importlib.util.find_spec(name)
+            finally:
+                sys.meta_path.insert(0, self)
+            if spec is None:
+                return None
+            spec.loader = _Loader(spec.loader)
+            return spec
+
+    import importlib.util  # noqa
+    sys.meta_path.insert(0, _Finder())
+
+try:
+    _install_httpcore_patch()
+except Exception:
+    pass
+
+
 # Pip's `Installing collected packages: A, B, ...` step spawns rich's
 # _TrackThread (a daemon thread that polls progress and updates a bar).
 # Our threading shim runs Thread.start() inline → the thread's run-loop

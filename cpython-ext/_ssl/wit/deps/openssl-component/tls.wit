@@ -176,6 +176,14 @@ interface tls {
         /// data, then return when both are false (server idle on
         /// keepalive, no record on the wire).
         socket-readable: func() -> bool;
+        /// File descriptor of the underlying TCP socket. Returns -1 if
+        /// no fd is attached (e.g. handshake failed). Callers can pass
+        /// this to wasi-libc `poll` / `select` for application-level
+        /// readiness probes — the use case is httpx/httpcore which
+        /// poll the socket fd as part of their async event loop and
+        /// connection-alive checks. Owned by openssl-component;
+        /// callers must NOT close or modify the fd directly.
+        socket-fd: func() -> s32;
 
         /// 0-RTT data; valid only before the first `read`/`write` when
         /// `enable-early-data` is set and a session ticket is supplied.
@@ -213,6 +221,8 @@ interface tls {
         has-pending: func() -> bool;
         /// Server-side counterpart of `client.socket-readable`. See there.
         socket-readable: func() -> bool;
+        /// Server-side counterpart of `client.socket-fd`. See there.
+        socket-fd: func() -> s32;
         peer: func() -> peer-info;
         /// Take buffered NSS-format keylog lines. Empty unless
         /// `keylog` was set in the listener's server-config.

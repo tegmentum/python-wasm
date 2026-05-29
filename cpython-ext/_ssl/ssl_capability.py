@@ -327,7 +327,17 @@ class SSLSocket:
     def setblocking(self, flag: bool) -> None:
         pass
     def fileno(self) -> int:
-        # Unique-ish handle; urllib3 only uses this for logging / poller ids.
+        # Real underlying TCP fd from openssl-component (SSL_get_fd).
+        # Pollable via select.poll / select.select — httpx/httpcore call
+        # this for connection-alive checks. Falls back to a synthetic
+        # id when the inner cap doesn't expose the method (older
+        # openssl-component or detached state).
+        try:
+            fd = self._inner.fileno()
+            if fd >= 0:
+                return fd
+        except (AttributeError, OSError):
+            pass
         return id(self) & 0x7fffffff
     def getpeername(self):
         host = self._inner.server_hostname or ""

@@ -1116,6 +1116,14 @@ extern bool openssl_component_tls_method_client_has_pending(openssl_component_tl
 // data, then return when both are false (server idle on
 // keepalive, no record on the wire).
 extern bool openssl_component_tls_method_client_socket_readable(openssl_component_tls_borrow_client_t self);
+// File descriptor of the underlying TCP socket. Returns -1 if
+// no fd is attached (e.g. handshake failed). Callers can pass
+// this to wasi-libc `poll` / `select` for application-level
+// readiness probes — the use case is httpx/httpcore which
+// poll the socket fd as part of their async event loop and
+// connection-alive checks. Owned by openssl-component;
+// callers must NOT close or modify the fd directly.
+extern int32_t openssl_component_tls_method_client_socket_fd(openssl_component_tls_borrow_client_t self);
 // 0-RTT data; valid only before the first `read`/`write` when
 // `enable-early-data` is set and a session ticket is supplied.
 extern bool openssl_component_tls_method_client_write_early(openssl_component_tls_borrow_client_t self, ssl_import_list_u8_t *data, uint32_t *ret, openssl_component_tls_tls_error_t *err);
@@ -1142,6 +1150,8 @@ extern bool openssl_component_tls_method_server_read(openssl_component_tls_borro
 extern bool openssl_component_tls_method_server_has_pending(openssl_component_tls_borrow_server_t self);
 // Server-side counterpart of `client.socket-readable`. See there.
 extern bool openssl_component_tls_method_server_socket_readable(openssl_component_tls_borrow_server_t self);
+// Server-side counterpart of `client.socket-fd`. See there.
+extern int32_t openssl_component_tls_method_server_socket_fd(openssl_component_tls_borrow_server_t self);
 extern void openssl_component_tls_method_server_peer(openssl_component_tls_borrow_server_t self, openssl_component_tls_peer_info_t *ret);
 // Take buffered NSS-format keylog lines. Empty unless
 // `keylog` was set in the listener's server-config.
