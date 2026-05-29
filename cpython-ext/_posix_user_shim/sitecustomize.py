@@ -43,6 +43,17 @@ if "_ssl" not in sys.modules:
         pass
 
 
+# Phase 4: py-offload importhook auto-install. When OFFLOAD_MAILBOX_DIR and
+# OFFLOAD_PACKAGES are set in the environment, route imports of those packages
+# through the mailbox-transport offload boundary. See
+# docs/coverage-implementation-plan.md and reference-worker/README.md.
+try:
+    import _offload_shim
+    _offload_shim.install_from_env()
+except ImportError:
+    pass
+
+
 # asyncio's BaseSelectorEventLoop._make_self_pipe wants socket.socketpair()
 # to cross-signal a real selector wake-up. WASI Preview 2 has no socketpair
 # primitive; Lib/socket.py's _fallback_socketpair (bind/listen/connect)

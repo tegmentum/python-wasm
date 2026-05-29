@@ -86,27 +86,67 @@ Tier 3.3 promoted because Phase 1's wheel install path makes browser delivery we
 
 ---
 
-## Phase 4 — C-extension wheel path, scoped narrowly (3–6 weeks for top-5)
+## Phase 4 — C-extension story (revised 2026-05-29 to align with the native-exec plan)
 
-Tier 1.2. Open-ended in general; this phase is **scoped to a top-5 list** so it has a clear exit.
+The original "build `.so` wheels, `pip install` them" framing assumed
+dlopen; wasi-p2 has none, so wheel-produced `.so` artifacts are
+unloadable (`ctypes.CDLL(None)` raises NotImplementedError; `CCSHARED=''`
+in the wasi build's sysconfig).
 
-Picking the list against what users actually hit:
+The project's canonical answer for native packages already exists in
+[`docs/native-execution-and-parallelism.md`](native-execution-and-parallelism.md)
+and the `reference-worker/` Phase-1 implementation: **run native code in
+v86 (Tier 1) or in a girder actor (Tier P), reached through the
+`tegmentum:py-offload@0.1.0` WIT boundary.** A `meta_path` finder in
+python-wasm intercepts imports of native-only packages, serializes
+function calls, and round-trips them through a backend that holds a
+native CPython.
 
-1. `cffi` (used by many packages, including cryptography)
-2. `pydantic-core` (Rust extension — pydantic is everywhere)
-3. `cryptography` (depends on `cffi`)
-4. `lxml` (libxml2/libxslt)
-5. `numpy` (largest payoff but largest cost — may slip)
+This phase's job is to wire python-wasm's side of that plan, not invent
+a new path:
 
-For each:
+- [ ] **Integrate `reference-worker/py_offload/importhook.py` into
+      python-wasm.** Ship as `cpython-ext/_offload_shim/` (pure-Python,
+      installed via `make install-python-shims`) so the meta_path finder
+      registers at interpreter startup when a backend env is configured.
+- [ ] **Define the catalog format** (which packages are native-only, what
+      backend env to use). Lightweight TOML at
+      `Lib/_offload_catalog.toml` — the importhook reads it. Aligns with
+      §4.3's `wit/py-package.wit` registry without requiring composectl
+      yet.
+- [ ] **Wire a Tier-1-today backend** — the `SubprocessClient` from
+      `reference-worker/py_offload/client.py` driving a host-side native
+      CPython under wasmtime is the proof-of-life today. Later this is
+      replaced by the v86 wasmmachine.
+- [ ] **Demo end-to-end:** `import numpy as np; np.linalg.svd(...)` in
+      python-wasm routes through the offload boundary to a native CPython
+      and returns the right answer. (numpy isn't ported to wasm; this
+      proves the path.)
+- [ ] **Document in `docs/c-ext-wheels.md`** — what works today
+      (subprocess backend), the v86 path to come, the cpython-ext
+      static-link pattern as the alternative for libraries small enough
+      to want it (e.g. pydantic-core via Rust+PyO3+wasi-p2 cdylib).
 
-- [ ] Build against `wasi-sdk-33` and the python-wasm CPython config; produce `.whl` with the matching ABI tag.
-- [ ] Publish to a local `find-links` wheel index under `dist/wheels/`.
-- [ ] Add to the smoke-test table.
+Status of the four originally-named top-5 packages under this framing:
 
-The `cffi` and `cryptography` pair is the most leveraged starting point; `numpy` may need to fall to Phase 6 if the libopenblas-on-wasm story isn't there.
+| Package        | Today via offload subprocess | Future via v86 (Tier 1) |
+|----------------|------------------------------|--------------------------|
+| `numpy`        | works (host has numpy)       | works (linux i686 wheel) |
+| `cffi`         | works (host has cffi)        | works                    |
+| `cryptography` | works (host has cryptography)| works                    |
+| `lxml`         | works (host has lxml)        | works                    |
+| `pydantic-core`| works                        | works (or static-link via cpython-ext as the lighter option) |
 
-**Exit criterion.** ≥ 3 of the 5 install + import cleanly via `pip install --find-links dist/wheels/ <pkg>`.
+The static-link path (cpython-ext) stays available for size- or
+latency-sensitive packages that have a Rust+PyO3 build (or a small C
+surface). pydantic-core is the obvious worked example to add later if
+the offload boundary's per-call latency proves prohibitive for that
+specific use case.
+
+**Exit criterion.** `docs/c-ext-wheels.md` lands; the importhook ships
+as a cpython-ext-installed shim with a `SubprocessClient`-driven
+backend; one demo (numpy.linalg or similar) routes call → result
+through the offload boundary in `scripts/test-offload-numpy.sh`.
 
 ---
 

@@ -212,6 +212,10 @@ install-python-shims:
 	@cp $(PROJECT_DIR)/cpython-ext/_posix_user_shim/sitecustomize.py \
 	    $(CPYTHON_DIR)/Lib/sitecustomize.py
 	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/sitecustomize.py  (Phase 1: WASI user-id stubs for pip/platformdirs)"
+	@rm -rf $(CPYTHON_DIR)/Lib/_offload_shim
+	@cp -R $(PROJECT_DIR)/cpython-ext/_offload_shim \
+	    $(CPYTHON_DIR)/Lib/_offload_shim
+	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/_offload_shim/  (Phase 4: py-offload importhook for native packages)"
 	@if [ "$(WITH_V86_POSIX)" = "1" ]; then \
 	    cp $(PROJECT_DIR)/cpython-ext/_v86_posix/subprocess.py \
 	        $(CPYTHON_DIR)/Lib/subprocess.py && \
