@@ -211,10 +211,24 @@ def pbkdf2_hmac(hash_name, password, salt, iterations, dklen=None):
     return bytes(result[:dklen])
 
 
-# scrypt deliberately omitted — pure-Python scrypt at production
-# parameters (N=16384, r=8, p=1) takes 30s+ per derivation, which
-# defeats the whole point of the KDF. Stdlib hashlib will report
-# `scrypt` as unavailable, which is honest.
+# scrypt — routed through `_kdf_cap` (password-hash-multiplexer). Native
+# wasm speed (libscrypt under the cap) so production parameters are usable.
+def scrypt(password, *, salt, n, r, p, maxmem=0, dklen=64):
+    """RFC 7914 scrypt.
+
+    Matches stdlib ``hashlib.scrypt`` signature. ``maxmem`` is accepted for
+    API parity but not enforced — the cap's native impl sizes its arena
+    against ``n*r*128``."""
+    import _kdf_cap
+    if not isinstance(n, int) or n < 2 or (n & (n - 1)) != 0:
+        raise ValueError("n must be a power of 2 >= 2")
+    if not isinstance(r, int) or r < 1:
+        raise ValueError("r must be >= 1")
+    if not isinstance(p, int) or p < 1:
+        raise ValueError("p must be >= 1")
+    if not isinstance(dklen, int) or dklen < 1:
+        raise ValueError("dklen must be >= 1")
+    return _kdf_cap.derive_scrypt(bytes(password), bytes(salt), n, r, p, dklen)
 
 
 __all__ = (
@@ -223,6 +237,7 @@ __all__ = (
     "UnsupportedDigestmodError",
     "new",
     "pbkdf2_hmac",
+    "scrypt",
     # openssl_<algo> are also public via dir() but not in __all__ —
     # they're implementation details that hashlib + hmac reach for.
 )
