@@ -262,12 +262,12 @@ try:
     import selectors as _sel
     import time as _time
     _orig_poll_select = _sel._PollLikeSelector.select
-    def _safe_select(self, timeout=None):
+    def _safe_select(self, timeout=None, _orig=_orig_poll_select, _sleep=_time.sleep):
         if not self._fd_to_key:
             if timeout is not None and timeout > 0:
-                _time.sleep(timeout)
+                _sleep(timeout)
             return []
-        return _orig_poll_select(self, timeout)
+        return _orig(self, timeout)
     _sel._PollLikeSelector.select = _safe_select
     del _sel, _time
 except (ImportError, AttributeError):
