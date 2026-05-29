@@ -196,6 +196,84 @@ except ImportError:
     pass
 
 
+# anyio.to_thread.run_sync delegates to a WorkerThread (Thread subclass with
+# overridden run()) that consumes from a queue. Our threading shim defers
+# subclass-override Thread.run() to join() time so pip's rich progress bar
+# doesn't deadlock the main thread. anyio doesn't join() the worker —
+# it awaits a Future the worker is supposed to set — so the work never
+# runs and the async caller hangs.
+#
+# Patch anyio.to_thread.run_sync to call func inline and return its result.
+# Single-threaded execution = no parallelism gain, but no hang either.
+# Deferred via a meta-path finder because anyio is an installed package
+# that may not be on sys.path at startup.
+def _install_anyio_to_thread_patch():
+    import importlib.abc
+    import importlib.machinery
+    import importlib.util
+    import sys
+
+    class _Loader(importlib.abc.Loader):
+        def __init__(self, real_loader):
+            self.real_loader = real_loader
+        def create_module(self, spec):
+            return self.real_loader.create_module(spec)
+        def exec_module(self, module):
+            self.real_loader.exec_module(module)
+            async def run_sync(func, *args, abandon_on_cancel=False,
+                               cancellable=None, limiter=None):
+                return func(*args)
+            module.run_sync = run_sync
+
+    class _Finder(importlib.abc.MetaPathFinder):
+        def find_spec(self, name, path, target=None):
+            if name != "anyio.to_thread":
+                return None
+            sys.meta_path.remove(self)
+            try:
+                spec = importlib.util.find_spec(name)
+            finally:
+                sys.meta_path.insert(0, self)
+            if spec is None:
+                return None
+            spec.loader = _Loader(spec.loader)
+            return spec
+
+    sys.meta_path.insert(0, _Finder())
+
+try:
+    _install_anyio_to_thread_patch()
+except Exception:
+    pass
+
+
+# asyncio's selector ticks call `select.poll().poll(timeout)` even when no
+# fds are registered (the loop's _run_once still polls to honor scheduled
+# callbacks / timeouts). wasi-libc forwards an empty poll list to wasmtime's
+# `poll_oneoff`, which traps with `empty poll list`. The asyncio self-pipe
+# (which would normally register at least one wakeup fd) is stubbed out
+# above for wasi-p2 — so the registered set really is empty.
+#
+# Patch _PollLikeSelector.select to short-circuit when no fds are
+# registered: sleep for the timeout (when finite) and return []. Loops
+# without any pending IO still progress because asyncio interleaves
+# scheduled-callback dispatch around the selector call.
+try:
+    import selectors as _sel
+    import time as _time
+    _orig_poll_select = _sel._PollLikeSelector.select
+    def _safe_select(self, timeout=None):
+        if not self._fd_to_key:
+            if timeout is not None and timeout > 0:
+                _time.sleep(timeout)
+            return []
+        return _orig_poll_select(self, timeout)
+    _sel._PollLikeSelector.select = _safe_select
+    del _sel, _time
+except (ImportError, AttributeError):
+    pass
+
+
 # asyncio's BaseSelectorEventLoop._make_self_pipe wants socket.socketpair()
 # to cross-signal a real selector wake-up. WASI Preview 2 has no socketpair
 # primitive; Lib/socket.py's _fallback_socketpair (bind/listen/connect)
