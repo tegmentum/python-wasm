@@ -408,7 +408,15 @@ class _Decompress:
 
     @property
     def eof(self):
-        return self._eof
+        # Stdlib semantic: True when the deflate stream's BFINAL bit was
+        # seen AND all decompressed output has been delivered. Our one-shot
+        # model finishes the entire deflate up front (_eof=True) and buffers
+        # the rest in _unconsumed when max_length truncates. If we exposed
+        # eof=True while _unconsumed still has bytes, gzip.read would skip
+        # ahead to _read_eof and verify the CRC over the partial output we
+        # already returned — fails by definition. Defer eof until the
+        # buffered tail is drained.
+        return self._eof and not self._unconsumed
 
     @property
     def unused_data(self):
@@ -433,6 +441,18 @@ class _Decompress:
             # need this — they read trailers from unused_data).
             if data:
                 self._unused += bytes(data)
+            # Drain buffered output produced by the one-shot decompress
+            # but withheld by an earlier max_length cap. gzip.read calls
+            # decompress(b"", size) when needs_input is False; if we
+            # don't deliver here, the stream stalls and gzip raises
+            # `Compressed file ended before the end-of-stream marker`.
+            if self._unconsumed:
+                if max_length and 0 < max_length < len(self._unconsumed):
+                    out, self._unconsumed = (self._unconsumed[:max_length],
+                                              self._unconsumed[max_length:])
+                    return out
+                out, self._unconsumed = self._unconsumed, b""
+                return out
             return b""
         self._buf.extend(data)
         try:

@@ -95,12 +95,15 @@ def _to_stdio_spec(value: Any) -> int:
     if value == DEVNULL:
         return _v86_posix.STDIO_NULL
     if value == STDOUT:
-        # STDOUT means "merge stderr into stdout". The current WIT doesn't
-        # model fd-redirection; surface it explicitly until it does.
-        raise NotImplementedError(
-            "STDOUT redirection (stderr -> stdout) is not yet supported by "
-            "v86:posix/process; pass DEVNULL or PIPE for stderr instead"
-        )
+        # STDOUT means "merge stderr into stdout". The current WIT models
+        # stdout and stderr as independent pipes — we can't ask the child
+        # to dup2(stdout, 2). Accept it by piping stderr separately;
+        # communicate()/wait() will concatenate the two streams in the
+        # legacy order (stdout first, stderr appended). Live readline()
+        # loops (pip's call_subprocess) see only stdout, not the merged
+        # stream — acceptable degradation for an install workflow where
+        # the merged log only matters when something fails.
+        return _v86_posix.STDIO_PIPED
     # Filedescriptor ints or file-like objects: not yet supported.
     raise NotImplementedError(
         f"unsupported stdio value {value!r}; expected None / PIPE / DEVNULL"
@@ -370,7 +373,10 @@ class Popen:
         self._stdout_kind = _to_stdio_spec(stdout)
         self._stderr_kind = _to_stdio_spec(stderr)
         self._stdout_was_pipe = (stdout == PIPE)
-        self._stderr_was_pipe = (stderr == PIPE)
+        # stderr=STDOUT maps to PIPE inside _to_stdio_spec — both the
+        # explicit PIPE and STDOUT cases need a take_stderr() at spawn
+        # time so communicate()/wait() can drain it.
+        self._stderr_was_pipe = (stderr == PIPE or stderr == STDOUT)
         self._stdin_was_pipe = (stdin == PIPE)
 
         self.returncode: int | None = None
