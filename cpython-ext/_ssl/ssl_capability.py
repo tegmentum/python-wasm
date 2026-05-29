@@ -352,7 +352,19 @@ class SSLSocket:
         self._inner.shutdown()
 
     def close(self) -> None:
-        self.shutdown()
+        # Stdlib ssl.SSLSocket.close decrements the underlying socket ref
+        # rather than synchronously tearing down the TLS state — the actual
+        # close happens when the last reference is dropped. http.client
+        # relies on this: when it sees Connection: close it calls
+        # self.sock.close() right after handing the response file object
+        # to the user, expecting the response.fp.read() loop to keep working
+        # against whatever bytes are still in flight. If close() actually
+        # destroyed the TLS state here, the body would truncate (this was
+        # the urllib chunked + Connection: close → IncompleteRead bug).
+        # Defer the real cap teardown to dealloc: when nothing references
+        # this SSLSocket (or its _SocketReader child) anymore, the inner
+        # cap handle's dealloc closes the openssl-component client.
+        pass
 
     # --- introspection ---
     def version(self) -> str:

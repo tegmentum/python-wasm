@@ -32,6 +32,14 @@ if not hasattr(os, "umask"):
         return prev
     os.umask = _umask
 
+# chown(): WASI Preview 2 has no user/group model. tarfile's extract path
+# calls os.chown when restoring archive owner/group metadata. Stub as a
+# no-op so sdist extraction works.
+if not hasattr(os, "chown"):
+    os.chown = lambda *a, **kw: None
+if not hasattr(os, "lchown"):
+    os.lchown = lambda *a, **kw: None
+
 # pip and other deps probe `import _ssl` to detect TLS support. We ship
 # `_ssl_capability` instead (cap-routed through openssl-component). Alias
 # the legacy name so the probe succeeds without surprising the caller.
@@ -100,6 +108,59 @@ def _install_httpcore_patch():
 
 try:
     _install_httpcore_patch()
+except Exception:
+    pass
+
+
+# Same shape, different module: urllib3's HTTPConnection.is_connected
+# calls util.wait.wait_for_read on the socket, which does
+# select.poll().poll(fd). Our SSLSocket.fileno() returns the fd owned by
+# openssl-component — meaningless across the component boundary, so
+# poll raises EBADF. Patch wait_for_read to consult our cap's
+# socket_readable() when the sock is one of ours.
+def _install_urllib3_patch():
+    import importlib.abc
+    import importlib.util
+    import sys
+
+    class _Loader(importlib.abc.Loader):
+        def __init__(self, real_loader):
+            self.real_loader = real_loader
+        def create_module(self, spec):
+            return self.real_loader.create_module(spec)
+        def exec_module(self, module):
+            self.real_loader.exec_module(module)
+            orig = getattr(module, "wait_for_read", None)
+            if orig is None:
+                return
+            def patched(sock, timeout=None):
+                inner = getattr(sock, "_inner", None)
+                if inner is not None and hasattr(inner, "socket_readable"):
+                    try:
+                        return inner.socket_readable()
+                    except Exception:
+                        pass
+                return orig(sock, timeout)
+            module.wait_for_read = patched
+
+    class _Finder(importlib.abc.MetaPathFinder):
+        def find_spec(self, name, path, target=None):
+            if name != "urllib3.util.wait":
+                return None
+            sys.meta_path.remove(self)
+            try:
+                spec = importlib.util.find_spec(name)
+            finally:
+                sys.meta_path.insert(0, self)
+            if spec is None:
+                return None
+            spec.loader = _Loader(spec.loader)
+            return spec
+
+    sys.meta_path.insert(0, _Finder())
+
+try:
+    _install_urllib3_patch()
 except Exception:
     pass
 
