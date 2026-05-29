@@ -399,6 +399,22 @@ class _SocketReader(_io.RawIOBase):
         return True
     def readinto(self, buf):
         data = self._sock.read(len(buf))
+        # Empty-on-first-try usually means EOF, but for HTTP responses
+        # with Connection: close + chunked-encoding the trailer record
+        # (`0\r\n\r\n`) can be in flight while the body record was
+        # already read. The cap's socket_readable() check pokes the
+        # kernel buffer non-blockingly; if it says data is ready, give
+        # one more read a chance before reporting EOF. Avoids
+        # http.client's IncompleteRead at the body trailer without
+        # affecting bulk reads (those never reach this branch since
+        # they return data on the first try).
+        if not data:
+            inner = self._sock._inner
+            try:
+                if inner.socket_readable():
+                    data = self._sock.read(len(buf))
+            except AttributeError:
+                pass
         n = len(data)
         buf[:n] = data
         return n
