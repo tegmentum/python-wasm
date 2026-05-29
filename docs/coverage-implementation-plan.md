@@ -215,14 +215,67 @@ What's still implicit:
 
 ---
 
-## Phase 6 — multiprocessing via reference-worker (concurrent with Phase 4)
+## Phase 6 — multiprocessing via reference-worker ✅ DONE (2026-05-29)
 
-Tier 3.2. The `reference-worker/` impl of `tegmentum:py-offload` is already underway. Tracking issues #1–#5 in this repo.
+Tier 3.2. Built on Phase 4's offload boundary + Phase 5's subprocess
+support; no upstream blocking.
 
-- [ ] Land Phase-1+ of `reference-worker/` per `docs/native-execution-and-parallelism.md`.
-- [ ] Wire `multiprocessing.Pool` to route through it.
+What landed:
 
-**Exit criterion.** `multiprocessing.Pool().map(...)` returns correct results with real parallelism.
+- **`cpython-ext/_offload_shim/pool.py`** — `OffloadPool` class with the
+  multiprocessing.Pool surface (map, imap, apply, close/terminate/join,
+  context manager). Backed by N `MailboxClient` instances, each pointing
+  at its own host-side worker process.
+- **`cpython-ext/_offload_shim/mailbox.py`** — split `MailboxClient.run()`
+  into `_submit()` + `_wait_for()`. Lets the pool fan all N requests out
+  before waiting on any of them, so host workers run concurrently. The
+  old `run()` stays as a convenience that calls both.
+- **`scripts/serve-offload-pool.sh`** — host side. Spawns N native python
+  `serve_mailbox` processes, each watching its own `mailbox-<i>/` dir
+  under a shared root. Lifecycle is via signal handlers + pid files.
+- **`scripts/test-offload-pool.sh`** — end-to-end smoke. Stands up a
+  4-worker pool + drives 5 scenarios from inside python.composed.wasm:
+    - **Parallelism:** 8 × `time.sleep(0.5)` across 4 workers → wall-clock
+      ~1.0s (vs. 4s serial).
+    - **numpy round-trip:** 4 × `numpy.linalg.det(...)` returns correct
+      values.
+    - **Exception propagation:** `math.sqrt(-1)` raises ValueError on the
+      host, surfaces as ValueError in the guest.
+    - **apply:** single-shot `pool.apply("builtins:len", [[1,2,3,4,5]])`.
+    - **multiprocessing.Pool wiring:** `multiprocessing.Pool(4).map(...)`
+      drops through to OffloadPool transparently.
+- **`cpython-ext/_posix_user_shim/sitecustomize.py`** — when
+  `OFFLOAD_POOL_DIR` is set in the env, replaces `multiprocessing.Pool`
+  with a factory that returns an `OffloadPool` rooted at that dir. Stock
+  Python code using `multiprocessing.Pool` works unchanged.
+
+Wall-clock from a real run:
+
+```
+PARALLEL: 8 x sleep(0.5s) on 4 workers took 1.04s
+NUMPY:    4 x numpy.linalg.det -> [-2.0, 4.0, 1.0, -2.0]
+EXC:      ValueError propagated through pool: math domain error
+APPLY:    pool.apply('builtins:len', [[1,2,3,4,5]]) -> 5
+OK: Phase 6 — multiprocessing-shaped parallelism via offload pool
+MP.POOL:  multiprocessing.Pool routed through OffloadPool -> [-2.0…, 4.0]
+```
+
+What's in scope vs out:
+
+- ✅ `Pool.map`, `Pool.apply`, `Pool.imap`, exception propagation, with-block,
+  multiprocessing.Pool drop-in
+- ❌ `initializer=`/`initargs=` — workers are pre-spawned host processes; the
+  init step on the host hasn't been mapped onto the offload contract yet
+- ❌ ndarrays as args / returns — Phase 3 arrow codec from the native-exec
+  plan (msgpack handles only primitives + lists/dicts)
+- ❌ `Pool.imap_unordered` — would need response-arrival event from the
+  mailbox transport (currently FIFO per worker)
+- ❌ girder backend — same OffloadPool, different client_factory. Lands when
+  girder integrates per `docs/native-execution-and-parallelism.md` §5
+
+**Exit criterion met.** `multiprocessing.Pool().map(...)` returns correct
+results with real parallelism — verified at 4x speedup for 8 tasks across
+4 workers.
 
 ---
 

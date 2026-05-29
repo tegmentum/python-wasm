@@ -25,6 +25,7 @@ import sys
 from .types import Codec
 from .importhook import install
 from .mailbox import MailboxClient
+from .pool import OffloadPool
 
 
 _installed = None
@@ -53,4 +54,4 @@ def install_from_env():
     return _installed
 
 
-__all__ = ("install_from_env", "Codec", "install", "MailboxClient")
+__all__ = ("install_from_env", "Codec", "install", "MailboxClient", "OffloadPool")

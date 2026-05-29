@@ -54,6 +54,37 @@ except ImportError:
     pass
 
 
+# Phase 6: route multiprocessing.Pool through OffloadPool when
+# OFFLOAD_POOL_DIR is set. multiprocessing.Pool needs os.fork in stock
+# CPython — wasi-p2 doesn't have it, so the stdlib Pool.start_method
+# fails. Inject OffloadPool as the Pool factory: same map/apply surface,
+# real parallelism via N host-side worker processes.
+try:
+    import os
+    if os.environ.get("OFFLOAD_POOL_DIR"):
+        from _offload_shim import OffloadPool as _OffloadPool
+
+        def _wasi_pool_factory(processes=None, initializer=None, initargs=(),
+                               maxtasksperchild=None, context=None,
+                               _root=os.environ["OFFLOAD_POOL_DIR"],
+                               _default=int(os.environ.get("OFFLOAD_POOL_SIZE", "4")),
+                               _Pool=_OffloadPool):
+            """Pool() drop-in. processes defaults to OFFLOAD_POOL_SIZE."""
+            if initializer is not None:
+                raise NotImplementedError("OffloadPool: initializer not supported")
+            return _Pool(processes or _default, mailbox_root=_root)
+
+        import multiprocessing
+        multiprocessing.Pool = _wasi_pool_factory
+        try:
+            from multiprocessing import pool as _mp_pool
+            _mp_pool.Pool = _wasi_pool_factory
+        except ImportError:
+            pass
+except (ImportError, KeyError, ValueError):
+    pass
+
+
 # asyncio's BaseSelectorEventLoop._make_self_pipe wants socket.socketpair()
 # to cross-signal a real selector wake-up. WASI Preview 2 has no socketpair
 # primitive; Lib/socket.py's _fallback_socketpair (bind/listen/connect)

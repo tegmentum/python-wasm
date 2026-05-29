@@ -77,10 +77,23 @@ class MailboxClient:
         self._seq = 0
 
     def run(self, env: str, task: Task) -> Outcome:
+        """Synchronous: submit + wait for the same request. Convenience."""
+        seq = self._submit(env, task)
+        return self._wait_for(seq)
+
+    def _submit(self, env: str, task: Task) -> int:
+        """Write the request frame; return the seq. Non-blocking — the
+        atomic file write returns as soon as the bytes are on disk. The
+        Phase-6 OffloadPool uses this to fan out N tasks before waiting
+        on any of them, so the host workers actually run concurrently."""
         self._seq += 1
         seq = self._seq
-        resp = os.path.join(self._dir, f"resp-{seq}.bin")
         _write_atomic(self._dir, f"req-{seq}.bin", protocol.encode_request(env, task))
+        return seq
+
+    def _wait_for(self, seq: int) -> Outcome:
+        """Block until resp-<seq>.bin appears, decode, return the outcome."""
+        resp = os.path.join(self._dir, f"resp-{seq}.bin")
         deadline = time.monotonic() + self._timeout
         while not os.path.exists(resp):
             if time.monotonic() >= deadline:

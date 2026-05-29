@@ -80,7 +80,7 @@ Modules that load but where specific operations fail:
 | `subprocess` | full `run`/`Popen`/`check_call`/`check_output`/signals/stdin/stdout/stderr capture/parallel spawns when running under `scripts/run-python-with-subprocess.sh` (Phase 5 done 2026-05-29) — default stub still returns `GuestNotReady` | (nothing — full surface) | composes with `v86-posix-host` instead of stub; helper polls a shared mailbox dir |
 | `hashlib` | all 14 algorithms + pbkdf2_hmac + blake2 params + SHA-3 + SHAKE | `scrypt` (cap impl shipped but not wired in stdlib `hashlib.scrypt`) | gap is purely in `Lib/_hashlib.py` shim wiring; cap supplies it |
 | `ssl` | TLS handshake, cert validation, urllib.urlopen, MemoryBIO | SSLObject, SSLSession, `get_server_certificate`, DER_cert_to_PEM_cert, RAND_add, RAND_status | deferred to openssl-component v0.2.x |
-| `multiprocessing` | imports + Process object | `Process.start()` | no `os.fork` |
+| `multiprocessing` | imports, **`Pool.map`/`apply`/`imap` via OffloadPool** when `OFFLOAD_POOL_DIR` is set (Phase 6 done 2026-05-29; real parallelism across N host workers), Process object | `Process.start()` (needs fork), Pool without offload backend wired | sitecustomize hijacks `multiprocessing.Pool` when env is set |
 
 ### D. Fail to import entirely ❌
 

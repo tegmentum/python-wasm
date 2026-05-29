@@ -96,6 +96,52 @@ NETWORK= ./scripts/test-offload-numpy.sh
 | Live-object proxying (callbacks, generators, `__iter__`) | ❌ — Issue #5 of native-exec plan |
 | Concurrent calls (more than one in flight) | ❌ — protocol is one outstanding request at a time |
 
+### Parallelism — OffloadPool (Phase 6)
+
+A multi-worker variant of the offload boundary ships as
+`_offload_shim.OffloadPool`. It mirrors the `multiprocessing.Pool` API
+(`map`, `apply`, `imap`, with-block) and fans tasks out across N host
+worker processes — real parallelism, since the workers are independent
+OS processes with their own GILs.
+
+```bash
+# Start the pool (N=4 host workers under /tmp/pool-XXXXXX)
+./scripts/serve-offload-pool.sh /tmp/pool 4 &
+POOL_PID=$!
+
+# Run python-wasm with the pool wired in
+wasmtime run --dir … --env OFFLOAD_POOL_DIR=/work/pool \
+              --env OFFLOAD_POOL_SIZE=4 python.composed.wasm guest.py
+
+kill $POOL_PID
+```
+
+Inside the guest:
+
+```python
+import multiprocessing
+# OFFLOAD_POOL_DIR being set re-routes Pool to OffloadPool
+with multiprocessing.Pool(4) as pool:
+    results = pool.map("numpy.linalg:det", [
+        [[1, 2], [3, 4]],
+        [[2, 0], [0, 2]],
+    ])
+# results == [-2.0, 4.0]
+```
+
+Or use OffloadPool directly:
+
+```python
+from _offload_shim import OffloadPool
+pool = OffloadPool(processes=4, mailbox_root="/work/pool")
+out = pool.map("math:sqrt", [1.0, 4.0, 9.0, 16.0])
+# out == [1.0, 2.0, 3.0, 4.0]
+```
+
+Phase 6's `scripts/test-offload-pool.sh` proves real ~4x speedup: 8 ×
+`time.sleep(0.5)` across 4 workers finishes in ~1.0s wall-clock (vs.
+4s if serialized).
+
 ### Codec map
 
 | Codec | Primitive types | numpy.ndarray | Live objects | Status |
