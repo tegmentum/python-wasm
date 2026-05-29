@@ -82,6 +82,28 @@ extern bool tegmentum_password_hash_multiplexer_password_dispatcher_identify(kdf
 // the algorithm's recommended cost (for deriving encryption keys, not
 // storage). Errors on an invalid salt or output length.
 extern bool tegmentum_password_hash_multiplexer_password_dispatcher_derive(tegmentum_password_hash_multiplexer_password_dispatcher_password_algorithm_t algorithm, kdf_cap_import_string_t *password, kdf_cap_import_list_u8_t *salt, uint32_t length, kdf_cap_import_list_u8_t *ret, kdf_cap_import_string_t *err);
+// PBKDF2 with explicit cost + hash choice. `hash-name` is one of the
+// stdlib hashlib names: "sha256" (the only one supported today),
+// "sha512", "sha1". Future hash families bump the variant set
+// additively. `iterations` is the PBKDF2 iteration count (typical
+// values: 100_000 - 1_000_000); higher iterations = more CPU per call.
+// `dklen` is the requested output length in bytes (1..=u32::MAX).
+// Mirrors the stdlib `hashlib.pbkdf2_hmac(hash-name, password, salt,
+// iterations, dklen)` signature.
+extern bool tegmentum_password_hash_multiplexer_password_dispatcher_derive_pbkdf2(kdf_cap_import_list_u8_t *password, kdf_cap_import_list_u8_t *salt, uint32_t iterations, kdf_cap_import_string_t *hash_name, uint32_t dklen, kdf_cap_import_list_u8_t *ret, kdf_cap_import_string_t *err);
+// scrypt with explicit cost parameters. `n` is the CPU/memory cost
+// factor (must be a power of two, > 1; e.g. 16384 = 2^14, 1048576 =
+// 2^20). `r` is the block size in 16-byte chunks (typical: 8). `p` is
+// the parallelization factor (typical: 1). `dklen` is the output
+// length in bytes. Mirrors stdlib `hashlib.scrypt(password, salt=...,
+// n=..., r=..., p=..., dklen=64)`.
+extern bool tegmentum_password_hash_multiplexer_password_dispatcher_derive_scrypt(kdf_cap_import_list_u8_t *password, kdf_cap_import_list_u8_t *salt, uint64_t n, uint32_t r, uint32_t p, uint32_t dklen, kdf_cap_import_list_u8_t *ret, kdf_cap_import_string_t *err);
+// argon2id with explicit cost. `time-cost` is the number of passes (t,
+// typical 1..=10). `memory-cost-kib` is memory consumption in KiB
+// (typical 16384 = 16 MiB to 65536 = 64 MiB). `parallelism` is the
+// number of parallel lanes (typical 1..=4). `dklen` is the output
+// length in bytes. The argon2-cffi `low_level.hash_secret_raw` shape.
+extern bool tegmentum_password_hash_multiplexer_password_dispatcher_derive_argon2id(kdf_cap_import_list_u8_t *password, kdf_cap_import_list_u8_t *salt, uint32_t time_cost, uint32_t memory_cost_kib, uint32_t parallelism, uint32_t dklen, kdf_cap_import_list_u8_t *ret, kdf_cap_import_string_t *err);
 // Algorithms available in this multiplexer.
 extern void tegmentum_password_hash_multiplexer_password_dispatcher_supported_algorithms(tegmentum_password_hash_multiplexer_password_dispatcher_list_password_algorithm_t *ret);
 // Human-readable description of an algorithm.

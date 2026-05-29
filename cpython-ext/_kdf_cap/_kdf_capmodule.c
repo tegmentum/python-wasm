@@ -111,6 +111,120 @@ mod_derive(PyObject *self, PyObject *args, PyObject *kwargs)
 }
 
 
+/* ---- explicit-cost derive variants -------------------------------------
+ *
+ * These bypass the multiplexer's "recommended-cost" path and take the cost
+ * parameters CPython's stdlib `hashlib` exposes directly. Each mirrors the
+ * matching `hashlib` signature so callers can route through the cap
+ * without rewriting their call sites.
+ */
+
+static PyObject *
+mod_derive_pbkdf2(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = {"password", "salt", "iterations", "hash_name", "dklen", NULL};
+    Py_buffer pw_buf, salt_buf;
+    unsigned int iterations;
+    const char *hash_name;
+    unsigned int dklen;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "y*y*IsI:derive_pbkdf2", kwlist,
+                                     &pw_buf, &salt_buf, &iterations, &hash_name, &dklen))
+        return NULL;
+
+    kdf_cap_import_list_u8_t password = { .ptr = (uint8_t *) pw_buf.buf, .len = (size_t) pw_buf.len };
+    kdf_cap_import_list_u8_t salt = { .ptr = (uint8_t *) salt_buf.buf, .len = (size_t) salt_buf.len };
+    kdf_cap_import_string_t hn = { .ptr = (uint8_t *) hash_name, .len = strlen(hash_name) };
+    kdf_cap_import_list_u8_t out;
+    kdf_cap_import_string_t err;
+
+    bool ok = tegmentum_password_hash_multiplexer_password_dispatcher_derive_pbkdf2(
+        &password, &salt, iterations, &hn, dklen, &out, &err);
+
+    PyBuffer_Release(&pw_buf);
+    PyBuffer_Release(&salt_buf);
+
+    if (!ok) {
+        PyErr_Format(PyExc_RuntimeError, "_kdf_cap.derive_pbkdf2 failed: %.*s",
+                     (int) err.len, (const char *) err.ptr);
+        kdf_cap_import_string_free(&err);
+        return NULL;
+    }
+    PyObject *r = PyBytes_FromStringAndSize((const char *) out.ptr,
+                                            (Py_ssize_t) out.len);
+    kdf_cap_import_list_u8_free(&out);
+    return r;
+}
+
+static PyObject *
+mod_derive_scrypt(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = {"password", "salt", "n", "r", "p", "dklen", NULL};
+    Py_buffer pw_buf, salt_buf;
+    unsigned long long n;
+    unsigned int r, p, dklen;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "y*y*KIII:derive_scrypt", kwlist,
+                                     &pw_buf, &salt_buf, &n, &r, &p, &dklen))
+        return NULL;
+
+    kdf_cap_import_list_u8_t password = { .ptr = (uint8_t *) pw_buf.buf, .len = (size_t) pw_buf.len };
+    kdf_cap_import_list_u8_t salt = { .ptr = (uint8_t *) salt_buf.buf, .len = (size_t) salt_buf.len };
+    kdf_cap_import_list_u8_t out;
+    kdf_cap_import_string_t err;
+
+    bool ok = tegmentum_password_hash_multiplexer_password_dispatcher_derive_scrypt(
+        &password, &salt, (uint64_t) n, r, p, dklen, &out, &err);
+
+    PyBuffer_Release(&pw_buf);
+    PyBuffer_Release(&salt_buf);
+
+    if (!ok) {
+        PyErr_Format(PyExc_RuntimeError, "_kdf_cap.derive_scrypt failed: %.*s",
+                     (int) err.len, (const char *) err.ptr);
+        kdf_cap_import_string_free(&err);
+        return NULL;
+    }
+    PyObject *r_obj = PyBytes_FromStringAndSize((const char *) out.ptr,
+                                                  (Py_ssize_t) out.len);
+    kdf_cap_import_list_u8_free(&out);
+    return r_obj;
+}
+
+static PyObject *
+mod_derive_argon2id(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = {"password", "salt", "time_cost", "memory_cost_kib",
+                             "parallelism", "dklen", NULL};
+    Py_buffer pw_buf, salt_buf;
+    unsigned int time_cost, memory_cost_kib, parallelism, dklen;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "y*y*IIII:derive_argon2id", kwlist,
+                                     &pw_buf, &salt_buf,
+                                     &time_cost, &memory_cost_kib, &parallelism, &dklen))
+        return NULL;
+
+    kdf_cap_import_list_u8_t password = { .ptr = (uint8_t *) pw_buf.buf, .len = (size_t) pw_buf.len };
+    kdf_cap_import_list_u8_t salt = { .ptr = (uint8_t *) salt_buf.buf, .len = (size_t) salt_buf.len };
+    kdf_cap_import_list_u8_t out;
+    kdf_cap_import_string_t err;
+
+    bool ok = tegmentum_password_hash_multiplexer_password_dispatcher_derive_argon2id(
+        &password, &salt, time_cost, memory_cost_kib, parallelism, dklen, &out, &err);
+
+    PyBuffer_Release(&pw_buf);
+    PyBuffer_Release(&salt_buf);
+
+    if (!ok) {
+        PyErr_Format(PyExc_RuntimeError, "_kdf_cap.derive_argon2id failed: %.*s",
+                     (int) err.len, (const char *) err.ptr);
+        kdf_cap_import_string_free(&err);
+        return NULL;
+    }
+    PyObject *r = PyBytes_FromStringAndSize((const char *) out.ptr,
+                                            (Py_ssize_t) out.len);
+    kdf_cap_import_list_u8_free(&out);
+    return r;
+}
+
+
 /* algorithms() -> tuple[str, ...] */
 static PyObject *
 mod_algorithms(PyObject *self, PyObject *Py_UNUSED(args))
@@ -133,6 +247,19 @@ static PyMethodDef module_methods[] = {
      "Derive `length` bytes from `password` and `salt` using the named\n"
      "algorithm at its recommended cost. Routes through the\n"
      "password-hash-multiplexer capability."},
+    {"derive_pbkdf2", (PyCFunction) mod_derive_pbkdf2, METH_VARARGS | METH_KEYWORDS,
+     "derive_pbkdf2(password, salt, iterations, hash_name, dklen) -> bytes\n\n"
+     "PBKDF2 with explicit iterations + hash choice ('sha256'/'sha512'/'sha1').\n"
+     "Mirrors hashlib.pbkdf2_hmac signature."},
+    {"derive_scrypt", (PyCFunction) mod_derive_scrypt, METH_VARARGS | METH_KEYWORDS,
+     "derive_scrypt(password, salt, n, r, p, dklen) -> bytes\n\n"
+     "scrypt with explicit cost (n = power-of-two CPU/memory cost,\n"
+     "r = block size, p = parallelization). Mirrors hashlib.scrypt."},
+    {"derive_argon2id", (PyCFunction) mod_derive_argon2id, METH_VARARGS | METH_KEYWORDS,
+     "derive_argon2id(password, salt, time_cost, memory_cost_kib, parallelism, dklen) -> bytes\n\n"
+     "argon2id with explicit cost. Mirrors argon2-cffi's\n"
+     "low_level.hash_secret_raw shape (time_cost=t, memory_cost_kib=m KiB,\n"
+     "parallelism=p lanes)."},
     {"algorithms", mod_algorithms, METH_NOARGS,
      "algorithms() -> tuple[str, ...]\n\nSupported algorithm names."},
     {NULL, NULL, 0, NULL}

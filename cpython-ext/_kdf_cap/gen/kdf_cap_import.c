@@ -17,6 +17,15 @@ extern void __wasm_import_tegmentum_password_hash_multiplexer_password_dispatche
 __attribute__((__import_module__("tegmentum:password-hash-multiplexer/password-dispatcher@0.1.0"), __import_name__("derive")))
 extern void __wasm_import_tegmentum_password_hash_multiplexer_password_dispatcher_derive(int32_t, uint8_t *, size_t, uint8_t *, size_t, int32_t, uint8_t *);
 
+__attribute__((__import_module__("tegmentum:password-hash-multiplexer/password-dispatcher@0.1.0"), __import_name__("derive-pbkdf2")))
+extern void __wasm_import_tegmentum_password_hash_multiplexer_password_dispatcher_derive_pbkdf2(uint8_t *, size_t, uint8_t *, size_t, int32_t, uint8_t *, size_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("tegmentum:password-hash-multiplexer/password-dispatcher@0.1.0"), __import_name__("derive-scrypt")))
+extern void __wasm_import_tegmentum_password_hash_multiplexer_password_dispatcher_derive_scrypt(uint8_t *, size_t, uint8_t *, size_t, int64_t, int32_t, int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("tegmentum:password-hash-multiplexer/password-dispatcher@0.1.0"), __import_name__("derive-argon2id")))
+extern void __wasm_import_tegmentum_password_hash_multiplexer_password_dispatcher_derive_argon2id(uint8_t *, size_t, uint8_t *, size_t, int32_t, int32_t, int32_t, int32_t, uint8_t *);
+
 __attribute__((__import_module__("tegmentum:password-hash-multiplexer/password-dispatcher@0.1.0"), __import_name__("supported-algorithms")))
 extern void __wasm_import_tegmentum_password_hash_multiplexer_password_dispatcher_supported_algorithms(uint8_t *);
 
@@ -191,6 +200,87 @@ bool tegmentum_password_hash_multiplexer_password_dispatcher_derive(tegmentum_pa
   uint8_t ret_area[(3*sizeof(void*))];
   uint8_t *ptr = (uint8_t *) &ret_area;
   __wasm_import_tegmentum_password_hash_multiplexer_password_dispatcher_derive((int32_t) algorithm, (uint8_t *) (*password).ptr, (*password).len, (uint8_t *) (*salt).ptr, (*salt).len, (int32_t) (length), ptr);
+  tegmentum_password_hash_multiplexer_password_dispatcher_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (kdf_cap_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (kdf_cap_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool tegmentum_password_hash_multiplexer_password_dispatcher_derive_pbkdf2(kdf_cap_import_list_u8_t *password, kdf_cap_import_list_u8_t *salt, uint32_t iterations, kdf_cap_import_string_t *hash_name, uint32_t dklen, kdf_cap_import_list_u8_t *ret, kdf_cap_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_password_hash_multiplexer_password_dispatcher_derive_pbkdf2((uint8_t *) (*password).ptr, (*password).len, (uint8_t *) (*salt).ptr, (*salt).len, (int32_t) (iterations), (uint8_t *) (*hash_name).ptr, (*hash_name).len, (int32_t) (dklen), ptr);
+  tegmentum_password_hash_multiplexer_password_dispatcher_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (kdf_cap_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (kdf_cap_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool tegmentum_password_hash_multiplexer_password_dispatcher_derive_scrypt(kdf_cap_import_list_u8_t *password, kdf_cap_import_list_u8_t *salt, uint64_t n, uint32_t r, uint32_t p, uint32_t dklen, kdf_cap_import_list_u8_t *ret, kdf_cap_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_password_hash_multiplexer_password_dispatcher_derive_scrypt((uint8_t *) (*password).ptr, (*password).len, (uint8_t *) (*salt).ptr, (*salt).len, (int64_t) (n), (int32_t) (r), (int32_t) (p), (int32_t) (dklen), ptr);
+  tegmentum_password_hash_multiplexer_password_dispatcher_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (kdf_cap_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (kdf_cap_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool tegmentum_password_hash_multiplexer_password_dispatcher_derive_argon2id(kdf_cap_import_list_u8_t *password, kdf_cap_import_list_u8_t *salt, uint32_t time_cost, uint32_t memory_cost_kib, uint32_t parallelism, uint32_t dklen, kdf_cap_import_list_u8_t *ret, kdf_cap_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_password_hash_multiplexer_password_dispatcher_derive_argon2id((uint8_t *) (*password).ptr, (*password).len, (uint8_t *) (*salt).ptr, (*salt).len, (int32_t) (time_cost), (int32_t) (memory_cost_kib), (int32_t) (parallelism), (int32_t) (dklen), ptr);
   tegmentum_password_hash_multiplexer_password_dispatcher_result_list_u8_string_t result;
   switch ((int32_t) *((uint8_t*) (ptr + 0))) {
     case 0: {
