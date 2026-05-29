@@ -1106,6 +1106,16 @@ extern bool openssl_component_tls_method_client_read(openssl_component_tls_borro
 // already-decrypted bytes) which our existing `read` already
 // covers transparently.
 extern bool openssl_component_tls_method_client_has_pending(openssl_component_tls_borrow_client_t self);
+// True if the underlying TCP socket has bytes ready to read.
+// Non-blocking POSIX `poll(0)` on `SSL_get_fd`. Catches the case
+// where a TLS record sits in the kernel TCP buffer but OpenSSL
+// hasn't pulled it into the BIO yet — `has-pending` misses
+// those because OpenSSL only sees what's already in its own
+// BIO. Together, `has-pending || socket-readable` lets the
+// caller safely loop a drain while there's known-available
+// data, then return when both are false (server idle on
+// keepalive, no record on the wire).
+extern bool openssl_component_tls_method_client_socket_readable(openssl_component_tls_borrow_client_t self);
 // 0-RTT data; valid only before the first `read`/`write` when
 // `enable-early-data` is set and a session ticket is supplied.
 extern bool openssl_component_tls_method_client_write_early(openssl_component_tls_borrow_client_t self, ssl_import_list_u8_t *data, uint32_t *ret, openssl_component_tls_tls_error_t *err);
@@ -1130,6 +1140,8 @@ extern bool openssl_component_tls_method_server_write(openssl_component_tls_borr
 extern bool openssl_component_tls_method_server_read(openssl_component_tls_borrow_server_t self, uint32_t max_bytes, ssl_import_list_u8_t *ret, openssl_component_tls_tls_error_t *err);
 // Server-side counterpart of `client.has-pending`. See there.
 extern bool openssl_component_tls_method_server_has_pending(openssl_component_tls_borrow_server_t self);
+// Server-side counterpart of `client.socket-readable`. See there.
+extern bool openssl_component_tls_method_server_socket_readable(openssl_component_tls_borrow_server_t self);
 extern void openssl_component_tls_method_server_peer(openssl_component_tls_borrow_server_t self, openssl_component_tls_peer_info_t *ret);
 // Take buffered NSS-format keylog lines. Empty unless
 // `keylog` was set in the listener's server-config.

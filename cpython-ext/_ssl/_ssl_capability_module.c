@@ -745,6 +745,21 @@ static PyObject *SSLSocket_pending(SSLSocketObject *self, PyObject *Py_UNUSED(ar
     return PyLong_FromLong(any ? 1 : 0);
 }
 
+static PyObject *SSLSocket_socket_readable(SSLSocketObject *self, PyObject *Py_UNUSED(args))
+{
+    /* openssl-component@0.2.x: non-blocking POSIX poll on SSL_get_fd.
+     * Picks up the case where a TLS record sits in the kernel TCP
+     * buffer but OpenSSL hasn't pulled it into the BIO yet — pending()
+     * misses those because SSL_has_pending only sees OpenSSL's BIO.
+     * Used by SSLSocket.read's drain loop together with pending(). */
+    if (!self->has_handle) Py_RETURN_FALSE;
+    openssl_component_tls_borrow_client_t b =
+        openssl_component_tls_borrow_client(self->handle);
+    bool r = openssl_component_tls_method_client_socket_readable(b);
+    if (r) Py_RETURN_TRUE;
+    Py_RETURN_FALSE;
+}
+
 static PyObject *SSLSocket_shutdown(SSLSocketObject *self, PyObject *Py_UNUSED(args))
 {
     if (!self->has_handle) Py_RETURN_NONE;  /* idempotent */
@@ -866,6 +881,8 @@ static PyMethodDef SSLSocket_methods[] = {
      "write(data: bytes) -> int — bytes encrypted+sent."},
     {"pending",                 (PyCFunction) SSLSocket_pending,                 METH_NOARGS,
      "pending() -> int — 1 if openssl-component has buffered data the next read() can return without blocking; 0 otherwise. v0.2.x wires SSL_has_pending; v1 returned a hardcoded 0."},
+    {"socket_readable",         (PyCFunction) SSLSocket_socket_readable,         METH_NOARGS,
+     "socket_readable() -> bool — True if the underlying TCP socket has bytes available (poll(0)). Used by the read drain loop to catch trailing TLS records that haven't reached the BIO yet."},
     {"shutdown",                (PyCFunction) SSLSocket_shutdown,                METH_NOARGS,
      "shutdown() -> None — close the TLS connection (sends close_notify, closes TCP)."},
     {"version",                 (PyCFunction) SSLSocket_version,                 METH_NOARGS,

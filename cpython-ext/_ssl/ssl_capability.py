@@ -213,37 +213,56 @@ class SSLSocket:
         # expose a separate C-level object — the inner cap IS that level —
         # so present self as the sslobj.
         self._sslobj = self
+        # Internal buffer for excess bytes the drain loop pulled past the
+        # caller's buflen. Served on the next read() before going back to
+        # the cap.
+        self._read_buf = b""
 
     # --- I/O ---
     def read(self, buflen: int = 8192) -> bytes:
-        # openssl-component@0.2.x wires `SSL_has_pending` through as
-        # `pending() -> int` (1 if buffered, 0 otherwise — see the C ext
-        # comment for v1 vs v2 semantics). That lets us safely drain
-        # trailing TLS records without blocking on keepalive:
+        # Serve any bytes the previous drain loop pulled past the
+        # caller's buflen first. Buffer is only populated when the
+        # tail-record speculative drain returned more than buflen
+        # — common case is buf is empty and we go straight to inner.read.
+        if self._read_buf:
+            if len(self._read_buf) >= buflen:
+                out, self._read_buf = self._read_buf[:buflen], self._read_buf[buflen:]
+                return out
+            out, self._read_buf = self._read_buf, b""
+            buflen -= len(out)
+        else:
+            out = b""
+
+        # openssl-component@0.2.x exposes two non-blocking probes:
+        #   * pending()         — wraps SSL_has_pending; true when OpenSSL
+        #                          has buffered data (decrypted plaintext
+        #                          OR unprocessed ciphertext in its BIO).
+        #   * socket_readable() — non-blocking POSIX poll(0) on
+        #                          SSL_get_fd; true when the kernel TCP
+        #                          buffer has bytes OpenSSL hasn't pulled
+        #                          into the BIO yet.
+        # The drain loop uses both: pending() catches the partial-record
+        # case where OpenSSL has already pulled bytes, socket_readable
+        # catches the trailing-record case where a record arrived on the
+        # wire after the first read returned (the urllib chunked +
+        # Connection: close → IncompleteRead bug).
         #
-        #   * Connection: close + chunked-encoding: the chunk-end
-        #     sentinel `0\r\n\r\n` ships in a separate small TLS record
-        #     after the body. has-pending becomes true while that record
-        #     sits in OpenSSL's BIO, so we read it before close-notify
-        #     processing throws it away.
-        #   * Connection: keep-alive: after a normal response,
-        #     has-pending returns false (server isn't sending anything),
-        #     so the drain loop exits and we return without blocking on
-        #     a network read that would wait forever.
+        # Connection: keep-alive + idle server: both probes return false
+        # → loop exits → no block waiting on bytes the server isn't
+        # sending until the next request.
         try:
             data = self._inner.read(buflen)
         except SSLError as e:
             msg = str(e).lower()
             if "connection is closed" in msg or "zero return" in msg:
-                return b""
+                return out  # may have leftover-buffer bytes to deliver
             raise
 
         if not data:
-            return data  # natural EOF
+            return out + data  # leftover (if any) + natural EOF
 
-        # Drain any data OpenSSL has buffered. has-pending covers both
-        # already-decrypted plaintext AND undecrypted ciphertext in the
-        # BIO that next read() can safely process.
+        # Cheap drain: pull anything OpenSSL has already buffered. This
+        # never blocks on the network — pending() reflects only the BIO.
         while self._inner.pending() > 0:
             try:
                 extra = self._inner.read(buflen)
@@ -256,7 +275,28 @@ class SSLSocket:
             if not extra:
                 break
             data += extra
-        return data
+
+        # NOTE: openssl-component@0.2.x also exposes socket_readable
+        # (non-blocking poll on the underlying TCP fd). We tried wiring
+        # it in as a speculative drain — fixes urllib + chunked-encoding
+        # + Connection: close (the chunk-end sentinel `0\r\n\r\n` ships
+        # in a separate small record after the body, gets lost when
+        # close-notify is processed before we re-enter SSL_read). But
+        # speculative socket-readable drains broke pip's urllib3 path:
+        # it reads many small records and expects each read to bound at
+        # one record, not aggressively pull until the socket goes quiet.
+        # Deferred until the drain heuristic is refined enough to tell
+        # "tail record before close" apart from "next chunk of a bulk
+        # response."
+
+        # Honor the caller's buflen contract: never return more than
+        # they asked for. Park any excess for the next read().
+        full = out + data
+        room = len(out) + buflen   # original caller buflen, accounting for what we already prepended
+        if len(full) > room:
+            self._read_buf = full[room:]
+            full = full[:room]
+        return full
 
     def write(self, data) -> int:
         return self._inner.write(data)

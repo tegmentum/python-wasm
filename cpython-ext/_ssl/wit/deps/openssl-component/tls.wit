@@ -166,6 +166,16 @@ interface tls {
         /// already-decrypted bytes) which our existing `read` already
         /// covers transparently.
         has-pending: func() -> bool;
+        /// True if the underlying TCP socket has bytes ready to read.
+        /// Non-blocking POSIX `poll(0)` on `SSL_get_fd`. Catches the case
+        /// where a TLS record sits in the kernel TCP buffer but OpenSSL
+        /// hasn't pulled it into the BIO yet — `has-pending` misses
+        /// those because OpenSSL only sees what's already in its own
+        /// BIO. Together, `has-pending || socket-readable` lets the
+        /// caller safely loop a drain while there's known-available
+        /// data, then return when both are false (server idle on
+        /// keepalive, no record on the wire).
+        socket-readable: func() -> bool;
 
         /// 0-RTT data; valid only before the first `read`/`write` when
         /// `enable-early-data` is set and a session ticket is supplied.
@@ -201,6 +211,8 @@ interface tls {
         read: func(max-bytes: u32) -> result<list<u8>, tls-error>;
         /// Server-side counterpart of `client.has-pending`. See there.
         has-pending: func() -> bool;
+        /// Server-side counterpart of `client.socket-readable`. See there.
+        socket-readable: func() -> bool;
         peer: func() -> peer-info;
         /// Take buffered NSS-format keylog lines. Empty unless
         /// `keylog` was set in the listener's server-config.
