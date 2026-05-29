@@ -14,6 +14,8 @@ typedef struct crypto_hash_import_string_t {
   size_t len;
 } crypto_hash_import_string_t;
 
+// Algorithm selection. Identifiers that would start with a digit
+// are spelled without the dash (sha3-256 -> sha3256).
 typedef uint8_t tegmentum_crypto_hash_multiplexer_hash_dispatcher_algorithm_t;
 
 #define TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_MD5 0
@@ -21,10 +23,19 @@ typedef uint8_t tegmentum_crypto_hash_multiplexer_hash_dispatcher_algorithm_t;
 #define TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA256 2
 #define TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA384 3
 #define TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA512 4
-#define TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA3256 5
-#define TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA3512 6
-#define TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_BLAKE2B 7
-#define TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_BLAKE2S 8
+#define TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA3224 5
+// SHA3-224 (28-byte)
+#define TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA3256 6
+#define TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA3384 7
+// SHA3-384 (48-byte)
+#define TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA3512 8
+#define TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_BLAKE2B 9
+// default Blake2b-512 (64-byte)
+#define TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_BLAKE2S 10
+// default Blake2s-256 (32-byte)
+#define TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHAKE128 11
+// SHAKE-128 XOF (variable output via digest-xof)
+#define TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHAKE256 12
 
 typedef struct tegmentum_crypto_hash_multiplexer_hash_dispatcher_own_hasher_t {
   int32_t __handle;
@@ -40,6 +51,14 @@ typedef struct {
 } crypto_hash_import_list_u8_t;
 
 typedef struct {
+  bool is_err;
+  union {
+    crypto_hash_import_list_u8_t ok;
+    crypto_hash_import_string_t err;
+  } val;
+} tegmentum_crypto_hash_multiplexer_hash_dispatcher_result_list_u8_string_t;
+
+typedef struct {
   tegmentum_crypto_hash_multiplexer_hash_dispatcher_algorithm_t *ptr;
   size_t len;
 } tegmentum_crypto_hash_multiplexer_hash_dispatcher_list_algorithm_t;
@@ -52,11 +71,43 @@ typedef struct {
 // Imported Functions from `tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0`
 extern tegmentum_crypto_hash_multiplexer_hash_dispatcher_own_hasher_t tegmentum_crypto_hash_multiplexer_hash_dispatcher_constructor_hasher(tegmentum_crypto_hash_multiplexer_hash_dispatcher_algorithm_t algo);
 extern void tegmentum_crypto_hash_multiplexer_hash_dispatcher_method_hasher_update(tegmentum_crypto_hash_multiplexer_hash_dispatcher_borrow_hasher_t self, crypto_hash_import_list_u8_t *input);
+// Finalize and return the current digest. For SHAKE algorithms,
+// returns the default digest length (32 bytes for shake128,
+// 64 bytes for shake256) — use `finish-xof` for variable length.
 extern void tegmentum_crypto_hash_multiplexer_hash_dispatcher_method_hasher_finish(tegmentum_crypto_hash_multiplexer_hash_dispatcher_borrow_hasher_t self, crypto_hash_import_list_u8_t *ret);
+// Reset to the initial state (same algorithm, fresh data).
 extern void tegmentum_crypto_hash_multiplexer_hash_dispatcher_method_hasher_reset(tegmentum_crypto_hash_multiplexer_hash_dispatcher_borrow_hasher_t self);
+// Snapshot of the current state — used by callers that need to
+// finalize multiple digests at distinct progress points
+// (CPython hashlib `.copy()` semantics).
+extern tegmentum_crypto_hash_multiplexer_hash_dispatcher_own_hasher_t tegmentum_crypto_hash_multiplexer_hash_dispatcher_method_hasher_copy(tegmentum_crypto_hash_multiplexer_hash_dispatcher_borrow_hasher_t self);
+// XOF finish: variable-length output for SHAKE algorithms.
+// Errors when called on a non-XOF algorithm.
+extern bool tegmentum_crypto_hash_multiplexer_hash_dispatcher_method_hasher_finish_xof(tegmentum_crypto_hash_multiplexer_hash_dispatcher_borrow_hasher_t self, uint32_t length, crypto_hash_import_list_u8_t *ret, crypto_hash_import_string_t *err);
+// One-shot digest of a complete buffer.
 extern void tegmentum_crypto_hash_multiplexer_hash_dispatcher_digest(tegmentum_crypto_hash_multiplexer_hash_dispatcher_algorithm_t algo, crypto_hash_import_list_u8_t *input, crypto_hash_import_list_u8_t *ret);
+// One-shot variable-length digest for XOF algorithms (SHAKE).
+// Errors when `algo` is non-XOF.
+extern bool tegmentum_crypto_hash_multiplexer_hash_dispatcher_digest_xof(tegmentum_crypto_hash_multiplexer_hash_dispatcher_algorithm_t algo, crypto_hash_import_list_u8_t *input, uint32_t length, crypto_hash_import_list_u8_t *ret, crypto_hash_import_string_t *err);
+// Native output length in bytes for fixed-output algorithms.
+// Returns 0 for XOF algorithms (variable-length).
+extern uint32_t tegmentum_crypto_hash_multiplexer_hash_dispatcher_digest_size(tegmentum_crypto_hash_multiplexer_hash_dispatcher_algorithm_t algo);
+// Internal block size in bytes (HMAC-relevant). 64 for SHA-256 etc.
+extern uint32_t tegmentum_crypto_hash_multiplexer_hash_dispatcher_block_size(tegmentum_crypto_hash_multiplexer_hash_dispatcher_algorithm_t algo);
+// Algorithms available in this multiplexer.
 extern void tegmentum_crypto_hash_multiplexer_hash_dispatcher_supported_algorithms(tegmentum_crypto_hash_multiplexer_hash_dispatcher_list_algorithm_t *ret);
+// Human-readable description of an algorithm.
 extern bool tegmentum_crypto_hash_multiplexer_hash_dispatcher_algorithm_info(tegmentum_crypto_hash_multiplexer_hash_dispatcher_algorithm_t algo, crypto_hash_import_string_t *ret);
+
+// Imported Functions from `tegmentum:crypto-hash-multiplexer/blake2-extras@0.1.0`
+// One-shot blake2b digest with full parametrization. `key` may be
+// empty (unkeyed); if non-empty, max 64 bytes. `salt` may be empty
+// or up to 16 bytes. `person` may be empty or up to 16 bytes.
+// `digest-size` 1..=64 bytes (the output length).
+extern bool tegmentum_crypto_hash_multiplexer_blake2_extras_blake2b_digest(crypto_hash_import_list_u8_t *input, crypto_hash_import_list_u8_t *key, crypto_hash_import_list_u8_t *salt, crypto_hash_import_list_u8_t *person, uint32_t digest_size, crypto_hash_import_list_u8_t *ret, crypto_hash_import_string_t *err);
+// blake2s variant. Smaller keys/salts: key 1..=32, salt 1..=8,
+// person 1..=8, digest-size 1..=32.
+extern bool tegmentum_crypto_hash_multiplexer_blake2_extras_blake2s_digest(crypto_hash_import_list_u8_t *input, crypto_hash_import_list_u8_t *key, crypto_hash_import_list_u8_t *salt, crypto_hash_import_list_u8_t *person, uint32_t digest_size, crypto_hash_import_list_u8_t *ret, crypto_hash_import_string_t *err);
 
 // Helper Functions
 
@@ -67,6 +118,8 @@ extern void tegmentum_crypto_hash_multiplexer_hash_dispatcher_hasher_drop_borrow
 extern tegmentum_crypto_hash_multiplexer_hash_dispatcher_borrow_hasher_t tegmentum_crypto_hash_multiplexer_hash_dispatcher_borrow_hasher(tegmentum_crypto_hash_multiplexer_hash_dispatcher_own_hasher_t handle);
 
 void crypto_hash_import_list_u8_free(crypto_hash_import_list_u8_t *ptr);
+
+void tegmentum_crypto_hash_multiplexer_hash_dispatcher_result_list_u8_string_free(tegmentum_crypto_hash_multiplexer_hash_dispatcher_result_list_u8_string_t *ptr);
 
 void tegmentum_crypto_hash_multiplexer_hash_dispatcher_list_algorithm_free(tegmentum_crypto_hash_multiplexer_hash_dispatcher_list_algorithm_t *ptr);
 

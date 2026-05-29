@@ -1,7 +1,16 @@
-// Vendored to match the PREBUILT hashing_multiplexer.wasm.
+// Hashing Multiplexer WIT interface.
+//
+// A unified hashing dispatcher that routes to multiple non-cryptographic /
+// checksum algorithms at runtime, mirroring the compression multiplexer. Lets
+// consumers pick an algorithm by enum instead of importing one per interface.
+
 package tegmentum:hashing-multiplexer@0.1.0;
 
 interface hashing-dispatcher {
+    /// Hash algorithm selection. Integer hashes return canonical big-endian:
+    /// xxh32/crc32/crc32c/murmur3 -> 4 bytes, xxh64/xxh3 -> 8, xxh128/murmur128
+    /// -> 16, blake3 -> 32. (`xxh3`/`xxh128` are XXH3 64-/128-bit; `murmur3` is
+    /// MurmurHash3 x86_32, `murmur128` is x64_128.)
     enum algorithm {
         xxh32,
         xxh64,
@@ -14,16 +23,60 @@ interface hashing-dispatcher {
         blake3,
     }
 
+    /// Streaming hasher. `seed` is honored by the seeded algorithms (xxhash,
+    /// murmur) and ignored by the CRCs and BLAKE3.
     resource hasher {
         constructor(algo: algorithm, seed: u64);
+        /// Feed more data.
         update: func(input: list<u8>);
+        /// Current digest (canonical big-endian); may be called repeatedly.
         finish: func() -> list<u8>;
+        /// Reset to the constructed state.
         reset: func();
     }
 
+    /// One-shot digest of a complete buffer.
     digest: func(algo: algorithm, input: list<u8>, seed: u64) -> list<u8>;
 
+    /// Algorithms available in this multiplexer.
     supported-algorithms: func() -> list<algorithm>;
 
+    /// Human-readable description of an algorithm.
     algorithm-info: func(algo: algorithm) -> option<string>;
+}
+
+/// blake3 modes that don't fit the seed:u64 shape: keyed hashing (32-byte
+/// key) and key-derivation context. CPython doesn't ship blake3 in stdlib,
+/// but the blake3-py and blake3-rs APIs both expose these primitives.
+interface blake3-extras {
+    /// blake3 keyed-hash mode. `key` must be exactly 32 bytes.
+    /// `output-length` is the desired output in bytes (blake3 is an XOF;
+    /// 32 is the canonical "digest" length).
+    keyed-digest: func(key: list<u8>, input: list<u8>, output-length: u32)
+                 -> result<list<u8>, string>;
+
+    /// blake3 key-derivation function. `context` is a hard-coded
+    /// application-specific ASCII string. `key-material` is the secret
+    /// to derive from. Returns `output-length` bytes.
+    derive-key: func(context: string, key-material: list<u8>, output-length: u32)
+               -> result<list<u8>, string>;
+
+    /// Variable-length blake3 (treating blake3 as an XOF rather than a
+    /// 32-byte digest). Unkeyed; for keyed XOF use keyed-digest with a
+    /// non-32 output-length.
+    digest-xof: func(input: list<u8>, output-length: u32)
+               -> result<list<u8>, string>;
+}
+
+/// xxh3 / xxh128 secret-based variants (libxxhash's XXH3 *_withSecret API).
+/// The secret is an arbitrary 136..=length byte buffer that replaces the
+/// algorithm's internal mixing constants — used by callers that want hash
+/// uniqueness without exposing a small fixed seed.
+interface xxh3-extras {
+    /// XXH3 64-bit with explicit secret (>= 136 bytes).
+    digest-u64: func(input: list<u8>, secret: list<u8>)
+               -> result<list<u8>, string>;
+    /// XXH3 128-bit with explicit secret.
+    digest-u128: func(input: list<u8>, secret: list<u8>)
+                -> result<list<u8>, string>;
 }

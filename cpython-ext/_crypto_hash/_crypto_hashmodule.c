@@ -45,15 +45,19 @@ typedef struct {
 } algo_name_t;
 
 static const algo_name_t ALGO_TABLE[] = {
-    {"md5",      TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_MD5},
-    {"sha1",     TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA1},
-    {"sha256",   TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA256},
-    {"sha384",   TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA384},
-    {"sha512",   TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA512},
-    {"sha3_256", TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA3256},
-    {"sha3_512", TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA3512},
-    {"blake2b",  TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_BLAKE2B},
-    {"blake2s",  TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_BLAKE2S},
+    {"md5",       TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_MD5},
+    {"sha1",      TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA1},
+    {"sha256",    TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA256},
+    {"sha384",    TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA384},
+    {"sha512",    TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA512},
+    {"sha3_224",  TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA3224},
+    {"sha3_256",  TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA3256},
+    {"sha3_384",  TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA3384},
+    {"sha3_512",  TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHA3512},
+    {"blake2b",   TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_BLAKE2B},
+    {"blake2s",   TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_BLAKE2S},
+    {"shake_128", TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHAKE128},
+    {"shake_256", TEGMENTUM_CRYPTO_HASH_MULTIPLEXER_HASH_DISPATCHER_ALGORITHM_SHAKE256},
 };
 
 static int name_to_algo(const char *name, algo_t *out)
@@ -292,6 +296,129 @@ static PyObject *mod_new(PyObject *self, PyObject *args)
     return Hasher_new_with_state(a, NULL);
 }
 
+/* New surface: digest_size / block_size queries, XOF, blake2 with params --- */
+
+static PyObject *mod_digest_size(PyObject *self, PyObject *args)
+{
+    const char *name;
+    if (!PyArg_ParseTuple(args, "s:digest_size", &name)) return NULL;
+    algo_t a;
+    if (name_to_algo(name, &a) < 0) return NULL;
+    uint32_t n = tegmentum_crypto_hash_multiplexer_hash_dispatcher_digest_size(a);
+    return PyLong_FromUnsignedLong((unsigned long) n);
+}
+
+static PyObject *mod_block_size(PyObject *self, PyObject *args)
+{
+    const char *name;
+    if (!PyArg_ParseTuple(args, "s:block_size", &name)) return NULL;
+    algo_t a;
+    if (name_to_algo(name, &a) < 0) return NULL;
+    uint32_t n = tegmentum_crypto_hash_multiplexer_hash_dispatcher_block_size(a);
+    return PyLong_FromUnsignedLong((unsigned long) n);
+}
+
+static PyObject *mod_digest_xof(PyObject *self, PyObject *args)
+{
+    const char *name;
+    PyObject *data;
+    unsigned int length;
+    if (!PyArg_ParseTuple(args, "sOI:digest_xof", &name, &data, &length)) return NULL;
+    algo_t a;
+    if (name_to_algo(name, &a) < 0) return NULL;
+    crypto_hash_import_list_u8_t input, out;
+    crypto_hash_import_string_t err;
+    if (bytes_to_list(data, &input) < 0) return NULL;
+    bool ok = tegmentum_crypto_hash_multiplexer_hash_dispatcher_digest_xof(
+        a, &input, length, &out, &err);
+    if (input.ptr) free(input.ptr);
+    if (!ok) {
+        PyErr_Format(PyExc_RuntimeError, "digest_xof: %.*s", (int) err.len, (const char *) err.ptr);
+        crypto_hash_import_string_free(&err);
+        return NULL;
+    }
+    return list_to_bytes(&out);
+}
+
+/* blake2b_digest(data, key=b'', salt=b'', person=b'', digest_size=64) */
+static PyObject *mod_blake2b_digest(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = {"data", "key", "salt", "person", "digest_size", NULL};
+    PyObject *data; PyObject *key = NULL; PyObject *salt = NULL; PyObject *person = NULL;
+    unsigned int digest_size = 64;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OOOI:blake2b_digest",
+                                     kwlist, &data, &key, &salt, &person, &digest_size))
+        return NULL;
+    crypto_hash_import_list_u8_t input_l = {NULL, 0}, key_l = {NULL, 0},
+                                  salt_l = {NULL, 0}, person_l = {NULL, 0}, out;
+    crypto_hash_import_string_t err;
+    PyObject *empty = PyBytes_FromString("");
+    if (bytes_to_list(data, &input_l) < 0) goto fail;
+    if (bytes_to_list(key ? key : empty, &key_l) < 0) goto fail;
+    if (bytes_to_list(salt ? salt : empty, &salt_l) < 0) goto fail;
+    if (bytes_to_list(person ? person : empty, &person_l) < 0) goto fail;
+    Py_DECREF(empty);
+    bool ok = tegmentum_crypto_hash_multiplexer_blake2_extras_blake2b_digest(
+        &input_l, &key_l, &salt_l, &person_l, digest_size, &out, &err);
+    if (input_l.ptr) free(input_l.ptr);
+    if (key_l.ptr) free(key_l.ptr);
+    if (salt_l.ptr) free(salt_l.ptr);
+    if (person_l.ptr) free(person_l.ptr);
+    if (!ok) {
+        PyErr_Format(PyExc_RuntimeError, "blake2b_digest: %.*s",
+                     (int) err.len, (const char *) err.ptr);
+        crypto_hash_import_string_free(&err);
+        return NULL;
+    }
+    return list_to_bytes(&out);
+fail:
+    Py_DECREF(empty);
+    if (input_l.ptr) free(input_l.ptr);
+    if (key_l.ptr) free(key_l.ptr);
+    if (salt_l.ptr) free(salt_l.ptr);
+    if (person_l.ptr) free(person_l.ptr);
+    return NULL;
+}
+
+static PyObject *mod_blake2s_digest(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = {"data", "key", "salt", "person", "digest_size", NULL};
+    PyObject *data; PyObject *key = NULL; PyObject *salt = NULL; PyObject *person = NULL;
+    unsigned int digest_size = 32;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OOOI:blake2s_digest",
+                                     kwlist, &data, &key, &salt, &person, &digest_size))
+        return NULL;
+    crypto_hash_import_list_u8_t input_l = {NULL, 0}, key_l = {NULL, 0},
+                                  salt_l = {NULL, 0}, person_l = {NULL, 0}, out;
+    crypto_hash_import_string_t err;
+    PyObject *empty = PyBytes_FromString("");
+    if (bytes_to_list(data, &input_l) < 0) goto fail;
+    if (bytes_to_list(key ? key : empty, &key_l) < 0) goto fail;
+    if (bytes_to_list(salt ? salt : empty, &salt_l) < 0) goto fail;
+    if (bytes_to_list(person ? person : empty, &person_l) < 0) goto fail;
+    Py_DECREF(empty);
+    bool ok = tegmentum_crypto_hash_multiplexer_blake2_extras_blake2s_digest(
+        &input_l, &key_l, &salt_l, &person_l, digest_size, &out, &err);
+    if (input_l.ptr) free(input_l.ptr);
+    if (key_l.ptr) free(key_l.ptr);
+    if (salt_l.ptr) free(salt_l.ptr);
+    if (person_l.ptr) free(person_l.ptr);
+    if (!ok) {
+        PyErr_Format(PyExc_RuntimeError, "blake2s_digest: %.*s",
+                     (int) err.len, (const char *) err.ptr);
+        crypto_hash_import_string_free(&err);
+        return NULL;
+    }
+    return list_to_bytes(&out);
+fail:
+    Py_DECREF(empty);
+    if (input_l.ptr) free(input_l.ptr);
+    if (key_l.ptr) free(key_l.ptr);
+    if (salt_l.ptr) free(salt_l.ptr);
+    if (person_l.ptr) free(person_l.ptr);
+    return NULL;
+}
+
 /* algorithms() ----------------------------------------------------------- */
 
 static PyObject *mod_algorithms(PyObject *self, PyObject *Py_UNUSED(args))
@@ -310,11 +437,21 @@ static PyObject *mod_algorithms(PyObject *self, PyObject *Py_UNUSED(args))
 /* Module plumbing -------------------------------------------------------- */
 
 static PyMethodDef module_methods[] = {
-    {"digest",     mod_digest,     METH_VARARGS,
+    {"digest",         mod_digest,         METH_VARARGS,
      "digest(name, data) -> bytes\n\nOne-shot digest via the crypto-hash-multiplexer."},
-    {"new",        mod_new,        METH_VARARGS,
+    {"digest_xof",     mod_digest_xof,     METH_VARARGS,
+     "digest_xof(name, data, length) -> bytes\n\nXOF digest for shake_128/shake_256."},
+    {"new",            mod_new,            METH_VARARGS,
      "new(name) -> hasher\n\nReturn a streaming hasher for algorithm `name`."},
-    {"algorithms", mod_algorithms, METH_NOARGS,
+    {"digest_size",    mod_digest_size,    METH_VARARGS,
+     "digest_size(name) -> int\n\nNative output size in bytes (0 for XOF)."},
+    {"block_size",     mod_block_size,     METH_VARARGS,
+     "block_size(name) -> int\n\nInternal block size in bytes (HMAC-relevant)."},
+    {"blake2b_digest", (PyCFunction) mod_blake2b_digest, METH_VARARGS | METH_KEYWORDS,
+     "blake2b_digest(data, key=b'', salt=b'', person=b'', digest_size=64) -> bytes"},
+    {"blake2s_digest", (PyCFunction) mod_blake2s_digest, METH_VARARGS | METH_KEYWORDS,
+     "blake2s_digest(data, key=b'', salt=b'', person=b'', digest_size=32) -> bytes"},
+    {"algorithms",     mod_algorithms,     METH_NOARGS,
      "algorithms() -> tuple[str, ...]\n\nNames of supported algorithms."},
     {NULL, NULL, 0, NULL}
 };

@@ -2,4 +2,6 @@ package tegmentum:python-xxhash@0.1.0;
 
 world xxhash-import {
     import tegmentum:hashing-multiplexer/hashing-dispatcher@0.1.0;
+    import tegmentum:hashing-multiplexer/blake3-extras@0.1.0;
+    import tegmentum:hashing-multiplexer/xxh3-extras@0.1.0;
 }

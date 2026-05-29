@@ -14,6 +14,10 @@ typedef struct xxhash_import_string_t {
   size_t len;
 } xxhash_import_string_t;
 
+// Hash algorithm selection. Integer hashes return canonical big-endian:
+// xxh32/crc32/crc32c/murmur3 -> 4 bytes, xxh64/xxh3 -> 8, xxh128/murmur128
+// -> 16, blake3 -> 32. (`xxh3`/`xxh128` are XXH3 64-/128-bit; `murmur3` is
+// MurmurHash3 x86_32, `murmur128` is x64_128.)
 typedef uint8_t tegmentum_hashing_multiplexer_hashing_dispatcher_algorithm_t;
 
 #define TEGMENTUM_HASHING_MULTIPLEXER_HASHING_DISPATCHER_ALGORITHM_XXH32 0
@@ -49,14 +53,48 @@ typedef struct {
   xxhash_import_string_t val;
 } xxhash_import_option_string_t;
 
+typedef struct {
+  bool is_err;
+  union {
+    xxhash_import_list_u8_t ok;
+    xxhash_import_string_t err;
+  } val;
+} tegmentum_hashing_multiplexer_blake3_extras_result_list_u8_string_t;
+
 // Imported Functions from `tegmentum:hashing-multiplexer/hashing-dispatcher@0.1.0`
 extern tegmentum_hashing_multiplexer_hashing_dispatcher_own_hasher_t tegmentum_hashing_multiplexer_hashing_dispatcher_constructor_hasher(tegmentum_hashing_multiplexer_hashing_dispatcher_algorithm_t algo, uint64_t seed);
+// Feed more data.
 extern void tegmentum_hashing_multiplexer_hashing_dispatcher_method_hasher_update(tegmentum_hashing_multiplexer_hashing_dispatcher_borrow_hasher_t self, xxhash_import_list_u8_t *input);
+// Current digest (canonical big-endian); may be called repeatedly.
 extern void tegmentum_hashing_multiplexer_hashing_dispatcher_method_hasher_finish(tegmentum_hashing_multiplexer_hashing_dispatcher_borrow_hasher_t self, xxhash_import_list_u8_t *ret);
+// Reset to the constructed state.
 extern void tegmentum_hashing_multiplexer_hashing_dispatcher_method_hasher_reset(tegmentum_hashing_multiplexer_hashing_dispatcher_borrow_hasher_t self);
+// One-shot digest of a complete buffer.
 extern void tegmentum_hashing_multiplexer_hashing_dispatcher_digest(tegmentum_hashing_multiplexer_hashing_dispatcher_algorithm_t algo, xxhash_import_list_u8_t *input, uint64_t seed, xxhash_import_list_u8_t *ret);
+// Algorithms available in this multiplexer.
 extern void tegmentum_hashing_multiplexer_hashing_dispatcher_supported_algorithms(tegmentum_hashing_multiplexer_hashing_dispatcher_list_algorithm_t *ret);
+// Human-readable description of an algorithm.
 extern bool tegmentum_hashing_multiplexer_hashing_dispatcher_algorithm_info(tegmentum_hashing_multiplexer_hashing_dispatcher_algorithm_t algo, xxhash_import_string_t *ret);
+
+// Imported Functions from `tegmentum:hashing-multiplexer/blake3-extras@0.1.0`
+// blake3 keyed-hash mode. `key` must be exactly 32 bytes.
+// `output-length` is the desired output in bytes (blake3 is an XOF;
+// 32 is the canonical "digest" length).
+extern bool tegmentum_hashing_multiplexer_blake3_extras_keyed_digest(xxhash_import_list_u8_t *key, xxhash_import_list_u8_t *input, uint32_t output_length, xxhash_import_list_u8_t *ret, xxhash_import_string_t *err);
+// blake3 key-derivation function. `context` is a hard-coded
+// application-specific ASCII string. `key-material` is the secret
+// to derive from. Returns `output-length` bytes.
+extern bool tegmentum_hashing_multiplexer_blake3_extras_derive_key(xxhash_import_string_t *context, xxhash_import_list_u8_t *key_material, uint32_t output_length, xxhash_import_list_u8_t *ret, xxhash_import_string_t *err);
+// Variable-length blake3 (treating blake3 as an XOF rather than a
+// 32-byte digest). Unkeyed; for keyed XOF use keyed-digest with a
+// non-32 output-length.
+extern bool tegmentum_hashing_multiplexer_blake3_extras_digest_xof(xxhash_import_list_u8_t *input, uint32_t output_length, xxhash_import_list_u8_t *ret, xxhash_import_string_t *err);
+
+// Imported Functions from `tegmentum:hashing-multiplexer/xxh3-extras@0.1.0`
+// XXH3 64-bit with explicit secret (>= 136 bytes).
+extern bool tegmentum_hashing_multiplexer_xxh3_extras_digest_u64(xxhash_import_list_u8_t *input, xxhash_import_list_u8_t *secret, xxhash_import_list_u8_t *ret, xxhash_import_string_t *err);
+// XXH3 128-bit with explicit secret.
+extern bool tegmentum_hashing_multiplexer_xxh3_extras_digest_u128(xxhash_import_list_u8_t *input, xxhash_import_list_u8_t *secret, xxhash_import_list_u8_t *ret, xxhash_import_string_t *err);
 
 // Helper Functions
 
@@ -71,6 +109,8 @@ void xxhash_import_list_u8_free(xxhash_import_list_u8_t *ptr);
 void tegmentum_hashing_multiplexer_hashing_dispatcher_list_algorithm_free(tegmentum_hashing_multiplexer_hashing_dispatcher_list_algorithm_t *ptr);
 
 void xxhash_import_option_string_free(xxhash_import_option_string_t *ptr);
+
+void tegmentum_hashing_multiplexer_blake3_extras_result_list_u8_string_free(tegmentum_hashing_multiplexer_blake3_extras_result_list_u8_string_t *ptr);
 
 // Sets the string `ret` to reference the input string `s` without copying it
 void xxhash_import_string_set(xxhash_import_string_t *ret, const char*s);

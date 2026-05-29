@@ -1,0 +1,6 @@
+package tegmentum:crypto-hash-multiplexer@0.1.0;
+
+world crypto-hash-multiplexer {
+    export hash-dispatcher;
+    export blake2-extras;
+}

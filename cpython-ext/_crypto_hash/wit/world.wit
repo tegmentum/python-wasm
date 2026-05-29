@@ -5,4 +5,5 @@ package tegmentum:python-crypto-hash@0.1.0;
 /// composectl/wac wires the import to the multiplexer wasm at compose time.
 world crypto-hash-import {
     import tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0;
+    import tegmentum:crypto-hash-multiplexer/blake2-extras@0.1.0;
 }

@@ -1,30 +1,80 @@
-// Vendored to match the PREBUILT crypto_hash_multiplexer.wasm exactly. Includes
-// only the interface our C extension uses (hash-dispatcher).
+// Cryptographic hash multiplexer: one dispatcher fronting multiple crypto hashes,
+// mirroring the hashing/compression/encoding multiplexers.
 package tegmentum:crypto-hash-multiplexer@0.1.0;
 
 interface hash-dispatcher {
+    /// Algorithm selection. Identifiers that would start with a digit
+    /// are spelled without the dash (sha3-256 -> sha3256).
     enum algorithm {
         md5,
         sha1,
         sha256,
         sha384,
         sha512,
+        sha3224,    // SHA3-224 (28-byte)
         sha3256,
+        sha3384,    // SHA3-384 (48-byte)
         sha3512,
-        blake2b,
-        blake2s,
+        blake2b,    // default Blake2b-512 (64-byte)
+        blake2s,    // default Blake2s-256 (32-byte)
+        shake128,   // SHAKE-128 XOF (variable output via digest-xof)
+        shake256,   // SHAKE-256 XOF
     }
 
+    /// Streaming hasher (unkeyed).
     resource hasher {
         constructor(algo: algorithm);
         update: func(input: list<u8>);
+        /// Finalize and return the current digest. For SHAKE algorithms,
+        /// returns the default digest length (32 bytes for shake128,
+        /// 64 bytes for shake256) — use `finish-xof` for variable length.
         finish: func() -> list<u8>;
+        /// Reset to the initial state (same algorithm, fresh data).
         reset: func();
+        /// Snapshot of the current state — used by callers that need to
+        /// finalize multiple digests at distinct progress points
+        /// (CPython hashlib `.copy()` semantics).
+        copy: func() -> hasher;
+        /// XOF finish: variable-length output for SHAKE algorithms.
+        /// Errors when called on a non-XOF algorithm.
+        finish-xof: func(length: u32) -> result<list<u8>, string>;
     }
 
+    /// One-shot digest of a complete buffer.
     digest: func(algo: algorithm, input: list<u8>) -> list<u8>;
+    /// One-shot variable-length digest for XOF algorithms (SHAKE).
+    /// Errors when `algo` is non-XOF.
+    digest-xof: func(algo: algorithm, input: list<u8>, length: u32)
+                -> result<list<u8>, string>;
 
+    /// Native output length in bytes for fixed-output algorithms.
+    /// Returns 0 for XOF algorithms (variable-length).
+    digest-size: func(algo: algorithm) -> u32;
+    /// Internal block size in bytes (HMAC-relevant). 64 for SHA-256 etc.
+    block-size: func(algo: algorithm) -> u32;
+
+    /// Algorithms available in this multiplexer.
     supported-algorithms: func() -> list<algorithm>;
-
+    /// Human-readable description of an algorithm.
     algorithm-info: func(algo: algorithm) -> option<string>;
+}
+
+/// blake2 parametric construction. Lives in a separate interface because
+/// it's blake2-specific (key / salt / personalization / variable
+/// digest-size) and doesn't generalize across the algorithm enum.
+/// Mirrors stdlib `hashlib.blake2b(data, digest_size, key, salt, person, ...)`.
+interface blake2-extras {
+    /// One-shot blake2b digest with full parametrization. `key` may be
+    /// empty (unkeyed); if non-empty, max 64 bytes. `salt` may be empty
+    /// or up to 16 bytes. `person` may be empty or up to 16 bytes.
+    /// `digest-size` 1..=64 bytes (the output length).
+    blake2b-digest: func(input: list<u8>, key: list<u8>, salt: list<u8>,
+                         person: list<u8>, digest-size: u32)
+                    -> result<list<u8>, string>;
+
+    /// blake2s variant. Smaller keys/salts: key 1..=32, salt 1..=8,
+    /// person 1..=8, digest-size 1..=32.
+    blake2s-digest: func(input: list<u8>, key: list<u8>, salt: list<u8>,
+                         person: list<u8>, digest-size: u32)
+                    -> result<list<u8>, string>;
 }

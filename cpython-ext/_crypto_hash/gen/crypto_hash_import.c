@@ -17,14 +17,37 @@ extern void __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_meth
 __attribute__((__import_module__("tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0"), __import_name__("[method]hasher.reset")))
 extern void __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_method_hasher_reset(int32_t);
 
+__attribute__((__import_module__("tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0"), __import_name__("[method]hasher.copy")))
+extern int32_t __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_method_hasher_copy(int32_t);
+
+__attribute__((__import_module__("tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0"), __import_name__("[method]hasher.finish-xof")))
+extern void __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_method_hasher_finish_xof(int32_t, int32_t, uint8_t *);
+
 __attribute__((__import_module__("tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0"), __import_name__("digest")))
 extern void __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_digest(int32_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0"), __import_name__("digest-xof")))
+extern void __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_digest_xof(int32_t, uint8_t *, size_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0"), __import_name__("digest-size")))
+extern int32_t __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_digest_size(int32_t);
+
+__attribute__((__import_module__("tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0"), __import_name__("block-size")))
+extern int32_t __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_block_size(int32_t);
 
 __attribute__((__import_module__("tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0"), __import_name__("supported-algorithms")))
 extern void __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_supported_algorithms(uint8_t *);
 
 __attribute__((__import_module__("tegmentum:crypto-hash-multiplexer/hash-dispatcher@0.1.0"), __import_name__("algorithm-info")))
 extern void __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_algorithm_info(int32_t, uint8_t *);
+
+// Imported Functions from `tegmentum:crypto-hash-multiplexer/blake2-extras@0.1.0`
+
+__attribute__((__import_module__("tegmentum:crypto-hash-multiplexer/blake2-extras@0.1.0"), __import_name__("blake2b-digest")))
+extern void __wasm_import_tegmentum_crypto_hash_multiplexer_blake2_extras_blake2b_digest(uint8_t *, size_t, uint8_t *, size_t, uint8_t *, size_t, uint8_t *, size_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("tegmentum:crypto-hash-multiplexer/blake2-extras@0.1.0"), __import_name__("blake2s-digest")))
+extern void __wasm_import_tegmentum_crypto_hash_multiplexer_blake2_extras_blake2s_digest(uint8_t *, size_t, uint8_t *, size_t, uint8_t *, size_t, uint8_t *, size_t, int32_t, uint8_t *);
 
 // Canonical ABI intrinsics
 
@@ -61,6 +84,14 @@ void crypto_hash_import_list_u8_free(crypto_hash_import_list_u8_t *ptr) {
     for (size_t i = 0; i < list_len; i++) {
     }
     free(list_ptr);
+  }
+}
+
+void tegmentum_crypto_hash_multiplexer_hash_dispatcher_result_list_u8_string_free(tegmentum_crypto_hash_multiplexer_hash_dispatcher_result_list_u8_string_t *ptr) {
+  if (!ptr->is_err) {
+    crypto_hash_import_list_u8_free(&ptr->val.ok);
+  } else {
+    crypto_hash_import_string_free(&ptr->val.err);
   }
 }
 
@@ -122,12 +153,81 @@ void tegmentum_crypto_hash_multiplexer_hash_dispatcher_method_hasher_reset(tegme
   __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_method_hasher_reset((self).__handle);
 }
 
+tegmentum_crypto_hash_multiplexer_hash_dispatcher_own_hasher_t tegmentum_crypto_hash_multiplexer_hash_dispatcher_method_hasher_copy(tegmentum_crypto_hash_multiplexer_hash_dispatcher_borrow_hasher_t self) {
+  int32_t ret = __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_method_hasher_copy((self).__handle);
+  return (tegmentum_crypto_hash_multiplexer_hash_dispatcher_own_hasher_t) { ret };
+}
+
+bool tegmentum_crypto_hash_multiplexer_hash_dispatcher_method_hasher_finish_xof(tegmentum_crypto_hash_multiplexer_hash_dispatcher_borrow_hasher_t self, uint32_t length, crypto_hash_import_list_u8_t *ret, crypto_hash_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_method_hasher_finish_xof((self).__handle, (int32_t) (length), ptr);
+  tegmentum_crypto_hash_multiplexer_hash_dispatcher_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (crypto_hash_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (crypto_hash_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
 void tegmentum_crypto_hash_multiplexer_hash_dispatcher_digest(tegmentum_crypto_hash_multiplexer_hash_dispatcher_algorithm_t algo, crypto_hash_import_list_u8_t *input, crypto_hash_import_list_u8_t *ret) {
   __attribute__((__aligned__(sizeof(void*))))
   uint8_t ret_area[(2*sizeof(void*))];
   uint8_t *ptr = (uint8_t *) &ret_area;
   __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_digest((int32_t) algo, (uint8_t *) (*input).ptr, (*input).len, ptr);
   *ret = (crypto_hash_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) };
+}
+
+bool tegmentum_crypto_hash_multiplexer_hash_dispatcher_digest_xof(tegmentum_crypto_hash_multiplexer_hash_dispatcher_algorithm_t algo, crypto_hash_import_list_u8_t *input, uint32_t length, crypto_hash_import_list_u8_t *ret, crypto_hash_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_digest_xof((int32_t) algo, (uint8_t *) (*input).ptr, (*input).len, (int32_t) (length), ptr);
+  tegmentum_crypto_hash_multiplexer_hash_dispatcher_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (crypto_hash_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (crypto_hash_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+uint32_t tegmentum_crypto_hash_multiplexer_hash_dispatcher_digest_size(tegmentum_crypto_hash_multiplexer_hash_dispatcher_algorithm_t algo) {
+  int32_t ret = __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_digest_size((int32_t) algo);
+  return (uint32_t) (ret);
+}
+
+uint32_t tegmentum_crypto_hash_multiplexer_hash_dispatcher_block_size(tegmentum_crypto_hash_multiplexer_hash_dispatcher_algorithm_t algo) {
+  int32_t ret = __wasm_import_tegmentum_crypto_hash_multiplexer_hash_dispatcher_block_size((int32_t) algo);
+  return (uint32_t) (ret);
 }
 
 void tegmentum_crypto_hash_multiplexer_hash_dispatcher_supported_algorithms(tegmentum_crypto_hash_multiplexer_hash_dispatcher_list_algorithm_t *ret) {
@@ -157,6 +257,60 @@ bool tegmentum_crypto_hash_multiplexer_hash_dispatcher_algorithm_info(tegmentum_
   }
   *ret = option.val;
   return option.is_some;
+}
+
+bool tegmentum_crypto_hash_multiplexer_blake2_extras_blake2b_digest(crypto_hash_import_list_u8_t *input, crypto_hash_import_list_u8_t *key, crypto_hash_import_list_u8_t *salt, crypto_hash_import_list_u8_t *person, uint32_t digest_size, crypto_hash_import_list_u8_t *ret, crypto_hash_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_crypto_hash_multiplexer_blake2_extras_blake2b_digest((uint8_t *) (*input).ptr, (*input).len, (uint8_t *) (*key).ptr, (*key).len, (uint8_t *) (*salt).ptr, (*salt).len, (uint8_t *) (*person).ptr, (*person).len, (int32_t) (digest_size), ptr);
+  tegmentum_crypto_hash_multiplexer_hash_dispatcher_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (crypto_hash_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (crypto_hash_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool tegmentum_crypto_hash_multiplexer_blake2_extras_blake2s_digest(crypto_hash_import_list_u8_t *input, crypto_hash_import_list_u8_t *key, crypto_hash_import_list_u8_t *salt, crypto_hash_import_list_u8_t *person, uint32_t digest_size, crypto_hash_import_list_u8_t *ret, crypto_hash_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_crypto_hash_multiplexer_blake2_extras_blake2s_digest((uint8_t *) (*input).ptr, (*input).len, (uint8_t *) (*key).ptr, (*key).len, (uint8_t *) (*salt).ptr, (*salt).len, (uint8_t *) (*person).ptr, (*person).len, (int32_t) (digest_size), ptr);
+  tegmentum_crypto_hash_multiplexer_hash_dispatcher_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (crypto_hash_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (crypto_hash_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
 }
 
 // Ensure that the *_component_type.o object is linked in

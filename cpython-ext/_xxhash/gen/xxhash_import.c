@@ -26,6 +26,25 @@ extern void __wasm_import_tegmentum_hashing_multiplexer_hashing_dispatcher_suppo
 __attribute__((__import_module__("tegmentum:hashing-multiplexer/hashing-dispatcher@0.1.0"), __import_name__("algorithm-info")))
 extern void __wasm_import_tegmentum_hashing_multiplexer_hashing_dispatcher_algorithm_info(int32_t, uint8_t *);
 
+// Imported Functions from `tegmentum:hashing-multiplexer/blake3-extras@0.1.0`
+
+__attribute__((__import_module__("tegmentum:hashing-multiplexer/blake3-extras@0.1.0"), __import_name__("keyed-digest")))
+extern void __wasm_import_tegmentum_hashing_multiplexer_blake3_extras_keyed_digest(uint8_t *, size_t, uint8_t *, size_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("tegmentum:hashing-multiplexer/blake3-extras@0.1.0"), __import_name__("derive-key")))
+extern void __wasm_import_tegmentum_hashing_multiplexer_blake3_extras_derive_key(uint8_t *, size_t, uint8_t *, size_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("tegmentum:hashing-multiplexer/blake3-extras@0.1.0"), __import_name__("digest-xof")))
+extern void __wasm_import_tegmentum_hashing_multiplexer_blake3_extras_digest_xof(uint8_t *, size_t, int32_t, uint8_t *);
+
+// Imported Functions from `tegmentum:hashing-multiplexer/xxh3-extras@0.1.0`
+
+__attribute__((__import_module__("tegmentum:hashing-multiplexer/xxh3-extras@0.1.0"), __import_name__("digest-u64")))
+extern void __wasm_import_tegmentum_hashing_multiplexer_xxh3_extras_digest_u64(uint8_t *, size_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("tegmentum:hashing-multiplexer/xxh3-extras@0.1.0"), __import_name__("digest-u128")))
+extern void __wasm_import_tegmentum_hashing_multiplexer_xxh3_extras_digest_u128(uint8_t *, size_t, uint8_t *, size_t, uint8_t *);
+
 // Canonical ABI intrinsics
 
 __attribute__((__weak__, __export_name__("cabi_realloc")))
@@ -77,6 +96,14 @@ void tegmentum_hashing_multiplexer_hashing_dispatcher_list_algorithm_free(tegmen
 void xxhash_import_option_string_free(xxhash_import_option_string_t *ptr) {
   if (ptr->is_some) {
     xxhash_import_string_free(&ptr->val);
+  }
+}
+
+void tegmentum_hashing_multiplexer_blake3_extras_result_list_u8_string_free(tegmentum_hashing_multiplexer_blake3_extras_result_list_u8_string_t *ptr) {
+  if (!ptr->is_err) {
+    xxhash_import_list_u8_free(&ptr->val.ok);
+  } else {
+    xxhash_import_string_free(&ptr->val.err);
   }
 }
 
@@ -157,6 +184,141 @@ bool tegmentum_hashing_multiplexer_hashing_dispatcher_algorithm_info(tegmentum_h
   }
   *ret = option.val;
   return option.is_some;
+}
+
+bool tegmentum_hashing_multiplexer_blake3_extras_keyed_digest(xxhash_import_list_u8_t *key, xxhash_import_list_u8_t *input, uint32_t output_length, xxhash_import_list_u8_t *ret, xxhash_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_hashing_multiplexer_blake3_extras_keyed_digest((uint8_t *) (*key).ptr, (*key).len, (uint8_t *) (*input).ptr, (*input).len, (int32_t) (output_length), ptr);
+  tegmentum_hashing_multiplexer_blake3_extras_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (xxhash_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (xxhash_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool tegmentum_hashing_multiplexer_blake3_extras_derive_key(xxhash_import_string_t *context, xxhash_import_list_u8_t *key_material, uint32_t output_length, xxhash_import_list_u8_t *ret, xxhash_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_hashing_multiplexer_blake3_extras_derive_key((uint8_t *) (*context).ptr, (*context).len, (uint8_t *) (*key_material).ptr, (*key_material).len, (int32_t) (output_length), ptr);
+  tegmentum_hashing_multiplexer_blake3_extras_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (xxhash_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (xxhash_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool tegmentum_hashing_multiplexer_blake3_extras_digest_xof(xxhash_import_list_u8_t *input, uint32_t output_length, xxhash_import_list_u8_t *ret, xxhash_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_hashing_multiplexer_blake3_extras_digest_xof((uint8_t *) (*input).ptr, (*input).len, (int32_t) (output_length), ptr);
+  tegmentum_hashing_multiplexer_blake3_extras_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (xxhash_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (xxhash_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool tegmentum_hashing_multiplexer_xxh3_extras_digest_u64(xxhash_import_list_u8_t *input, xxhash_import_list_u8_t *secret, xxhash_import_list_u8_t *ret, xxhash_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_hashing_multiplexer_xxh3_extras_digest_u64((uint8_t *) (*input).ptr, (*input).len, (uint8_t *) (*secret).ptr, (*secret).len, ptr);
+  tegmentum_hashing_multiplexer_blake3_extras_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (xxhash_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (xxhash_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool tegmentum_hashing_multiplexer_xxh3_extras_digest_u128(xxhash_import_list_u8_t *input, xxhash_import_list_u8_t *secret, xxhash_import_list_u8_t *ret, xxhash_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_tegmentum_hashing_multiplexer_xxh3_extras_digest_u128((uint8_t *) (*input).ptr, (*input).len, (uint8_t *) (*secret).ptr, (*secret).len, ptr);
+  tegmentum_hashing_multiplexer_blake3_extras_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (xxhash_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (xxhash_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
 }
 
 // Ensure that the *_component_type.o object is linked in
