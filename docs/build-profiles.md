@@ -187,20 +187,35 @@ No code or data is touched; runtime behavior is identical.
 
 | Profile | uncompressed | gzip -9 | brotli -11 |
 |---|---:|---:|---:|
-| `3.14-current` (stripped, default) | **17.0 MiB** | **5.07 MiB** | **3.71 MiB** |
-| `3.14-debug` (unstripped) | 42.9 MiB | 15.4 MiB | 10.2 MiB |
+| `3.14-current` (stripped + test C exts dropped, default) | **16.0 MiB** | **4.92 MiB** | **3.60 MiB** |
+| `3.14-current` after strip only (no drop_test_c_exts) | 17.0 MiB | 5.07 MiB | 3.71 MiB |
+| `3.14-debug` (unstripped, test exts kept) | 42.9 MiB | 15.4 MiB | 10.2 MiB |
 
-The strip step takes about a second on a current laptop. Disable via
-`COMPOSED_STRIP=0` on the make invocation or by switching to
-`PROFILE=3.14-debug` if you need source-mapped traces.
+The strip step takes about a second; the drop-test-exts rebuild takes
+the usual CPython wasi build time.
 
-Future strip opportunities (not yet done):
+Levers, in order of applied gain:
 
-- `wasm-opt -Oz` after strip — could shave another ~5–10% off the code section.
-- Rebuild CPython without compiled-in test modules (`_xxsubinterp`, `_testbuffer`,
-  `_testcapi`, `_xxtestfuzz`, `_testmultiphase`) — Modules/Setup edit.
-- Rebuild CPython with `-Os` (currently `-O2`) — affects the interpreter, not
-  the cap fleet (caps already use `opt-level = "z"`).
+- **`[build].strip_composed = true`** (default) — `wasm-tools strip` after
+  `wac plug`. Drops DWARF, name table, producers, target_features. The
+  biggest single win (~26 MiB).
+- **`[build].drop_test_c_exts = true`** (default) — disables
+  `_testbuffer`, `_testcapi`, `_testclinic`, `_testclinic_limited`,
+  `_testinternalcapi`, `_testlimitedcapi`, `_xxtestfuzz`, `xxsubtype`
+  in `Modules/Setup.local`. CPython rebuild required. Saves ~600 KiB
+  after strip. Set to false when working on CPython internals tests.
+
+Tried and rejected:
+
+- **`wasm-opt -Oz`** — binaryen 129 doesn't support the component model
+  yet ([binaryen #6728](https://github.com/WebAssembly/binaryen/issues/6728)).
+  Both `python.wasm` and `python.composed.wasm` are components; neither
+  can be processed today. Re-evaluate when binaryen lands component
+  support.
+- **`-Oz` on CPython interpreter** (vs. default `-O3`) — saved only 4 KiB
+  on the post-strip composed wasm. The strip already removed most of
+  the size impact, and `-Oz` trades speed for size on the hot interpreter
+  loop. Not worth it.
 
 ## Debugging
 

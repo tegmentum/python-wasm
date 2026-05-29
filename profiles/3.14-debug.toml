@@ -26,8 +26,10 @@ host_triple = "wasm32-wasip2"
 static_openssl = false
 static_zlib = false
 with_v86_posix = true
-# THE DIFFERENCE: keep symbols.
+# Debug profile differences: keep symbols AND keep test C modules
+# (CPython contributors testing internal APIs need _testcapi / friends).
 strip_composed = false
+drop_test_c_exts = false
 
 [capabilities]
 zlib_component = "${HOME}/git/zlib-wasm/build/bin/zlib.component.wasm"

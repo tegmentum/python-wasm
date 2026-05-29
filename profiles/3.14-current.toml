@@ -49,6 +49,11 @@ with_v86_posix = true
 # tooling that consumes source-mapped DWARF needs the unstripped form.
 # Set to false (or use profiles/3.14-debug.toml) to keep symbols.
 strip_composed = true
+# Drop CPython's compiled-in test C modules (_testbuffer, _testcapi, etc.)
+# from python.wasm. Saves ~1 MiB after strip and isn't useful for runtime
+# Python — those modules support CPython's own test suite, which we don't
+# ship. Set to false when working on CPython internals tests.
+drop_test_c_exts = true
 
 # Capability components plugged into the composed wasm. Each entry is the
 # environment variable the compose script reads to locate the artifact; the

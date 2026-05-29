@@ -93,6 +93,27 @@ cat > "$TMP_SETUP" <<'EOF'
 
 *disabled*
 zlib
+EOF
+
+# Phase 3 of docs/coverage-implementation-plan.md: in production builds,
+# disable the in-tree test C extensions. They live in python.wasm purely
+# to support CPython's own test suite; nothing python-wasm ships actually
+# uses them. After strip they're still ~1 MiB of compiled wasm bytes.
+# Opt out (e.g. for test-suite work) with DROP_TEST_C_EXTS=0.
+if [ "${DROP_TEST_C_EXTS:-1}" = "1" ]; then
+    cat >> "$TMP_SETUP" <<'EOF'
+_testbuffer
+_testcapi
+_testclinic
+_testclinic_limited
+_testinternalcapi
+_testlimitedcapi
+_xxtestfuzz
+xxsubtype
+EOF
+fi
+
+cat >> "$TMP_SETUP" <<'EOF'
 
 *static*
 EOF
