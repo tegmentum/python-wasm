@@ -163,6 +163,11 @@ function createPythonPolicy(userCode: string): Policy {
       interface: 'wasi:filesystem/types@0.2.0',
       implementation: 'memory',
     },
+    {
+      interface: 'wasi:sockets/ip-name-lookup@0.2.0',
+      implementation: 'doh',
+      options: { dohResolverUrl: 'https://cloudflare-dns.com/dns-query' },
+    },
   ]
   if (net.tcpGatewayUrl) {
     // Route TCP through the WebSocket gateway. The two interfaces share the
