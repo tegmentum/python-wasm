@@ -82,7 +82,7 @@ Possible but discouraged. uv-core is a large reactor component and embedding it 
 | `--use-deprecated=legacy-certs` required | pip ships truststore which expects native SSLContext subclassing; our wrapper doesn't satisfy `super().verify_mode.__set__` | Phase 8 — openssl-component v0.2.x |
 | `getpeercert(binary_form=False)` returns synthetic dict | openssl-component validates hostname during handshake, so the synthetic SAN matches | Phase 8 — openssl-component v0.2.x |
 | `asyncio.run()` works ✅ | self-pipe stubbed via sitecustomize (Phase 2) | done |
-| ~~`httpx`/`httpcore` async HTTP fails on `select.poll(socket)`~~ | ✅ **httpx sync fixed 2026-05-29** via openssl-component@0.2.x socket-fd + sitecustomize patch of `httpcore.is_socket_readable`. async httpx still trap-crashes deep in asyncio task_step (unrelated to TLS). | done (sync) / pending (asyncio gap) |
+| ~~`httpx`/`httpcore` async HTTP fails on `select.poll(socket)`~~ | ✅ **httpx sync fixed 2026-05-29** via openssl-component@0.2.x socket-fd + sitecustomize patch of `httpcore.is_socket_readable`. ✅ **asyncio.to_thread trap fixed 2026-05-29** (`run_in_executor` patched to run synchronously instead of spawning a ThreadPoolExecutor worker that traps in `pthread_cond_wait`). httpx async now reaches anyio TLS, which needs `SSLContext.wrap_bio` (memory BIO) — blocked on openssl-component upstream. | done (sync, asyncio-core) / pending (anyio TLS) |
 | `aiohttp` won't install (sdist-only, C exts) | use `requests` for HTTP today | Phase 4 (C-ext wheel pipeline) |
 | `urllib` chunked + Connection:close raises IncompleteRead | use Connection: keep-alive header, or use `requests` (different read path) | Phase 8 — same root cause as the download retries |
 

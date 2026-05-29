@@ -171,6 +171,31 @@ except (ImportError, KeyError, ValueError):
     pass
 
 
+# asyncio.to_thread → BaseEventLoop.run_in_executor → ThreadPoolExecutor
+# spawns a worker thread that immediately blocks on _queue.SimpleQueue.get(),
+# which calls pthread_cond_wait — unimplemented in wasi-libc, traps with
+# `unreachable`. Our threading shim runs Thread.start() inline so the worker
+# never gets to run in parallel anyway. Replace run_in_executor with a
+# synchronous shim: invoke the function immediately and return a pre-resolved
+# concurrent.futures.Future. asyncio.wrap_future then bridges that to the
+# event loop normally. No threads created, no pthread_cond_wait.
+try:
+    import asyncio.base_events as _be
+    def _sync_run_in_executor(self, executor, func, *args):
+        f = self.create_future()
+        try:
+            result = func(*args)
+        except BaseException as exc:  # noqa: BLE001
+            f.set_exception(exc)
+        else:
+            f.set_result(result)
+        return f
+    _be.BaseEventLoop.run_in_executor = _sync_run_in_executor
+    del _be
+except ImportError:
+    pass
+
+
 # asyncio's BaseSelectorEventLoop._make_self_pipe wants socket.socketpair()
 # to cross-signal a real selector wake-up. WASI Preview 2 has no socketpair
 # primitive; Lib/socket.py's _fallback_socketpair (bind/listen/connect)
