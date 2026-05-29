@@ -77,7 +77,7 @@ Modules that load but where specific operations fail:
 | `asyncio` | imports, `asyncio.run`, `gather`, `sleep`, `create_task`, `cancel`, `Queue`, full single-task event loop (fixed in Phase 2 2026-05-29) | `to_thread` (needs real threading), HTTP-async via `httpx`/`aiohttp` (needs Phase 8 TLS surface + Phase 4 C-ext build) | Self-pipe stubbed via sitecustomize (no signals/threads to wake the loop in wasi-p2 anyway) |
 | `os` | most stat/file/env operations | `os.fork`, `os.execvp`, `os.popen` | no process model in pure wasm |
 | `socket` | TCP via `wasi:sockets/tcp`, **DNS via `wasi:sockets/ip-name-lookup`** | `socketpair()` (see asyncio above), raw sockets | wasi-p2 has no socketpair primitive; fallback path doesn't work in wasmtime today |
-| `subprocess` | imports + Popen object | `Popen.spawn()` | `v86-posix-stub` returns `GuestNotReady` until v86 component lands |
+| `subprocess` | full `run`/`Popen`/`check_call`/`check_output`/signals/stdin/stdout/stderr capture/parallel spawns when running under `scripts/run-python-with-subprocess.sh` (Phase 5 done 2026-05-29) — default stub still returns `GuestNotReady` | (nothing — full surface) | composes with `v86-posix-host` instead of stub; helper polls a shared mailbox dir |
 | `hashlib` | all 14 algorithms + pbkdf2_hmac + blake2 params + SHA-3 + SHAKE | `scrypt` (cap impl shipped but not wired in stdlib `hashlib.scrypt`) | gap is purely in `Lib/_hashlib.py` shim wiring; cap supplies it |
 | `ssl` | TLS handshake, cert validation, urllib.urlopen, MemoryBIO | SSLObject, SSLSession, `get_server_certificate`, DER_cert_to_PEM_cert, RAND_add, RAND_status | deferred to openssl-component v0.2.x |
 | `multiprocessing` | imports + Process object | `Process.start()` | no `os.fork` |
@@ -140,7 +140,8 @@ Against `build/3.14-current/python.composed.wasm` post-`c2fc788`:
 | `asyncio.run(coro)` | ✅ via Phase 2 sitecustomize stub of `_make_self_pipe` |
 | `asyncio.gather(*tasks)` | ✅ concurrent task scheduling works |
 | `os.fork()` | ❌ no fork |
-| `subprocess.run(...)` (default build) | ❌ `GuestNotReady` (waiting for v86) |
+| `subprocess.run(...)` (default build, stub component) | ❌ `GuestNotReady` (fail-fast — opt in via run-python-with-subprocess.sh) |
+| `subprocess.run(...)` via `run-python-with-subprocess.sh` | ✅ full Phase-3c surface — see v86's test-v86-posix-roundtrip.sh, 35+ assertions pass |
 
 ## Known gaps, by track
 

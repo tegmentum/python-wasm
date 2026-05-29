@@ -150,15 +150,68 @@ through the offload boundary in `scripts/test-offload-numpy.sh`.
 
 ---
 
-## Phase 5 — Subprocess via v86 (track upstream)
+## Phase 5 — Subprocess via v86 ✅ DONE (2026-05-29)
 
-Tier 2.1. Upstream-blocked on `~/git/v86/` shipping the real component. Our side is ~1 day once it lands.
+Tier 2.1. The plan assumed upstream-blocked, but `~/git/v86/` had shipped
+the real impl: `v86-posix-host.wasm` exports `v86:posix/process@0.1.0`
+backed by a virtiofs-style file mailbox + a host-or-guest helper that
+runs `fork`/`execve` (Phase 1 spawn+wait → Phase 3c interactive stdin via
+the deferred-spawn shim).
 
-- [ ] Watch `~/git/v86/` for component output replacing the stub.
-- [ ] Swap `V86_POSIX_COMPONENT_WASM` in the active profile.
-- [ ] Verify `subprocess.run(['python', '-c', '...'])` works inside python-wasm.
+What landed on this repo's side:
 
-**Exit criterion.** Stub replaced; `subprocess` tests pass.
+- **Bug fix** in `scripts/load-profile.sh`. The loader documentation
+  promised caller-set env vars win over profile values, but the emit
+  function unconditionally `KEY=value`'d everything, so the v86 roundtrip
+  script's `V86_POSIX_COMPONENT_WASM=…/v86_posix_host.wasm` was being
+  silently clobbered by the profile's stub path. Fix: emit
+  `KEY="${KEY:-value}"` so eval honors caller overrides. Side effect:
+  every other profile key now also honors env overrides, which is what
+  the doc claimed all along.
+- **Compatibility symlink** `build/python.composed.wasm → 3.14-current/python.composed.wasm`
+  so the v86-side test script (which predates the profile dir layout)
+  finds the right artifact.
+- **`scripts/run-python-with-subprocess.sh`** — single-command wrapper
+  that recomposes with `v86-posix-host`, starts the helper, mounts the
+  mailbox, and execs the composed wasm. Same network/site-packages
+  wiring as `run-python.sh`. End-user equivalent of the v86 roundtrip
+  test setup.
+
+What was verified end-to-end against `~/git/v86/scripts/test-v86-posix-roundtrip.sh`:
+
+- `subprocess.run([TRUE])` / `[FALSE]` exit codes
+- `sh -c exit 42` custom exit codes
+- Signal-killed children surface as `returncode = -signum`
+- `FileNotFoundError(ENOENT)` for missing executables
+- `subprocess.check_call`, `check_output`
+- `Popen` context manager
+- `env=` + `cwd=` propagation
+- `capture_output=True` for stdout + stderr (50 KiB payloads tested)
+- `Popen.terminate()` / `kill()` / `send_signal(15)` → correct `-signum` returncodes
+- Send-signal on dead child is silent no-op
+- Two parallel `sleep 1`s finish in ~1.2s (helper backgrounds spawns)
+- `subprocess.run(input=...)` via shim-side shell-redirect wrapper
+- 256-byte binary input survives unmangled
+- Interactive `Popen(stdin=PIPE).stdin.write()` loops via deferred-spawn
+- `communicate(input=...)` merges with already-buffered bytes
+- `with Popen(stdin=PIPE): pass` clean lifecycle
+
+35+ assertions; **0 failures**.
+
+What's still implicit:
+
+- Default profile still wires the stub component (`v86_posix_stub.wasm`).
+  Opt in to the real impl by running `run-python-with-subprocess.sh`,
+  or by setting `V86_POSIX_COMPONENT_WASM` in the environment before
+  `make python-composed`. Documented gating, not a default change —
+  the stub fail-fast on `Popen` is useful for callers who haven't yet
+  wired the helper.
+- The helper today is a host-side bash/native binary. In a future
+  Phase 5+, it moves into a v86 wasmmachine guest's userspace
+  ([`~/git/v86/docs/posix-spawn-impl.md`](https://github.com/.../v86/blob/main/docs/posix-spawn-impl.md)).
+  The guest-side wiring stays the same — only the backend component
+  changes — because v86-posix-host abstracts the helper location
+  behind the same `v86:posix/process` interface.
 
 ---
 

@@ -80,7 +80,10 @@ def emit(key: str, value) -> None:
         value = env_expand(value)
     else:
         raise TypeError(f"unsupported profile value for {key}: {value!r}")
-    print(f"{key}={shlex.quote(value)}")
+    # Caller-set env vars win — emit `KEY="${KEY:-profile-value}"` so the
+    # eval honors any explicit override (e.g. CI pinning a cap path, the
+    # v86-posix roundtrip script swapping stub→host at compose time).
+    print(f'{key}="${{{key}:-{value}}}"')
 
 
 emit("PROFILE_NAME", profile_name)

@@ -90,6 +90,12 @@ else
     echo "==> $(du -h "$OUT" | cut -f1) $OUT  (unstripped — COMPOSED_STRIP=0)"
 fi
 
+# Back-compat path for pre-profiles tooling that hardcodes build/python.composed.wasm
+# (e.g. ~/git/v86/scripts/test-v86-posix-roundtrip.sh). Point a symlink at
+# whichever profile just built. Safe to overwrite on each compose.
+ln -sfn "$(basename "$OUT_DIR")/$(basename "$OUT")" \
+        "$PROJECT_DIR/build/python.composed.wasm"
+
 # Sanity: the compression-dispatcher import is satisfied.
 remaining="$(wasm-tools component wit "$OUT" 2>/dev/null \
     | grep -E '^\s+import' | grep -v 'wasi:' || true)"

@@ -25,6 +25,12 @@ A few flags every invocation needs today:
 - `--no-deps` — multi-package install steps currently hang in `Installing collected packages` when there are 2+ wheels (under investigation). Install dependencies one at a time as a workaround.
 - `--no-cache-dir` — pip's HTTP cache hits `os.stat`/`os.utime` calls we don't fully model; cheaper to disable.
 
+For wheel paths that shell out (sdist builds, post-install scripts), use
+`./scripts/run-python-with-subprocess.sh -m pip ...` instead of
+`./scripts/run-python.sh -m pip ...` — the former wires v86-posix-host
+so `subprocess.run` actually fork-execs. See Phase 5 in
+[`coverage-implementation-plan.md`](coverage-implementation-plan.md).
+
 ## Writable site-packages — host layout
 
 ```
