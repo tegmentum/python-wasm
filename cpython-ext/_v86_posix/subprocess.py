@@ -304,6 +304,84 @@ class _StdinBuffer:
         self.close()
 
 
+import io as _io
+
+
+class _InputStreamReader(_io.RawIOBase):
+    """RawIOBase adapter over ``_v86_posix.InputStream``.
+
+    The underlying stream has ``.read(size)`` that returns up to size
+    bytes (blocking until at least 1 byte or EOF). ``BufferedReader``
+    expects ``.readinto(buf)``. Translate one to the other so callers
+    get a full file-like surface (readline, iteration, etc.)."""
+
+    def __init__(self, stream):
+        super().__init__()
+        self._stream = stream
+
+    def readable(self) -> bool:
+        return True
+
+    def close(self) -> None:
+        super().close()
+        try:
+            self._stream.close()
+        except Exception:
+            pass
+
+    def readinto(self, buf) -> int:
+        n = len(buf)
+        if n == 0:
+            return 0
+        data = self._stream.read(n)
+        m = len(data)
+        buf[:m] = data
+        return m
+
+
+def _wrap_input(stream):
+    """Wrap a raw ``_v86_posix.InputStream`` in ``io.BufferedReader``
+    so callers get ``.readline()`` and iteration."""
+    return _io.BufferedReader(_InputStreamReader(stream))
+
+
+class _DeferredPipe:
+    """Truthy placeholder for ``self.stdout``/``stderr`` during deferred
+    spawn (``stdin=PIPE`` path). Callers that hold ``proc.stdout`` and do
+    ``assert proc.stdout`` before ``proc.stdin.close()`` need a non-None
+    value here; once the deferred spawn runs, ``Popen._do_spawn`` rebinds
+    ``self.stdout`` (or ``self.stderr``) to the real pipe and subsequent
+    attribute lookups see it. This class exists only to satisfy the
+    early truthy check — its methods either delegate (if the real pipe
+    is already in place by some race) or raise, since no real read can
+    happen against a not-yet-spawned process."""
+
+    __slots__ = ("_popen", "_name")
+
+    def __init__(self, popen: "Popen", name: str) -> None:
+        self._popen = popen
+        self._name = name
+
+    def _real(self):
+        # If anyone reads via this instance after the spawn (e.g., a
+        # local that held the pre-spawn reference), forward to the
+        # actual pipe object the spawn parked on Popen.
+        real = getattr(self._popen, self._name, None)
+        if real is None or real is self:
+            raise RuntimeError(
+                f"_DeferredPipe.{self._name}: process not yet spawned")
+        return real
+
+    def __bool__(self) -> bool:
+        return True
+
+    def read(self, *a, **kw):     return self._real().read(*a, **kw)
+    def readline(self, *a, **kw): return self._real().readline(*a, **kw)
+    def readinto(self, *a, **kw): return self._real().readinto(*a, **kw)
+    def close(self):              return self._real().close()
+    def fileno(self):             return self._real().fileno()
+
+
 class Popen:
     """Subprocess managed by `_v86_posix.spawn`.
 
@@ -391,6 +469,18 @@ class Popen:
             # _ensure_spawned which routes through the shell-wrapper
             # path with the buffered bytes.
             self.stdin = _StdinBuffer(self)
+            # Pip's call_subprocess does `assert proc.stdout` (and
+            # sometimes `assert proc.stderr`) immediately after Popen,
+            # BEFORE writing to stdin. With deferred spawn self.stdout
+            # is still None at that point, blowing the assertion.
+            # Park a truthy placeholder; _do_spawn() rebinds the
+            # attribute to the real pipe before any read happens
+            # (the user's expression `proc.stdout.readline()` is a
+            # fresh getattr lookup, so it sees the rebind).
+            if self._stdout_was_pipe:
+                self.stdout = _DeferredPipe(self, "stdout")
+            if self._stderr_was_pipe:
+                self.stderr = _DeferredPipe(self, "stderr")
         else:
             self._do_spawn(stdin_bytes=None)
 
@@ -445,10 +535,13 @@ class Popen:
             raise _v86_to_subprocess_error(exc, self.args) from None
 
         # Take stdout/stderr streams now that the child is running.
+        # The raw InputStream from _v86_posix exposes .read(n) but not
+        # readline(); pip's call_subprocess iterates line by line.
+        # Wrap via io.BufferedReader on a thin RawIOBase adapter.
         if self._stdout_was_pipe:
-            self.stdout = self._process.take_stdout()
+            self.stdout = _wrap_input(self._process.take_stdout())
         if self._stderr_was_pipe:
-            self.stderr = self._process.take_stderr()
+            self.stderr = _wrap_input(self._process.take_stderr())
 
     def _ensure_spawned(self) -> None:
         """Trigger the deferred spawn if it hasn't happened yet.
