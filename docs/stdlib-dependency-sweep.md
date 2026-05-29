@@ -1,54 +1,71 @@
 # python-wasm stdlib dependency sweep
 
-Audit of CPython's stdlib in the default python-wasm build (Phase 5.2.1):
-what works, what's cap-routed, what's gapped, and which gaps are good
-candidates for closure via new wasm capability components.
+Audit of CPython's stdlib in the default python-wasm build: what works,
+what's cap-routed, what's gapped, and which gaps are candidates for closure.
 
-Snapshot: 2026-05-28. Verified against `build/python.composed.wasm`
-(browser variant, no static OpenSSL, hashlib + ssl now cap-default).
+**Snapshot.** 2026-05-28, refreshed for Phase 0 of [`coverage-implementation-plan.md`](coverage-implementation-plan.md).
+
+**Build under test.** `build/3.14-current/python.composed.wasm` — CPython 3.14.3,
+WASI Preview 2 component, post-multiplexer-retirement per-codec caps (commits
+through `c2fc788`).
+
+**How to reproduce.**
+
+- Import sweep: see `scripts/test-imports.sh` (probes the 205-module list below).
+- Functional probes: `scripts/test-functional-sweep.sh`.
+- Network paths: `NETWORK=1 scripts/test-dns-resolution.sh`, `NETWORK=1 scripts/test-ssl-network.sh`.
 
 ## Summary
 
-- **163 of 169** top-level stdlib modules import successfully (~96%).
-- **6 fail import entirely**: ctypes, curses, tkinter, pty, tty, turtle.
-- **Functional coverage** of common operations: ~70% — what's importable
-  is mostly usable, with specific gaps (no threading, no fork, partial
-  hashlib/ssl APIs, no DNS, no tzdata).
+- **169 of 205** top-level stdlib modules import (82%). The remaining 36 split into:
+  - **22 removed upstream in 3.13/3.14** (PEP 594): `aifc`, `asynchat`, `asyncore`, `cgi`, `cgitb`, `chunk`, `crypt`, `imghdr`, `mailcap`, `msilib`, `nis`, `nntplib`, `ossaudiodev`, `parser`, `smtpd`, `sndhdr`, `spwd`, `sunau`, `symbol`, `telnetlib`, `uu`, `xdrlib`. Not a python-wasm gap; gone from CPython itself.
+  - **9 platform-foreign or terminal/GUI** (intrinsic): `curses`, `tkinter`, `turtle`, `pty`, `tty`, `termios`, `readline`, `winreg`, `winsound`. No wasm path.
+  - **5 POSIX system-level** (intrinsic in pure wasip2): `fcntl`, `grp`, `pwd`, `resource`, `syslog`. Some of these may grow caps later (`fcntl.flock` is plausible; `pwd`/`grp` have no analog).
+- **Functional coverage** of common paths: ~85% — cap-routed cryptography, compression, TLS, sqlite, tzdata, and pbkdf2 all work end-to-end. Known gaps: `asyncio.run()` self-pipe (new finding, see C.2), `subprocess.Popen` (waits on v86), `scrypt` (cap unwired in stdlib).
 
 ## Coverage by category
 
-### A. Cap-routed (shipped via wasm capability) ✅
+### A. Cap-routed via wasm capability components ✅
 
-Pattern A static-linkage extensions + their `Lib/` shims:
+Pattern A static-linked cpython-ext extensions + their `Lib/` shims:
 
 | Stdlib module | cpython-ext | Capability | Status |
 |---|---|---|---|
-| `zlib` | `_compression` | `tegmentum:compression-multiplexer/compression-dispatcher` | ✅ |
-| `bz2` | `_compression` | same | ✅ |
-| `lzma` | `_compression` | same | ✅ |
-| `compression.zstd` | `_compression` | + `zstd-extras` | ✅ |
-| `hashlib` (9 algos) | `_crypto_hash` | `tegmentum:crypto-hash-multiplexer/hash-dispatcher` | ✅ Phase 5.1 |
-| `ssl` (Tier-1+2 surface) | `_ssl` | `openssl:component/{tls,x509,pkey,error,random}` | ✅ Phase 5.2 |
-| `sqlite3` | `_sqlite_capability` | `sqlite:wasm/high-level` | ✅ |
-| `subprocess` (v86 only) | `_v86_posix` | `v86:posix/process` | ✅ |
-| `xxhash` (new, non-stdlib) | `_xxhash` | `tegmentum:hashing-multiplexer/hashing-dispatcher` | ✅ |
+| `zlib`              | `_zlib_cap`            | `zlib:compression@0.1.0`             | ✅ per-codec (Phase A) |
+| `bz2`               | `_bzip2_cap`           | `bzip2:compression@0.1.0`            | ✅ per-codec (Phase B) |
+| `lzma`              | `_lzma_cap`            | `lzma:compression@0.1.0`             | ✅ per-codec (Phase C) |
+| `compression.zstd`  | `_zstd_cap`            | `zstd:compression@0.1.0`             | ✅ full advanced API (Phase D + fidelity) |
+| `gzip`              | (uses `_zlib_cap`)     | (same)                                | ✅ |
+| `hashlib` (14 algos + KDFs) | `_crypto_hash` | `tegmentum:crypto-hash-multiplexer/hash-dispatcher` | ✅ + blake2 params, SHA-3 224/384, SHAKE, digest_size, block_size |
+| `ssl`               | `_ssl_capability`      | `openssl:component/{tls,x509,pkey,error,random}` | ✅ Tier 1+2 + WebPKI |
+| `sqlite3`           | `_sqlite_capability`   | `sqlite:wasm/high-level`             | ✅ |
+| `subprocess` (v86 only) | `_v86_posix`       | `v86:posix/process`                  | ⚠ stub returns `GuestNotReady` |
+| (non-stdlib) `_xxhash` | `_xxhash`           | `tegmentum:hashing-multiplexer/hashing-dispatcher` | ✅ blake3 keyed/derive_key/xof, xxh3 with-secret |
+| (non-stdlib) `_password_hash` | (via `_crypto_hash`) | `tegmentum:password-hash-multiplexer` | ✅ pbkdf2 / scrypt / argon2id explicit-cost variants |
+
+Notes:
+
+- The compression-multiplexer is **retired from this build** as of the Phase A–G work (commit `c2fc788`). Each codec routes directly through its own WIT contract. The multiplexer remains shipped from `~/git/compression-multiplexer/` for use by other consumers.
+- `_xxhash` is not exposed as a top-level `import xxhash`; the cpython-ext name is the actual entry. See `cpython-ext/_xxhash/`.
 
 ### B. Static-linked + working ✅
 
-85 C extensions baked into `python.wasm` directly. The big ones:
+~85 C extensions baked into `python.wasm` directly:
 
-  _abc _ast _asyncio _bisect _blake2 _codecs (+ _codecs_cn/_codecs_hk/…)
-  _collections _contextvars _csv _datetime _decimal _elementtree
-  _functools _heapq _hmac _imp _io _json _locale _lsprof _md5
-  _multibytecodec _opcode _operator _pickle _queue _random _sha1 _sha2
-  _sha3 _signal _socket _sre _stat _statistics _string _struct
-  _symtable _thread _tokenize _tracemalloc _types _typing _warnings
-  _weakref _xxtestfuzz _zoneinfo array atexit binascii builtins cmath
-  errno faulthandler gc itertools marshal math posix pyexpat select
-  sys time unicodedata xxsubtype
+```
+_abc _ast _asyncio _bisect _blake2 _codecs (+ _codecs_cn/_codecs_hk/_codecs_iso2022/_codecs_jp/_codecs_kr/_codecs_tw)
+_collections _contextvars _csv _datetime _decimal _elementtree
+_functools _heapq _hmac _imp _io _json _locale _lsprof _md5
+_multibytecodec _opcode _operator _pickle _queue _random _sha1 _sha2
+_sha3 _signal _socket _sre _stat _statistics _string _struct
+_symtable _thread _tokenize _tracemalloc _types _typing _warnings
+_weakref _xxtestfuzz _zoneinfo array atexit binascii builtins cmath
+errno faulthandler gc itertools marshal math posix pyexpat select
+sys time unicodedata xxsubtype
+```
 
-These work as expected — pure-Python stdlib modules that depend on
-these (json, asyncio, datetime, decimal, struct, …) work.
+Pure-Python stdlib modules that depend on these (json, asyncio module
+imports, datetime, decimal, struct, …) work for their core paths.
 
 ### C. Importable but partially broken ⚠
 
@@ -56,182 +73,139 @@ Modules that load but where specific operations fail:
 
 | Module | What works | What's broken | Reason |
 |---|---|---|---|
-| `threading` | imports, locks, condition vars, RLock | `Thread.start()` → `RuntimeError: can't start new thread` | wasi-p2 has no preemptive threads |
+| `threading` | imports, locks, condition vars, RLock, **`Thread.start()` runs inline** | actual parallelism | `Lib/threading.py` shim runs targets inline (no preemption); is_alive() correctly returns False after target completes |
+| `asyncio` | imports, coroutine objects, `asyncio.sleep`, the event-loop classes | **`asyncio.run()`** at module top level | `_make_self_pipe()` → `socket.socketpair()` → fallback bind/listen/connect fails with `OSError: Socket not connected` even with `-S inherit-network`. **New finding 2026-05-28.** Tracked for Phase 2. |
 | `os` | most stat/file/env operations | `os.fork`, `os.execvp`, `os.popen` | no process model in pure wasm |
-| `socket` | TCP via `wasi:sockets/tcp` + **DNS via `wasi:sockets/ip-name-lookup`** (resolved 2026-05-28) | nothing in default scope | needs runtime grant: `-S inherit-network -S allow-ip-name-lookup` |
-| `subprocess` | imports + Popen object | `Popen.spawn()` requires v86 backend ready | `v86-posix-stub` returns `GuestNotReady` until v86 grows real spawn |
-| `hashlib` | **all 14 algorithms + pbkdf2_hmac** (post Phase 5.1 redesign 2026-05-28) | scrypt | scrypt impossible in pure Python at production parameters; needs cap |
-| `ssl` | TLS handshake, cert validation, urllib.urlopen, MemoryBIO | SSLObject, SSLSession, get_server_certificate, DER_cert_to_PEM_cert, RAND_add, RAND_status | deferred to openssl-component v1.1 |
-| `gzip` | **full roundtrip + zipfile + tarfile.tar.gz** (fixed 2026-05-28) | nothing | zlib shim _ZlibDecompressor + unused_data tracking shipped |
-| `zoneinfo` | **598 IANA timezones via PyPI tzdata fallback** (fixed 2026-05-28) | nothing | scripts/fetch-tzdata.sh wires into make fetch-deps |
-| `multiprocessing` | imports + Process object | `Process.start()` fails | same as `os.fork` — no process model |
+| `socket` | TCP via `wasi:sockets/tcp`, **DNS via `wasi:sockets/ip-name-lookup`** | `socketpair()` (see asyncio above), raw sockets | wasi-p2 has no socketpair primitive; fallback path doesn't work in wasmtime today |
+| `subprocess` | imports + Popen object | `Popen.spawn()` | `v86-posix-stub` returns `GuestNotReady` until v86 component lands |
+| `hashlib` | all 14 algorithms + pbkdf2_hmac + blake2 params + SHA-3 + SHAKE | `scrypt` (cap impl shipped but not wired in stdlib `hashlib.scrypt`) | gap is purely in `Lib/_hashlib.py` shim wiring; cap supplies it |
+| `ssl` | TLS handshake, cert validation, urllib.urlopen, MemoryBIO | SSLObject, SSLSession, `get_server_certificate`, DER_cert_to_PEM_cert, RAND_add, RAND_status | deferred to openssl-component v0.2.x |
+| `multiprocessing` | imports + Process object | `Process.start()` | no `os.fork` |
 
 ### D. Fail to import entirely ❌
 
-| Module | Underlying C ext missing | Fixability |
-|---|---|---|
-| `ctypes` | `_ctypes` (libffi) | Possible via libffi-wasm; large effort |
-| `curses` | `_curses` | Intrinsic — no terminal in wasm sandbox |
-| `tkinter` | `_tkinter` | Intrinsic — no GUI |
-| `turtle` | depends on tkinter | Same |
-| `pty`, `tty` | `termios` | Intrinsic — no tty |
+```
+ctypes (no _ctypes)        curses (no _curses)       tkinter (no _tkinter)
+turtle (depends on tkinter) pty (no termios)         tty (no termios)
+fcntl, grp, pwd, resource, readline, syslog, termios, winreg, winsound
+```
 
-And the per-platform C extensions absent from the build:
+And the 22 PEP 594 removals listed in Summary.
 
 | Missing C ext | Used by | Cap candidate? |
 |---|---|---|
-| `mmap` | `mmap` module | Yes — `wasi:io/memory` (no spec yet) or a custom cap |
-| `fcntl` | locking, file flags | Some via wasi-p2 `wasi:filesystem/types`, most no-ops in wasm |
-| `grp`, `pwd` | user lookup | No — no user/group concept in pure wasm |
-| `readline` | interactive REPL | No — no tty |
-| `resource` | rlimit, getrusage | Maybe — wasi-p2 doesn't model resource limits |
-| `syslog` | logging to syslog | Maybe — would need a logging cap |
-| `nis` | NIS/YP | No — obsolete |
-| `_posixsubprocess` | subprocess fast-path | Routed via `_v86_posix` instead |
+| `_ctypes` (libffi) | ctypes | Yes — would be a libffi-wasm build; large effort, big ecosystem unlock |
+| `mmap` | `mmap` module | Pure-Python `Lib/mmap.py` shim possible (memory: in-RAM `bytearray` backing); see [`wasm-cap-vs-shim-decision`](../../../../.claude/projects/-Users-zacharywhitley-git-python-wasm/memory/wasm-cap-vs-shim-decision.md) |
+| `fcntl` | locking, file flags | Partial via `wasi:filesystem/types`; most flags no-op |
+| `grp`, `pwd` | user lookup | No analog in wasm |
+| `_posixsubprocess` | subprocess fast-path | Routed via `_v86_posix` |
 
-## Gap candidates worth a wasm cap
+## What's worth advertising
 
-In rough priority order — most leverage / least effort first.
+- Full `json`, `xml.etree`, `csv`, `pickle` (with `_pickle` C accelerator)
+- Full `sqlite3` via `_sqlite_cap` + sqlite:wasm capability
+- Full `decimal` with `_decimal` C accelerator
+- `urllib` + `http.client` + `smtplib` + `ftplib` + `imaplib` + `poplib` over `_socket` + `_ssl_capability`
+- `email`, `html` parsing
+- `importlib`, `zipimport`, `zipfile` — wheel loading works
+- `compileall`, `py_compile` — bytecode tooling
+- `inspect`, `dis`, `ast`, `opcode` — full introspection
+- `zoneinfo` with 598 IANA timezones (bundled tzdata 2026.2)
+- `hashlib` with all 14 algorithms, pbkdf2_hmac, full blake2 (key/salt/person/digest_size)
 
-### High-priority — all RESOLVED 2026-05-28
+## Test snapshot
 
-1. **DNS resolution** — ✅ **Was never broken.** Original sweep ran without
-   `-S inherit-network -S allow-ip-name-lookup` flags. With them,
-   `socket.getaddrinfo()`, `socket.create_connection()`, and
-   `socket.gethostbyname()` all work against example.com, www.python.org,
-   github.com. Wasmtime auto-wires `wasi:sockets/ip-name-lookup` to host
-   DNS when the flag is granted.
+Against `build/3.14-current/python.composed.wasm` post-`c2fc788`:
 
-2. **tzdata bundle** — ✅ **Shipped** (commit `73d0a03`).
-   `scripts/fetch-tzdata.sh` pulls tzdata 2026.2 from PyPI, stages it
-   at `deps/cpython/Lib/tzdata/`. 598 IANA timezones available. Wired
-   into `make fetch-deps`.
+| Probe | Result |
+|---|---|
+| `hashlib.sha256(b'x').hexdigest()` starts `2d711642` | ✅ |
+| `hashlib.sha3_224(b'x').hexdigest()` = `63e6ceb2…` | ✅ |
+| `hashlib.sha3_384(b'x').hexdigest()` = `5abfc7bc…` | ✅ |
+| `hashlib.shake_128(b'x').hexdigest(32)` len = 64 | ✅ |
+| `hashlib.shake_256(b'x').hexdigest(64)` len = 128 | ✅ |
+| `hashlib.blake2b(b'x').hexdigest()` = `0909377a…` | ✅ |
+| `hashlib.blake2b(b'x', salt=b'salt', person=b'person')` | ✅ |
+| `hashlib.pbkdf2_hmac('sha256', b'pw', b'salt', 1000, 32)` | ✅ |
+| `hashlib.scrypt(...)` | ❌ `AttributeError` (cap shipped; stdlib shim unwired) |
+| `zlib / bz2 / lzma / gzip / compression.zstd` roundtrip | ✅ all five |
+| `compression.zstd.train_dict(samples, 1024)` | ✅ |
+| `sqlite3.connect(':memory:').execute('SELECT 1').fetchone()` | ✅ `(1,)` |
+| `ssl.OPENSSL_VERSION.startswith('OpenSSL')` | ✅ |
+| `urllib.request.urlopen('https://example.com')` (NETWORK=1) | ✅ via `scripts/test-ssl-network.sh` |
+| `socket.getaddrinfo('pypi.org', 443)` (NETWORK=1) | ✅ 8 entries via `scripts/test-dns-resolution.sh` |
+| `zoneinfo.ZoneInfo('America/New_York')` | ✅ |
+| `threading.Lock` / `acquire` / `release` | ✅ |
+| `threading.Thread(target=...).start()` | ✅ runs inline (no parallelism) |
+| `asyncio.run(coro)` | ❌ `OSError: Socket not connected` in `_make_self_pipe` (Phase 2 target) |
+| `os.fork()` | ❌ no fork |
+| `subprocess.run(...)` (default build) | ❌ `GuestNotReady` (waiting for v86) |
 
-3. **gzip.decompress bug** — ✅ **Shipped** (commit `5dd6788`).
-   `Lib/zlib.py` shim now has `_ZlibDecompressor` + proper `unused_data`
-   tracking. `gzip.decompress`, multi-member gzip, zipfile ZIP_DEFLATED,
-   and tarfile.tar.gz all roundtrip correctly.
+## Known gaps, by track
 
-4. **pbkdf2_hmac, scrypt** — ✅ **pbkdf2_hmac shipped** (commit `738ae9b`).
-   Pure-Python PBKDF2 (RFC 8018) in `Lib/_hashlib.py`. RFC 6070 vectors
-   match; 4096-iteration HMAC-SHA1 takes 13ms. `scrypt` deliberately
-   omitted — pure-Python scrypt at production parameters (N=16384) is
-   too slow to be useful; tracked for a future `tegmentum:kdf` cap.
+### Resolved this session (no further work)
 
-### Medium-priority
+- DNS resolution end-to-end via `wasi:sockets/ip-name-lookup` (CLI: requires `-S allow-ip-name-lookup`; browser: DoH default per `python-runner.ts`).
+- All compression codecs reachable via per-codec caps (multiplexer retired).
+- blake2 full parametric API (`key`, `salt`, `person`, `digest_size`).
+- SHA-3 224/384, SHAKE 128/256, `digest_size`/`block_size` on hash objects.
+- zstd advanced: `train_dict`, `finalize_dict`, `compress_advanced`, `compress_advanced_with_dict`.
+- pbkdf2_hmac.
 
-5. **sha224, sha3_224, sha3_384** — ✅ **Resolved by Phase 5.1 redesign**.
-   These are already available via CPython's BUILTIN `_sha2`/`_sha3`
-   C extensions (statically linked into python.wasm). Stdlib hashlib
-   uses them natively when `_hashlib` doesn't provide them. The
-   `crypto-hash-multiplexer` extension stays for component-to-component
-   cap-routed hashing but Python users go through the faster builtins.
+### Active gaps (have an owner)
 
-6. **shake_128, shake_256 (XOFs)** — ✅ **Same as above** — covered by
-   builtin `_sha3.shake_128`/`shake_256`.
-
-7. **ssl.get_server_certificate** — ⏸ **Blocked on cap revision.** The
-   `_ssl_capability` C ext exposes no peer-cert getter; openssl-component
-   WIT 0.1.0 doesn't expose `SSL_get_peer_certificate` / `i2d_X509`.
-   Pure-Python implementation isn't possible (no way to extract cert
-   bytes without bypassing the TLS stack). Tracked as openssl-component
-   v0.2.x. Stub raises NotImplementedError with this context.
-
-8. **mmap** — ⏸ **Deferred.** `wasi:io/memory` doesn't exist; would need
-   a new `tegmentum:memory/anonymous-pages` cap or use wasi-p2 filesystem
-   APIs as backing. Most Python code paths around mmap have `io.BytesIO`
-   fallbacks. Medium-utility; not blocking common use.
-
-### Low-priority / experimental
-
-9. **ctypes via libffi-wasm** — would unlock a huge swath of binding-
-   based packages (cffi, pycparser-using libs). Substantial effort
-   to build libffi for wasm32-wasip2 + wire the trampolines.
-   **Effort:** 2–4 weeks.
-
-10. **threading.Thread** — wasi-p2 has no preemptive threads. Would
-    require either wasi-threads-proposal landing OR a girder-style
-    actor model (separate WASM instances per "thread"; shared-nothing).
-    Substantial architectural decision; tracked in
-    `docs/native-execution-and-parallelism.md` §5. **Effort:** months
-    if pursued.
+| Gap | Track |
+|---|---|
+| `asyncio.run()` socketpair fallback fails | Phase 2 (asyncio + TLS battle-test) — investigate whether to (a) implement a wasi socketpair shim, (b) replace asyncio's self-pipe with a `wasi:io/poll`-native pollable, or (c) ship a `Lib/_socket_socketpair.py` shim using two ends of a memfd-style polyfill |
+| `hashlib.scrypt` unwired | Phase 1 polish — wire `Lib/_hashlib.py` to `_crypto_hash.scrypt` (cap impl already shipped) |
+| `subprocess.Popen.spawn()` | Phase 5 (v86 subprocess) — upstream-driven |
+| `ssl.SSLObject`, `ssl.get_server_certificate`, RAND_add/status | Phase 8-ish — needs openssl-component v0.2.x with `SSL_get_peer_certificate`/`i2d_X509` |
+| `mmap` | Tier 3 — `Lib/mmap.py` pure-Python shim viable |
 
 ### Intrinsic — won't be filled
 
 - `tkinter`, `turtle`, `_tkinter` (GUI)
 - `curses`, `readline`, `termios`, `pty`, `tty` (terminal)
-- `os.fork`, `multiprocessing.Process.start` (process model)
+- `os.fork`, `multiprocessing.Process.start` (process model — `tegmentum:py-offload` is the replacement path)
 - `grp`, `pwd`, `nis` (user/group lookup)
+- `winreg`, `winsound`, `msilib` (Windows-only)
+- 22 PEP 594 removals — gone upstream
 
-These either contradict the wasm sandbox model or have no plausible
-analog. Document as "not supported in this runtime" and move on.
+## Test scripts (Phase 0 + Phase 1 deliverables)
 
-## Notable existing surface
-
-What works that's worth advertising:
-
-- Full asyncio (with one event-loop backend that uses `select` / `wasi:io/poll`)
-- Full json, xml.etree, csv, pickle (with `_pickle` C accelerator)
-- Full sqlite3 (via `_sqlite_cap` + sqlite:wasm capability)
-- Full decimal with `_decimal` C accelerator
-- urllib + http.client + smtplib + ftplib + imaplib + poplib (all
-  network-stdlib over `_socket` + ssl_capability)
-- email + html parsing
-- importlib + zipimport + zipfile (so loading wheels works)
-- compileall + py_compile (bytecode tooling)
-- inspect, dis, ast, opcode (full introspection)
-
-## Test snapshot
-
-The functional probe results from this sweep (against
-`build/python.composed.wasm` at commit `1000c12`):
-
-| Probe | Result |
+| Script | What it probes |
 |---|---|
-| `hashlib.sha256(b'x').hexdigest()` | ✅ `2d711642…` |
-| `hashlib.pbkdf2_hmac('sha256', b'x', b'y', 1)` | ❌ NotImplementedError (documented) |
-| `hashlib.sha224(b'x')` | ❌ NotImplementedError (documented) |
-| `ssl.create_default_context()` | ✅ `<SSLContext>` |
-| `ssl.SSLObject()` | ❌ NotImplementedError (documented) |
-| `urllib.request.urlopen('https://example.com')` | ✅ 528-byte HTML body, chunked decoded |
-| `urllib.request.urlopen('https://www.python.org')` | ✅ 12015 bytes (matches native python) |
-| `urllib.request.urlopen('https://httpbin.org/get')` | ✅ JSON body, parses |
-| `sqlite3.connect(':memory:').execute('SELECT 1').fetchone()` | ✅ `(1,)` |
-| `xml.etree.ElementTree.fromstring('<a>x</a>').text` | ✅ `'x'` |
-| `bz2.compress / bz2.decompress` roundtrip | ✅ |
-| `gzip.decompress` | ❌ EOFError (Lib/zlib.py shim streaming bug — file as separate) |
-| `json.loads / json.dumps` roundtrip | ✅ |
-| `uuid.uuid4()` | ✅ |
-| `decimal.Decimal('1.5')` | ✅ |
-| `zoneinfo.ZoneInfo('UTC')` | ❌ no tzdata bundled |
-| `threading.Thread().start()` | ❌ no preemptive threads |
-| `socket.create_connection((host, port))` (with DNS) | ❌ gaierror -4 |
-| `os.fork()` | ❌ no fork |
-| `subprocess.run` (default build) | ❌ v86 stub returns GuestNotReady |
+| `scripts/test-dns-resolution.sh` | `socket.getaddrinfo` / `gethostbyname` for `pypi.org`, `files.pythonhosted.org`, `example.com` |
+| `scripts/test-ssl-network.sh` | TLS handshake + HTTPS roundtrip to `example.com:443` (pre-existing) |
+| `scripts/test-wheel-smoke.sh` | install + import probe over the top-20 pure-Python wheels (Phase 1) |
+| `scripts/uv-dev.sh` | wraps `~/git/uv-wasm/dist/uv-dev.wasm` with the wasmtime flags it needs |
+| `scripts/run-python.sh` | standard runner — composed wasm + mounted writable `/site-packages` + DNS + TLS flags |
 
-## Recommended sequence
+## Phase 1 wheel-install smoke table
 
-**All HIGH-priority gaps closed 2026-05-28.** The MEDIUM gaps split into:
+Against `build/3.14-current/python.composed.wasm` via `scripts/run-python.sh`,
+following `docs/wheel-install.md` Path A (pip with `--use-deprecated=legacy-certs`,
+`--no-deps`, `--target /site-packages`). **17 of 20 pass.**
 
-- ✅ MED-5, MED-6 (extra hash algos) — turned out to be already-shipped
-  via CPython builtin _sha2/_sha3
-- ⏸ MED-7 (ssl.get_server_certificate) — blocked on openssl-component
-  cap revision; can't be done at the Python layer
-- ⏸ MED-8 (mmap) — needs new cap; medium-utility
-
-What's left for "feels like a competent Python runtime out of the box":
-
-| Gap | Track |
-|---|---|
-| ssl.get_server_certificate | openssl-component v0.2.x — adds SSL_get_peer_certificate / i2d_X509 |
-| scrypt | tegmentum:kdf cap (or vendor in pure-Python from the `cryptography` lib if low-tier perf is acceptable) |
-| mmap | tegmentum:memory cap, or document `io.BytesIO` as the workaround for most use cases |
-
-These are all **cap-side** work. The Python-side surface (Pattern A
-extensions + Lib/ shims) is now feature-complete for the 14
-stdlib-hashlib algorithms, gzip/tar/zip compression, ssl with bundled
-roots, tzdata, and pbkdf2.
-
-The Phase 5 retirement is **functionally complete** for the default
-build: `import hashlib`, `import ssl`, `import gzip`, `import zoneinfo`,
-and all common operations work end-to-end without `STATIC_OPENSSL=1`.
+| Package | Install | Import | Notes |
+|---|---|---|---|
+| certifi             | ✅ | ✅ | |
+| idna                | ✅ | ✅ | |
+| urllib3             | ✅ | ✅ | needs SSL OPENSSL_VERSION_INFO tuple + module-level OP_NO_* constants |
+| charset_normalizer  | ✅ | ✅ | |
+| requests            | ✅ | ✅ | `requests.get('https://example.com')` returns 200 |
+| six                 | ✅ | ✅ | |
+| python-dateutil     | ✅ | ✅ | (imports as `dateutil`) |
+| click               | ✅ | ✅ | |
+| jinja2              | ✅ | ❌ | missing `markupsafe` dep — sdist-only on PyPI for 3.14 |
+| markupsafe          | ❌ | —  | sdist install fails on gzip CRC (early-close — Phase 2) |
+| pyyaml              | ❌ | —  | sdist install fails (same root cause) |
+| attrs               | ✅ | ✅ | (imports as `attr`) |
+| packaging           | ✅ | ✅ | |
+| typing_extensions   | ✅ | ✅ | |
+| wheel               | ✅ | ✅ | |
+| toml                | ✅ | ✅ | |
+| tomli               | ✅ | ✅ | |
+| rich                | ✅ | ✅ | |
+| pygments            | ✅ | ✅ | |
+| colorama            | ✅ | ✅ | |
