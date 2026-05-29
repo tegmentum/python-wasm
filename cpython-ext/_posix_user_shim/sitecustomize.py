@@ -43,6 +43,31 @@ if "_ssl" not in sys.modules:
         pass
 
 
+# Pip's `Installing collected packages: A, B, ...` step spawns rich's
+# _TrackThread (a daemon thread that polls progress and updates a bar).
+# Our threading shim runs Thread.start() inline → the thread's run-loop
+# (which waits on an Event nobody else will set during this turn) blocks
+# the main thread forever. The progress bar is purely cosmetic; force
+# pip to bypass the threaded renderer when more than one package is
+# being installed. Detected by importing pip._internal.cli.progress_bars
+# lazily — only patches if pip is on sys.path.
+def _patch_pip_progress():
+    import importlib.util
+    if importlib.util.find_spec("pip._internal.cli.progress_bars") is None:
+        return
+    import pip._internal.cli.progress_bars as _pb
+    _orig = _pb.get_install_progress_renderer
+    def _no_thread(*, bar_type, total):
+        # Force `bar_type="off"` so the threaded rich progress is skipped
+        # — the function falls back to a plain `iter` wrapper.
+        return _orig(bar_type="off", total=total)
+    _pb.get_install_progress_renderer = _no_thread
+try:
+    _patch_pip_progress()
+except Exception:
+    pass
+
+
 # Phase 4: py-offload importhook auto-install. When OFFLOAD_MAILBOX_DIR and
 # OFFLOAD_PACKAGES are set in the environment, route imports of those packages
 # through the mailbox-transport offload boundary. See

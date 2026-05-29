@@ -305,25 +305,34 @@ class Thread:
         self._ident = get_ident()
         self._native_id = get_native_id()
         _active[self._ident] = self
-        try:
-            if self._target is not None:
-                try:
-                    self._return = self._target(*self._args, **self._kwargs)
-                except SystemExit:
-                    pass
-                except BaseException:
-                    self._exc = sys.exc_info()
-                    excepthook(ExceptHookArgs(
-                        (self._exc[0], self._exc[1], self._exc[2], self)
-                    ))
-            self.run()
-        finally:
+        # The default `target` path (no run override) is the common case
+        # — `Thread(target=fn).start(); ...; thread.join()`. Run it inline
+        # so callers that never explicitly join still see the side
+        # effects. Subclass-override runs (the rich `_TrackThread` /
+        # context-manager pattern) are deferred to join() because they
+        # typically loop on an Event the caller sets after running its
+        # work — running inline here would deadlock.
+        if self._target is not None:
+            try:
+                self._return = self._target(*self._args, **self._kwargs)
+            except SystemExit:
+                pass
+            except BaseException:
+                self._exc = sys.exc_info()
+                excepthook(ExceptHookArgs(
+                    (self._exc[0], self._exc[1], self._exc[2], self)
+                ))
             self._finished = True
             _active.pop(self._ident, None)
+        elif type(self).run is Thread.run:
+            # No target AND no run override → nothing to do.
+            self._finished = True
+            _active.pop(self._ident, None)
+        # else: deferred — run executes at join() time.
 
     def run(self):
-        # Subclasses overriding run() get their override called once; the
-        # target= path above already executed for non-subclassed instances.
+        # Default — only invoked when start() defers (no-target + run-override).
+        # Subclass-overrides via type(self).run get dispatched in join().
         if type(self).run is Thread.run:
             return
         try:
@@ -337,7 +346,15 @@ class Thread:
     def join(self, timeout=None):
         if not self._started:
             raise RuntimeError("cannot join thread before it is started")
-        # Already ran to completion synchronously in start().
+        if not self._finished:
+            # Deferred subclass-run path: run now. By the time join is
+            # called, any Event the run loop is watching has typically
+            # been set (e.g. _TrackThread's __exit__ flow).
+            try:
+                self.run()
+            finally:
+                self._finished = True
+                _active.pop(self._ident, None)
         return None
 
     def is_alive(self):
