@@ -209,6 +209,9 @@ install-python-shims:
 	@cp $(PROJECT_DIR)/cpython-ext/_ctypes_shim/util.py \
 	    $(CPYTHON_DIR)/Lib/ctypes/util.py
 	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/ctypes/  (LOW-1: stub for native ABI absence)"
+	@cp $(PROJECT_DIR)/cpython-ext/_posix_user_shim/sitecustomize.py \
+	    $(CPYTHON_DIR)/Lib/sitecustomize.py
+	@echo "installed: $(PYTHON_SOURCE_DIR)/Lib/sitecustomize.py  (Phase 1: WASI user-id stubs for pip/platformdirs)"
 	@if [ "$(WITH_V86_POSIX)" = "1" ]; then \
 	    cp $(PROJECT_DIR)/cpython-ext/_v86_posix/subprocess.py \
 	        $(CPYTHON_DIR)/Lib/subprocess.py && \
