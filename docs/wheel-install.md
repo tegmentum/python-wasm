@@ -77,7 +77,7 @@ Possible but discouraged. uv-core is a large reactor component and embedding it 
 
 | Issue | Workaround | Tracking |
 |---|---|---|
-| Multi-package install step hangs in `Installing collected packages` | install one wheel at a time | Phase 2 — investigated, defer (file traces show downloads complete, hang is in the install/copy step between packages) |
+| ~~Multi-package install step hangs in `Installing collected packages`~~ | ✅ **fixed 2026-05-29** — pip's rich progress thread looped in our inline threading shim; Thread.start() now defers subclass-override `run()` until `join()` | done |
 | `OSError(8, 'Bad file descriptor')` on every download (retried successfully) | tolerated by pip's retry logic; openssl-component closes the connection prematurely after the response, before urllib3 expects a clean keepalive | Phase 8 — needs openssl-component v0.2.x non-blocking peek to safely drain TLS records before close-notify |
 | `--use-deprecated=legacy-certs` required | pip ships truststore which expects native SSLContext subclassing; our wrapper doesn't satisfy `super().verify_mode.__set__` | Phase 8 — openssl-component v0.2.x |
 | `getpeercert(binary_form=False)` returns synthetic dict | openssl-component validates hostname during handshake, so the synthetic SAN matches | Phase 8 — openssl-component v0.2.x |
