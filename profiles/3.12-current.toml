@@ -1,0 +1,48 @@
+schema = "tegmentum:python-wasm/profile@0.1.0"
+
+# CPython 3.12.13 build profile. Same options as 3.13-current and
+# 3.14-current; only the Python version changes.
+#
+# STATUS: **NOT BUILDABLE** as of 2026-05-28. 3.12 uses
+# Tools/wasm/wasm_build.py which hardcodes wasm32-unknown-wasi (WASI
+# Preview 1, core wasm). Our cap composition needs Preview 2 components
+# and wasm_build.py doesn't emit them. The profile is kept on disk to
+# document the version + serve as a starting point if/when someone
+# backports 3.13's wasi.py (or wires an adapter via wasm-tools
+# component new --adapt). See docs/build-profiles.md.
+
+[meta]
+description = "CPython 3.12.13 — same options as 3.13-current."
+
+[python]
+implementation = "cpython"
+version = "3.12.13"
+git_tag = "v3.12.13"
+source_dir = "cpython-3.12"
+
+[toolchain]
+wasi_sdk_version = "33.0"
+wasi_sdk_dir = "wasi-sdk-33.0-arm64-macos"
+host_triple = "wasm32-wasip2"
+
+[build]
+static_openssl = false
+static_zlib = false
+with_v86_posix = true
+
+[capabilities]
+zlib_component = "${HOME}/git/zlib-wasm/build/bin/zlib.component.wasm"
+bzip2_component = "${HOME}/git/bzip2-wasm/target/wasm32-wasip2/release/bzip2_wasm.wasm"
+lzma_component = "${HOME}/git/lzma-wasm/target/wasm32-wasip2/release/lzma_wasm.wasm"
+zstd_component = "${HOME}/git/zstd-wasm/target/wasm32-wasip2/release/zstd_wasm.wasm"
+lz4_component = "${HOME}/git/lz4-wasm/target/wasm32-wasip2/release/lz4_wasm.wasm"
+openzl_component = "${HOME}/git/openzl-wasm/target/wasm32-wasip2/release/openzl_wasm.wasm"
+crypto_hash_multiplexer = "${HOME}/git/crypto-hash-multiplexer/target/wasm32-wasip2/release/crypto_hash_multiplexer.wasm"
+hashing_multiplexer = "${HOME}/git/hashing-multiplexer/target/wasm32-wasip2/release/hashing_multiplexer.wasm"
+openssl_component = "${HOME}/git/openssl-wasm/build/openssl-component.wasm"
+sqlite_component = "${HOME}/git/sqlite-wasm/build/sqlite-core.wasm"
+password_hash_multiplexer = "${HOME}/git/password-hash-multiplexer/target/wasm32-wasip2/release/password_hash_multiplexer.wasm"
+v86_posix_component = "${HOME}/git/v86/target/wasm32-wasip2/release/v86_posix_stub.wasm"
+
+[output]
+build_dir = "build/3.12-current"

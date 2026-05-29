@@ -114,17 +114,38 @@ The same CPython source tree is reused. Only the build flags + compose-step plug
 
 ### Per-version patches
 
-CPython's WASI build tooling has been reshuffled multiple times:
+CPython's WASI build tooling has been reshuffled multiple times. The relevant ranges:
 
-| Version | WASI build entrypoint        | Notes                          |
-|---------|------------------------------|--------------------------------|
-| 3.13    | `Tools/wasm/wasi.py`         | single-file module             |
-| 3.14+   | `Tools/wasm/wasi/__main__.py`| package with `__main__.py`     |
+| Version | WASI build entrypoint              | wasip2 support               | Status here          |
+|---------|------------------------------------|------------------------------|----------------------|
+| 3.14+   | `Tools/wasm/wasi/__main__.py`      | yes (with our patch)         | **supported**        |
+| 3.13    | `Tools/wasm/wasi.py` (single file) | yes (with our patch)         | **supported**        |
+| 3.12    | `Tools/wasm/wasm_build.py`         | **no** (hardcodes wasip1)    | not supported        |
+| 3.11    | `Tools/wasm/wasm_build.py`         | **no** (hardcodes wasip1)    | not supported        |
+| ≤3.10   | (no WASI tooling)                  | n/a                          | not supported        |
 
-Likewise the stdlib `Lib/` reshuffles between minors (e.g., `compression.zstd` added in 3.14; `Lib/_compression.py` moved to `Lib/compression/_common/_streams.py`). So patches and shim install rules are version-keyed:
+3.13 is the floor. Older versions used a different WASI build pipeline (`wasm_build.py`) that hardcodes `wasm32-unknown-wasi` (WASI Preview 1, core wasm + WASI imports). Our cap composition needs Preview 2 components, which `wasm_build.py` doesn't emit. Supporting 3.12 / 3.11 would require:
+
+1. **Backporting 3.13's `wasi.py`** into the older trees as a per-version patch. The single-file form is self-contained but depends on configure.ac and config.site shapes that may differ.
+2. **OR** building as wasip1 and using `wasm-tools component new <module>.wasm --adapt wasi_snapshot_preview1.command.wasm` to wrap into a component. The wasi-preview1-adapter is shipped with wasi-sdk. Composition would then mostly work; runtime semantics may differ in edge cases.
+
+Neither path has been attempted in this repo. Empirically the walk-back finds 3.13 to be the boundary.
+
+Likewise the stdlib `Lib/` reshuffles between minors (e.g., `compression.zstd` added in 3.14; `Lib/_compression.py` moved to `Lib/compression/_common/_streams.py` in 3.14). Patches + shim install rules are version-keyed:
 
 - Patches live under `patches/<py-minor>/` and are applied by `fetch-cpython.sh` based on the profile's `[python].version`.
 - The `install-python-shims` Make target checks for the existence of stdlib target directories before installing a shim, so 3.13 silently skips the zstd shim that only makes sense in 3.14+.
+
+| Shim                                          | 3.13  | 3.14+ |
+|-----------------------------------------------|-------|-------|
+| `Lib/ssl_capability.py`, `Lib/ssl.py`         | ✓     | ✓     |
+| `Lib/bz2.py`, `Lib/lzma.py`, `Lib/zlib.py`    | ✓     | ✓     |
+| `Lib/_hashlib.py`                             | ✓     | ✓     |
+| `Lib/mmap.py`, `Lib/threading.py`             | ✓     | ✓     |
+| `Lib/ctypes/__init__.py`, `util.py`           | ✓     | ✓     |
+| `Lib/sqlite3/__init__.py`                     | ✓     | ✓     |
+| `Lib/compression/zstd/__init__.py`            | —     | ✓     |
+| `Lib/subprocess.py` (when `WITH_V86_POSIX=1`) | ✓     | ✓     |
 
 ## Relationship to pylon-forge manifests
 
