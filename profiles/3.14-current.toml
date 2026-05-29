@@ -43,6 +43,12 @@ static_zlib = false
 # component into the compose step. Browser builds (PROFILE=*-browser)
 # turn this off; CLI builds keep it on.
 with_v86_posix = true
+# Strip non-essential custom sections (DWARF debug, name table, producers,
+# target_features) from python.composed.wasm after wac plug. Drops the
+# default build from ~43 MiB to ~17 MiB with no behavioral change — only
+# tooling that consumes source-mapped DWARF needs the unstripped form.
+# Set to false (or use profiles/3.14-debug.toml) to keep symbols.
+strip_composed = true
 
 # Capability components plugged into the composed wasm. Each entry is the
 # environment variable the compose script reads to locate the artifact; the

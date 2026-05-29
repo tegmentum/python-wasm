@@ -1,0 +1,47 @@
+schema = "tegmentum:python-wasm/profile@0.1.0"
+
+# Debug build profile — same as 3.14-current but keeps DWARF debug info,
+# name section, and producers in python.composed.wasm. Used when you need
+# source-mapped backtraces through wasmtime (`--invoke trap-stack-traces`)
+# or when bridging via wasm-tools objdump --names.
+#
+# The composed artifact lands at build/3.14-debug/python.composed.wasm
+# (~43 MiB, vs ~17 MiB for 3.14-current). No runtime behavior change.
+
+[meta]
+description = "Debug variant of 3.14-current — unstripped (keeps DWARF, name section, producers)."
+
+[python]
+implementation = "cpython"
+version = "3.14.3"
+git_tag = "v3.14.3"
+source_dir = "cpython-3.14"
+
+[toolchain]
+wasi_sdk_version = "33.0"
+wasi_sdk_dir = "wasi-sdk-33.0-arm64-macos"
+host_triple = "wasm32-wasip2"
+
+[build]
+static_openssl = false
+static_zlib = false
+with_v86_posix = true
+# THE DIFFERENCE: keep symbols.
+strip_composed = false
+
+[capabilities]
+zlib_component = "${HOME}/git/zlib-wasm/build/bin/zlib.component.wasm"
+bzip2_component = "${HOME}/git/bzip2-wasm/target/wasm32-wasip2/release/bzip2_wasm.wasm"
+lzma_component = "${HOME}/git/lzma-wasm/target/wasm32-wasip2/release/lzma_wasm.wasm"
+zstd_component = "${HOME}/git/zstd-wasm/target/wasm32-wasip2/release/zstd_wasm.wasm"
+lz4_component = "${HOME}/git/lz4-wasm/target/wasm32-wasip2/release/lz4_wasm.wasm"
+openzl_component = "${HOME}/git/openzl-wasm/target/wasm32-wasip2/release/openzl_wasm.wasm"
+crypto_hash_multiplexer = "${HOME}/git/crypto-hash-multiplexer/target/wasm32-wasip2/release/crypto_hash_multiplexer.wasm"
+hashing_multiplexer = "${HOME}/git/hashing-multiplexer/target/wasm32-wasip2/release/hashing_multiplexer.wasm"
+openssl_component = "${HOME}/git/openssl-wasm/build/openssl-component.wasm"
+sqlite_component = "${HOME}/git/sqlite-wasm/build/sqlite-core.wasm"
+password_hash_multiplexer = "${HOME}/git/password-hash-multiplexer/target/wasm32-wasip2/release/password_hash_multiplexer.wasm"
+v86_posix_component = "${HOME}/git/v86/target/wasm32-wasip2/release/v86_posix_stub.wasm"
+
+[output]
+build_dir = "build/3.14-debug"

@@ -15,7 +15,8 @@ This doc covers:
 python-wasm/
 ├── profiles/
 │   ├── default.toml          # symlink → 3.14-current.toml
-│   ├── 3.14-current.toml     # CPython 3.14.3, v86-enabled, cap-routed
+│   ├── 3.14-current.toml     # CPython 3.14.3, v86-enabled, cap-routed, stripped
+│   ├── 3.14-debug.toml       # same as 3.14-current but keeps DWARF + name section
 │   ├── 3.13-current.toml     # CPython 3.13.9, otherwise same as 3.14-current
 │   └── (future: 3.14-browser.toml, 3.15-current.toml, 3.13-browser.toml, ...)
 ├── patches/
@@ -76,6 +77,7 @@ host_triple      = "wasm32-wasip2"
 static_openssl  = false   # use cap-routed _ssl_capability instead
 static_zlib     = false   # use cap-routed zlib.py shim instead
 with_v86_posix  = true    # wire _v86_posix ext + plug v86-posix-stub at compose
+strip_composed  = true    # wasm-tools strip after wac plug (Phase 3 — 60% size drop)
 
 [capabilities]
 # Override paths to any cap component the compose step plugs in.
@@ -165,6 +167,40 @@ pylon emit-manifest ./build/3.13-current/python.composed.wasm \
 ```
 
 See `docs/pylon-pyforge.md` for the manifest schema and `~/git/pylon-forge/README.md` for the emitter.
+
+## Size and the strip step
+
+Phase 3 of [`coverage-implementation-plan.md`](coverage-implementation-plan.md)
+made the composed wasm small enough for browser delivery.
+
+`scripts/compose-python-component.sh` runs `wasm-tools strip` on the wac-plug
+output when `[build].strip_composed = true` (the default in
+`profiles/3.14-current.toml`). The strip removes:
+
+- DWARF debug sections (the bulk)
+- the `name` section (function/local name table)
+- the `producers` section (toolchain attribution)
+- the `target_features` section
+- other custom sections marked non-essential
+
+No code or data is touched; runtime behavior is identical.
+
+| Profile | uncompressed | gzip -9 | brotli -11 |
+|---|---:|---:|---:|
+| `3.14-current` (stripped, default) | **17.0 MiB** | **5.07 MiB** | **3.71 MiB** |
+| `3.14-debug` (unstripped) | 42.9 MiB | 15.4 MiB | 10.2 MiB |
+
+The strip step takes about a second on a current laptop. Disable via
+`COMPOSED_STRIP=0` on the make invocation or by switching to
+`PROFILE=3.14-debug` if you need source-mapped traces.
+
+Future strip opportunities (not yet done):
+
+- `wasm-opt -Oz` after strip — could shave another ~5–10% off the code section.
+- Rebuild CPython without compiled-in test modules (`_xxsubinterp`, `_testbuffer`,
+  `_testcapi`, `_xxtestfuzz`, `_testmultiphase`) — Modules/Setup edit.
+- Rebuild CPython with `-Os` (currently `-O2`) — affects the interpreter, not
+  the cap fleet (caps already use `opt-level = "z"`).
 
 ## Debugging
 

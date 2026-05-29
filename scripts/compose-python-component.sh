@@ -76,7 +76,19 @@ command -v wac >/dev/null 2>&1 || { echo "compose-python-component: 'wac' (wac-c
 
 mkdir -p "$OUT_DIR"
 wac plug "$PYW" "${PLUG_ARGS[@]}" -o "$OUT"
-echo "==> $(du -h "$OUT" | cut -f1) $OUT"
+
+# Strip non-essential custom sections (DWARF debug info, name table,
+# producers, target_features). Drops python.composed.wasm from ~43 MiB
+# to ~17 MiB with no behavioral change — the stripped sections only
+# matter for source-mapped debuggers. Opt out via COMPOSED_STRIP=0
+# (debug-symbol builds) or [build].strip_composed = false in the profile.
+if [ "${COMPOSED_STRIP:-1}" = "1" ] && command -v wasm-tools >/dev/null 2>&1; then
+    wasm-tools strip "$OUT" -o "${OUT}.stripped" \
+        && mv "${OUT}.stripped" "$OUT" \
+        && echo "==> $(du -h "$OUT" | cut -f1) $OUT  (stripped)"
+else
+    echo "==> $(du -h "$OUT" | cut -f1) $OUT  (unstripped — COMPOSED_STRIP=0)"
+fi
 
 # Sanity: the compression-dispatcher import is satisfied.
 remaining="$(wasm-tools component wit "$OUT" 2>/dev/null \

@@ -98,6 +98,7 @@ build = profile.get("build", {})
 emit("STATIC_OPENSSL", build.get("static_openssl", False))
 emit("STATIC_ZLIB", build.get("static_zlib", False))
 emit("WITH_V86_POSIX", build.get("with_v86_posix", True))
+emit("COMPOSED_STRIP", build.get("strip_composed", True))
 
 caps = profile.get("capabilities", {})
 # Map TOML key (snake_case) -> the env var the compose script expects.
