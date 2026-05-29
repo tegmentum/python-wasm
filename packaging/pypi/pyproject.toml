@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "python-wasm"
+version = "0.1.0"
+description = "CPython 3.14 interpreter compiled to WebAssembly (WASI Preview 2) — pip-installable launcher"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "PSF-2.0"}
+authors = [{name = "Tegmentum"}]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: WebAssembly",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Interpreters",
+]
+
+[project.urls]
+Homepage = "https://github.com/tegmentum/python-wasm"
+Issues = "https://github.com/tegmentum/python-wasm/issues"
+
+[project.scripts]
+python-wasm = "python_wasm.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+python_wasm = [
+    # Match the tarball layout exactly under data/.
+    "data/bin/python-wasm",
+    "data/lib/python.composed.wasm",
+    "data/lib/python-wasm/*.sh",
+    "data/lib/cpython/**/*",
+    "data/lib/cpython-ext-base/**/*",
+    "data/VERSION",
+]

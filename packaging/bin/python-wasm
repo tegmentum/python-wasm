@@ -1,0 +1,180 @@
+#!/usr/bin/env sh
+# python-wasm — launcher for the WASI Preview 2 CPython interpreter.
+#
+# Resolves the bundled python.composed.wasm relative to its own location
+# (so the same script works from a tarball, brew install, pip install, or
+# Docker image), or honors a user-rebuilt artifact at
+# $PYTHON_WASM_HOME/python.composed.wasm.
+#
+# Subcommands (recognized when the first arg doesn't start with `-`):
+#   rebuild         — recompose python.composed.wasm with installed extensions
+#   stage           — alias for rebuild's discovery step (dry run)
+#   extensions      — list / remove installed extensions
+#   pip <pip-args>  — host pip with --target $PYTHON_WASM_HOME/site-packages
+#   info            — versions, paths, active build digest
+#   doctor          — sanity check
+#   version         — print version and exit
+#   --help, -h      — usage
+#
+# Anything else (including the standard -c, -m, script-path forms) gets
+# passed through to wasmtime + python.composed.wasm.
+set -eu
+
+# --- resolve install layout -------------------------------------------------
+
+# Resolve absolute path of this script, following symlinks (POSIX-safe).
+script="$0"
+while [ -L "$script" ]; do
+    target="$(readlink "$script")"
+    case "$target" in
+        /*) script="$target" ;;
+        *)  script="$(dirname "$script")/$target" ;;
+    esac
+done
+BIN_DIR="$(cd "$(dirname "$script")" && pwd)"
+PREFIX="$(cd "$BIN_DIR/.." && pwd)"
+
+# Bundled wasm + sources live under $PREFIX/lib/ for every channel:
+# the tarball / brew / Docker put it there directly; the pip wheel
+# stages the same layout under <package>/data/ so prefix=data/ and
+# $PREFIX/lib/ resolves identically.
+if [ -f "$PREFIX/lib/python.composed.wasm" ]; then
+    BUNDLE_DIR="$PREFIX/lib"
+else
+    echo "python-wasm: bundled python.composed.wasm not found at $PREFIX/lib/" >&2
+    exit 1
+fi
+
+# User-rebuilt artifact (output of `python-wasm rebuild`) takes precedence.
+PYTHON_WASM_HOME="${PYTHON_WASM_HOME:-$HOME/.python-wasm}"
+if [ -f "$PYTHON_WASM_HOME/python.composed.wasm" ]; then
+    COMPOSED="$PYTHON_WASM_HOME/python.composed.wasm"
+else
+    COMPOSED="$BUNDLE_DIR/python.composed.wasm"
+fi
+COMPOSED="${PYTHON_WASM:-$COMPOSED}"   # explicit env override always wins
+
+# --- subcommand dispatch ----------------------------------------------------
+
+usage() {
+    cat <<EOF
+Usage: python-wasm [SUBCOMMAND | OPTIONS]
+
+Run code in WASI-Preview-2 CPython.
+
+SUBCOMMANDS
+  rebuild              recompose python.composed.wasm with installed extensions
+  stage                show extensions that would be staged on rebuild
+  extensions list      print installed extensions
+  extensions remove N  uninstall an extension
+  pip <pip-args>...    pip install into the python-wasm site-packages
+  info                 versions, paths, active build digest
+  doctor               sanity check the install
+  version              print version and exit
+
+OPTIONS (anything not a subcommand is passed through to the interpreter):
+  -c CODE              execute CODE
+  -m MODULE            run library module as a script
+  SCRIPT [ARGS...]     run SCRIPT
+
+ENV
+  PYTHON_WASM          override the composed wasm artifact path
+  PYTHON_WASM_HOME     install root (default ~/.python-wasm)
+  PYTHON_WASM_OFFLINE  drop -S inherit-network + -S allow-ip-name-lookup
+EOF
+}
+
+dispatch_subcommand() {
+    case "$1" in
+        rebuild|stage|extensions|info|doctor|pip)
+            cmd="$1"; shift
+            helper="$BUNDLE_DIR/python-wasm/$cmd.sh"
+            if [ ! -x "$helper" ]; then
+                echo "python-wasm: $cmd helper missing at $helper" >&2
+                exit 2
+            fi
+            exec "$helper" "$@"
+            ;;
+        version)
+            if [ -f "$PREFIX/VERSION" ]; then
+                cat "$PREFIX/VERSION"
+            elif [ -f "$BUNDLE_DIR/VERSION" ]; then
+                cat "$BUNDLE_DIR/VERSION"
+            else
+                echo "python-wasm (version unknown)"
+            fi
+            exit 0
+            ;;
+        --help|-h|help)
+            usage
+            exit 0
+            ;;
+    esac
+}
+
+# Only dispatch if the first arg looks like a subcommand (no leading dash,
+# no .py suffix, doesn't exist as a file in cwd).
+if [ $# -gt 0 ]; then
+    first="$1"
+    case "$first" in
+        -*|*.py) ;;
+        *)
+            if [ ! -f "$first" ]; then
+                dispatch_subcommand "$@"
+            fi
+            ;;
+    esac
+fi
+
+# --- run python.composed.wasm via wasmtime ---------------------------------
+
+command -v wasmtime >/dev/null 2>&1 || {
+    cat >&2 <<EOF
+python-wasm: wasmtime is required but not on PATH.
+
+Install it via one of:
+  brew install wasmtime
+  curl https://wasmtime.dev/install.sh -sSf | bash
+  scoop install wasmtime
+
+Then re-run this command.
+EOF
+    exit 127
+}
+
+# Stdlib + sysconfig live under the install prefix's bundled cpython tree.
+# In a tarball / brew install they're at lib/cpython/; in the pip layout
+# they're at data/cpython/.
+if [ -d "$BUNDLE_DIR/cpython" ]; then
+    CPYTHON_DIR="$BUNDLE_DIR/cpython"
+else
+    echo "python-wasm: bundled cpython source tree missing at $BUNDLE_DIR/cpython" >&2
+    exit 1
+fi
+
+# Find the sysconfig dir (one per minor version under cross-build/.../build/).
+LIBDIR_GLOB="$CPYTHON_DIR"/cross-build/wasm32-wasip2/build/lib.wasi-wasm32-*
+LIBDIR_BN="$(basename "$(ls -d $LIBDIR_GLOB 2>/dev/null | head -1)")"
+SYSCONF="/cross-build/wasm32-wasip2/build/$LIBDIR_BN"
+
+# Writable site-packages on the host side; mounted into the guest.
+mkdir -p "$PYTHON_WASM_HOME/site-packages"
+
+PIP_WHEEL_PATH="/Lib/ensurepip/_bundled/pip-25.3-py3-none-any.whl"
+PYTHONPATH="$PIP_WHEEL_PATH:/site-packages:$SYSCONF:/Lib"
+
+if [ -n "${PYTHON_WASM_OFFLINE:-}" ]; then
+    NETWORK_FLAGS=""
+else
+    NETWORK_FLAGS="-S inherit-network -S allow-ip-name-lookup"
+fi
+
+# shellcheck disable=SC2086
+exec wasmtime run \
+    --wasm max-wasm-stack=16777216 \
+    $NETWORK_FLAGS \
+    --dir "$CPYTHON_DIR::/" \
+    --dir "$PYTHON_WASM_HOME/site-packages::/site-packages" \
+    --env "PYTHONPATH=$PYTHONPATH" \
+    --env "PYTHONUSERBASE=/site-packages" \
+    "$COMPOSED" "$@"
