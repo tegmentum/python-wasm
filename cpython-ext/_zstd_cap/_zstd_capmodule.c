@@ -226,49 +226,158 @@ static PyObject *zstd_get_frame_size_py(PyObject *self, PyObject *args, PyObject
 }
 
 
-/* train-dict / finalize-dict / advanced-with-params return clear errors
- * for callers; not yet implemented in zstd-wasm. */
+/* --- train_dict + advanced (raw zstd-param) ----------------------------- */
+
+/* Marshal Python iterable of bytes -> list<list<u8>> WIT type. */
+static int samples_to_list_list_u8(PyObject *samples,
+                                    zstd_cap_import_list_list_u8_t *out)
+{
+    PyObject *seq = PySequence_Fast(samples, "samples must be a sequence of bytes");
+    if (!seq) return -1;
+    Py_ssize_t n = PySequence_Fast_GET_SIZE(seq);
+    out->ptr = (LIST_U8 *) PyMem_Malloc(sizeof(LIST_U8) * (size_t) n);
+    if (!out->ptr) {
+        Py_DECREF(seq); PyErr_NoMemory();
+        return -1;
+    }
+    out->len = (size_t) n;
+    for (Py_ssize_t i = 0; i < n; i++) {
+        PyObject *item = PySequence_Fast_GET_ITEM(seq, i);
+        if (bytes_to_list_u8(item, &out->ptr[i]) < 0) {
+            for (Py_ssize_t j = 0; j < i; j++) PyMem_Free(out->ptr[j].ptr);
+            PyMem_Free(out->ptr);
+            Py_DECREF(seq);
+            return -1;
+        }
+    }
+    Py_DECREF(seq);
+    return 0;
+}
+
+static void list_list_u8_free(zstd_cap_import_list_list_u8_t *l)
+{
+    for (size_t i = 0; i < l->len; i++) PyMem_Free(l->ptr[i].ptr);
+    PyMem_Free(l->ptr);
+}
+
+/* Marshal Python iterable of (id, value) pairs -> list<zstd-param>. */
+static int params_from_pylist(PyObject *params_obj,
+                              zstd_compression_advanced_list_zstd_param_t *out)
+{
+    PyObject *seq = PySequence_Fast(params_obj, "params must be a sequence of (id, value)");
+    if (!seq) return -1;
+    Py_ssize_t n = PySequence_Fast_GET_SIZE(seq);
+    out->ptr = (zstd_compression_advanced_zstd_param_t *)
+        PyMem_Malloc(sizeof(zstd_compression_advanced_zstd_param_t) * (size_t) n);
+    if (!out->ptr) { Py_DECREF(seq); PyErr_NoMemory(); return -1; }
+    out->len = (size_t) n;
+    for (Py_ssize_t i = 0; i < n; i++) {
+        PyObject *pair = PySequence_Fast_GET_ITEM(seq, i);
+        unsigned int id; int value;
+        if (!PyArg_ParseTuple(pair, "Ii", &id, &value)) {
+            PyMem_Free(out->ptr); Py_DECREF(seq); return -1;
+        }
+        out->ptr[i].id = id;
+        out->ptr[i].value = value;
+    }
+    Py_DECREF(seq);
+    return 0;
+}
+
 
 static PyObject *zstd_train_dict_py(PyObject *self, PyObject *args, PyObject *kw)
 {
-    PyErr_SetString(PyExc_NotImplementedError,
-                    "zstd_train_dict not implemented in zstd-wasm yet "
-                    "(requires zstd-safe direct binding)");
-    return NULL;
+    static char *kwl[] = {"samples", "dict_size", NULL};
+    PyObject *samples;
+    unsigned int dict_size;
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "OI:zstd_train_dict",
+                                     kwl, &samples, &dict_size)) return NULL;
+
+    zstd_cap_import_list_list_u8_t samples_l;
+    if (samples_to_list_list_u8(samples, &samples_l) < 0) return NULL;
+
+    LIST_U8 output; STRING err;
+    bool ok = zstd_compression_advanced_train_dict(&samples_l, dict_size, &output, &err);
+    list_list_u8_free(&samples_l);
+
+    if (!ok) return raise_string_err("zstd_train_dict", &err);
+    return list_u8_to_bytes(&output);
 }
 
 static PyObject *zstd_finalize_dict_py(PyObject *self, PyObject *args, PyObject *kw)
 {
+    /* finalize-dict isn't in zstd-wasm's WIT (only train + dict.from-bytes).
+     * train-dict is sufficient for the CPython compression.zstd shim. */
     PyErr_SetString(PyExc_NotImplementedError,
-                    "zstd_finalize_dict not implemented");
+                    "zstd_finalize_dict not exposed by zstd-wasm "
+                    "(use zstd_train_dict instead)");
     return NULL;
 }
 
 static PyObject *zstd_compress_advanced_py(PyObject *self, PyObject *args, PyObject *kw)
 {
-    PyErr_SetString(PyExc_NotImplementedError,
-                    "zstd_compress_advanced (raw zstd-param API) not implemented");
-    return NULL;
+    static char *kwl[] = {"data", "level", "params", NULL};
+    PyObject *data; int level; PyObject *params_obj;
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "OiO:zstd_compress_advanced",
+                                     kwl, &data, &level, &params_obj)) return NULL;
+
+    LIST_U8 input;
+    if (bytes_to_list_u8(data, &input) < 0) return NULL;
+    zstd_compression_advanced_list_zstd_param_t params;
+    if (params_from_pylist(params_obj, &params) < 0) { PyMem_Free(input.ptr); return NULL; }
+
+    LIST_U8 output; STRING err;
+    bool ok = zstd_compression_advanced_compress_advanced(
+        &input, (int32_t) level, &params, &output, &err);
+    PyMem_Free(input.ptr);
+    PyMem_Free(params.ptr);
+
+    if (!ok) return raise_string_err("zstd_compress_advanced", &err);
+    return list_u8_to_bytes(&output);
 }
 
 static PyObject *zstd_decompress_advanced_py(PyObject *self, PyObject *args, PyObject *kw)
 {
-    PyErr_SetString(PyExc_NotImplementedError,
-                    "zstd_decompress_advanced (raw zstd-param API) not implemented");
-    return NULL;
+    static char *kwl[] = {"data", "params", NULL};
+    PyObject *data; PyObject *params_obj;
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "OO:zstd_decompress_advanced",
+                                     kwl, &data, &params_obj)) return NULL;
+
+    LIST_U8 input;
+    if (bytes_to_list_u8(data, &input) < 0) return NULL;
+    zstd_compression_advanced_list_zstd_param_t params;
+    if (params_from_pylist(params_obj, &params) < 0) { PyMem_Free(input.ptr); return NULL; }
+
+    LIST_U8 output; STRING err;
+    bool ok = zstd_compression_advanced_decompress_advanced(
+        &input, &params, &output, &err);
+    PyMem_Free(input.ptr);
+    PyMem_Free(params.ptr);
+
+    if (!ok) return raise_string_err("zstd_decompress_advanced", &err);
+    return list_u8_to_bytes(&output);
 }
+
+/* The advanced-with-dict variants aren't in zstd-wasm's WIT (the WIT
+ * keeps compress-with-dict and compress-advanced separate). For the
+ * Python shim's combined "advanced + dict" path, the caller would
+ * compress with the dict and then re-decompress with params — or these
+ * stubs raise until a follow-up adds the combined entry points to
+ * zstd-wasm's WIT. */
 
 static PyObject *zstd_compress_advanced_with_dict_py(PyObject *self, PyObject *args, PyObject *kw)
 {
     PyErr_SetString(PyExc_NotImplementedError,
-                    "zstd_compress_advanced_with_dict not implemented");
+                    "zstd_compress_advanced_with_dict: zstd-wasm WIT exposes "
+                    "compress-with-dict OR compress-advanced separately, not combined");
     return NULL;
 }
 
 static PyObject *zstd_decompress_advanced_with_dict_py(PyObject *self, PyObject *args, PyObject *kw)
 {
     PyErr_SetString(PyExc_NotImplementedError,
-                    "zstd_decompress_advanced_with_dict not implemented");
+                    "zstd_decompress_advanced_with_dict: zstd-wasm WIT exposes "
+                    "decompress-with-dict OR decompress-advanced separately, not combined");
     return NULL;
 }
 
