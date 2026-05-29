@@ -1,0 +1,38 @@
+From: python-wasm build
+Subject: Relax 3.12 configure's wasi host glob to accept wasm32-wasip2
+
+3.12's configure has `*-*-wasi)` (exact match) where 3.13's has
+`*-*-wasi*)` (glob). Because `host=wasm32-unknown-wasip2` ends in
+`-wasip2`, not `-wasi`, 3.12 falls through to the catch-all and aborts
+with "cross build not supported for wasm32-unknown-wasip2". 3.13 accepts
+both wasm32-unknown-wasip1 and -wasip2 through the same glob.
+
+This patch is the minimal forward port of 3.13's relaxation. configure
+and configure.ac change identically.
+
+diff --git a/configure b/configure
+index 89edc42..fdbb685 100755
+--- a/configure
++++ b/configure
+@@ -4280,7 +4280,7 @@ then
+ 	*-*-emscripten)
+ 	    ac_sys_system=Emscripten
+ 	    ;;
+-	*-*-wasi)
++	*-*-wasi*)
+ 	    ac_sys_system=WASI
+ 	    ;;
+ 	*)
+diff --git a/configure.ac b/configure.ac
+index 1a02d19..e03023d 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -556,7 +556,7 @@ then
+ 	*-*-emscripten)
+ 	    ac_sys_system=Emscripten
+ 	    ;;
+-	*-*-wasi)
++	*-*-wasi*)
+ 	    ac_sys_system=WASI
+ 	    ;;
+ 	*)

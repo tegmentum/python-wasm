@@ -118,20 +118,39 @@ The same CPython source tree is reused. Only the build flags + compose-step plug
 
 CPython's WASI build tooling has been reshuffled multiple times. The relevant ranges:
 
-| Version | WASI build entrypoint              | wasip2 support               | Status here          |
-|---------|------------------------------------|------------------------------|----------------------|
-| 3.14+   | `Tools/wasm/wasi/__main__.py`      | yes (with our patch)         | **supported**        |
-| 3.13    | `Tools/wasm/wasi.py` (single file) | yes (with our patch)         | **supported**        |
-| 3.12    | `Tools/wasm/wasm_build.py`         | **no** (hardcodes wasip1)    | not supported        |
-| 3.11    | `Tools/wasm/wasm_build.py`         | **no** (hardcodes wasip1)    | not supported        |
-| ≤3.10   | (no WASI tooling)                  | n/a                          | not supported        |
+| Version | WASI build entrypoint              | wasip2 support                    | Status here          |
+|---------|------------------------------------|-----------------------------------|----------------------|
+| 3.14+   | `Tools/wasm/wasi/__main__.py`      | yes (with our patch)              | **supported**        |
+| 3.13    | `Tools/wasm/wasi.py` (single file) | yes (with our patch)              | **supported**        |
+| 3.12    | (backported `Tools/wasm/wasi.py`)  | yes (Phase 7 — backport + configure glob) | **supported** (2026-05-29) |
+| 3.11    | `Tools/wasm/wasm_build.py`         | **no** (hardcodes wasip1)         | not supported        |
+| ≤3.10   | (no WASI tooling)                  | n/a                                | not supported        |
 
-3.13 is the floor. Older versions used a different WASI build pipeline (`wasm_build.py`) that hardcodes `wasm32-unknown-wasi` (WASI Preview 1, core wasm + WASI imports). Our cap composition needs Preview 2 components, which `wasm_build.py` doesn't emit. Supporting 3.12 / 3.11 would require:
+3.12 became supported via Phase 7 of
+[`coverage-implementation-plan.md`](coverage-implementation-plan.md). Two
+small patches make it work, both shipped under `patches/3.12/`:
 
-1. **Backporting 3.13's `wasi.py`** into the older trees as a per-version patch. The single-file form is self-contained but depends on configure.ac and config.site shapes that may differ.
-2. **OR** building as wasip1 and using `wasm-tools component new <module>.wasm --adapt wasi_snapshot_preview1.command.wasm` to wrap into a component. The wasi-preview1-adapter is shipped with wasi-sdk. Composition would then mostly work; runtime semantics may differ in edge cases.
+1. **`0001-backport-wasi-py.patch`** — drops 3.13's
+   `Tools/wasm/wasi.py` into the 3.12 tree verbatim. The file ships with
+   both wasip2-targeting fixes we land on 3.13 (explicit
+   `--target=wasm32-wasip2` for clang, non-fatal smoke test).
+2. **`0002-configure-accept-wasip2.patch`** — relaxes 3.12's
+   `*-*-wasi)` host check to the `*-*-wasi*)` glob 3.13 uses, so
+   `wasm32-unknown-wasip2` is accepted. One-character change in
+   `configure` + `configure.ac`.
 
-Neither path has been attempted in this repo. Empirically the walk-back finds 3.13 to be the boundary.
+`install-python-shims` silently skips `Lib/compression/zstd/` on 3.12
+(added in 3.14). The `bz2.py` / `lzma.py` shims try the 3.14 path
+(`compression._common._streams`) first and fall back to the
+3.12/3.13 location (`_compression`).
+
+3.11 and earlier remain unsupported — their `Tools/wasm/wasm_build.py`
+hardcodes wasip1 (core wasm + WASI imports) and our cap composition
+needs Preview 2 components. The wasm-tools component adapter path
+(building wasip1 + wrapping with `wasm-tools component new --adapt`) is
+an option but hasn't been attempted; runtime semantics may differ.
+
+Empirically the walk-back floor is now 3.12.
 
 Likewise the stdlib `Lib/` reshuffles between minors (e.g., `compression.zstd` added in 3.14; `Lib/_compression.py` moved to `Lib/compression/_common/_streams.py` in 3.14). Patches + shim install rules are version-keyed:
 

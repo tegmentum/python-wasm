@@ -1,5 +1,11 @@
 # Supporting older CPython versions in python-wasm
 
+> **Update 2026-05-29 — Phase 7 of [`coverage-implementation-plan.md`](coverage-implementation-plan.md):**
+> 3.12 is now buildable via two `patches/3.12/*.patch` files (backport
+> of 3.13's `Tools/wasm/wasi.py` + a one-character configure glob
+> relaxation). The "3.13 is the floor" framing below predates this
+> work; the actual floor is now 3.12.13.
+
 A decision doc on whether to invest in building CPython 3.11 / 3.12 (and below) into the python-wasm cap-composition pipeline. Captured 2026-05-28 after a walk-back attempt found the floor at 3.13.
 
 ## TL;DR

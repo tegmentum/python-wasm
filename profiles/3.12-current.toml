@@ -3,13 +3,16 @@ schema = "tegmentum:python-wasm/profile@0.1.0"
 # CPython 3.12.13 build profile. Same options as 3.13-current and
 # 3.14-current; only the Python version changes.
 #
-# STATUS: **NOT BUILDABLE** as of 2026-05-28. 3.12 uses
-# Tools/wasm/wasm_build.py which hardcodes wasm32-unknown-wasi (WASI
-# Preview 1, core wasm). Our cap composition needs Preview 2 components
-# and wasm_build.py doesn't emit them. The profile is kept on disk to
-# document the version + serve as a starting point if/when someone
-# backports 3.13's wasi.py (or wires an adapter via wasm-tools
-# component new --adapt). See docs/build-profiles.md.
+# STATUS: **BUILDABLE** as of 2026-05-29 via Phase 7 of
+# docs/coverage-implementation-plan.md. Two patches make it work:
+#   patches/3.12/0001-backport-wasi-py.patch — drops 3.13's
+#     Tools/wasm/wasi.py into the 3.12 tree.
+#   patches/3.12/0002-configure-accept-wasip2.patch — relaxes
+#     configure's `*-*-wasi)` host check to the `*-*-wasi*)` glob 3.13
+#     uses, so wasm32-unknown-wasip2 is accepted.
+# install-python-shims skips Lib/compression/zstd/ on 3.12 (added in
+# 3.14). bz2.py / lzma.py shims now try the 3.14 path first, fall back
+# to 3.12/3.13's _compression module.
 
 [meta]
 description = "CPython 3.12.13 — same options as 3.13-current."

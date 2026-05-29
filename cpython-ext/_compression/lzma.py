@@ -63,7 +63,10 @@ __all__ = [
 import io
 import os
 from builtins import open as _builtin_open
-from compression._common import _streams
+try:
+    from compression._common import _streams                    # CPython 3.14+
+except ImportError:
+    import _compression as _streams                              # CPython 3.13/3.12
 
 import _lzma_cap
 

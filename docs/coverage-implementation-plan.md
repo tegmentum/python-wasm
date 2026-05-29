@@ -279,22 +279,68 @@ results with real parallelism — verified at 4x speedup for 8 tasks across
 
 ---
 
-## Phase 7 — Older Python support (deferred; option (a))
+## Phase 7 — Older Python support ✅ DONE (2026-05-29)
 
-Per the 2026-05-28 decision: not investing today. Enter this phase only when triggered.
+Path A from the original framing: backport 3.13's `Tools/wasm/wasi.py`
+into 3.12 + one configure glob fix. Smaller than the plan estimated.
 
-**Entry condition.** A specific user signal that 3.12 (or older) is blocking adoption — not speculative coverage.
+What landed:
 
-**Two paths**, pick one:
+- **`patches/3.12/0001-backport-wasi-py.patch`** — drops 3.13's
+  `Tools/wasm/wasi.py` verbatim into 3.12's `Tools/wasm/`. The copy
+  already has both wasip2-targeting fixes we'd already landed on 3.13
+  (explicit `--target=wasm32-wasip2`, non-fatal smoke test), so it's
+  one self-contained patch instead of three.
+- **`patches/3.12/0002-configure-accept-wasip2.patch`** — relaxes
+  3.12's host check from `*-*-wasi)` (exact) to `*-*-wasi*)` (glob —
+  3.13's form). One character in `configure` + `configure.ac`. Without
+  this, configure aborts with "cross build not supported for
+  wasm32-unknown-wasip2" before the wasi.py orchestration runs.
+- **shim path fallback** in `cpython-ext/_compression/bz2.py` and
+  `lzma.py`. 3.14 moved `Lib/_compression.py` →
+  `Lib/compression/_common/_streams.py`. The shims now try the new
+  path first, fall back to the old one. `compression.zstd` is auto-
+  skipped on 3.12 by `install-python-shims` (the conditional was
+  already there — it's a 3.14+ stdlib module).
+- **`profiles/3.12-current.toml`** — STATUS comment flipped from "NOT
+  BUILDABLE" to BUILDABLE with the two patches' rationale.
 
-- **Path A — backport 3.13's `Tools/wasm/wasi.py` to 3.12.** Self-contained single file, but depends on `configure.ac` and `config.site` shapes that differ across versions. Per-version maintenance.
-- **Path B — wasm-tools component adapter.** Build 3.12 as wasip1 with `Tools/wasm/wasm_build.py`, then wrap with `wasm-tools component new <module>.wasm --adapt wasi_snapshot_preview1.command.wasm`. Composition mostly works; some runtime semantics differ.
+End-to-end verified:
 
-A third option only worth recording for completeness: **Path C — write a new wasip2 build orchestrator targeting 3.12+.** High cost; rejected unless ≥ 2 versions need it.
+```
+$ PROFILE=3.12-current ./scripts/run-python.sh -c '
+  import sys, hashlib, sqlite3, asyncio, gzip, bz2, lzma
+  print("Python:", sys.version.split()[0])
+  print("sha256:", hashlib.sha256(b"x").hexdigest()[:16])
+  print("pbkdf2:", hashlib.pbkdf2_hmac("sha256", b"pw", b"salt", 1000, 16).hex())
+  print("sqlite:", sqlite3.connect(":memory:").execute("SELECT sqlite_version()").fetchone()[0])
+  print("gzip rt:", gzip.decompress(gzip.compress(b"hello")) == b"hello")
+  print("bz2  rt:", bz2.decompress(bz2.compress(b"hello")) == b"hello")
+  print("lzma rt:", lzma.decompress(lzma.compress(b"hello")) == b"hello")
+  async def f(): await asyncio.sleep(0); return 42
+  print("asyncio:", asyncio.run(f()))
+  '
+Python: 3.12.13
+sha256: 2d711642b726b044
+pbkdf2: 0a38253555ce37f5c72a6b703f996814
+sqlite: 3.53.1
+gzip rt: True
+bz2  rt: True
+lzma rt: True
+asyncio: 42
+```
 
-`profiles/3.12-current.toml` already exists as the placeholder; pick a path, follow `docs/build-profiles.md` "Per-version patches" section, and add `patches/3.12/*.patch`.
+3.13 and 3.14 reverified concurrently — the shim's fallback doesn't
+regress them (both still build, compose, and run all the same probes).
 
-**Exit criterion.** `make python-composed PROFILE=3.12-current` produces an importable composed wasm whose `python -c "print(sys.version)"` reports 3.12.x.
+**Exit criterion met.** `make python-composed PROFILE=3.12-current`
+produces an importable composed wasm; `sys.version` reports 3.12.13.
+
+3.11 and earlier stay unsupported. Their `Tools/wasm/wasm_build.py`
+hardcodes wasip1 (core wasm + WASI imports); our cap composition
+needs Preview 2 components. The wasm-tools component-adapter path
+(Path B in the original plan) is still an option if a 3.11 ask
+emerges, but hasn't been attempted.
 
 ---
 
