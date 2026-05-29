@@ -77,6 +77,9 @@ extern void __wasm_import_zstd_compression_advanced_decompress_with_dict(uint8_t
 __attribute__((__import_module__("zstd:compression/advanced@0.1.0"), __import_name__("train-dict")))
 extern void __wasm_import_zstd_compression_advanced_train_dict(uint8_t *, size_t, int32_t, uint8_t *);
 
+__attribute__((__import_module__("zstd:compression/advanced@0.1.0"), __import_name__("finalize-dict")))
+extern void __wasm_import_zstd_compression_advanced_finalize_dict(uint8_t *, size_t, uint8_t *, size_t, int32_t, int32_t, uint8_t *);
+
 __attribute__((__import_module__("zstd:compression/advanced@0.1.0"), __import_name__("get-frame-size")))
 extern void __wasm_import_zstd_compression_advanced_get_frame_size(uint8_t *, size_t, uint8_t *);
 
@@ -85,6 +88,12 @@ extern void __wasm_import_zstd_compression_advanced_compress_advanced(uint8_t *,
 
 __attribute__((__import_module__("zstd:compression/advanced@0.1.0"), __import_name__("decompress-advanced")))
 extern void __wasm_import_zstd_compression_advanced_decompress_advanced(uint8_t *, size_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("zstd:compression/advanced@0.1.0"), __import_name__("compress-advanced-with-dict")))
+extern void __wasm_import_zstd_compression_advanced_compress_advanced_with_dict(uint8_t *, size_t, int32_t, uint8_t *, size_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("zstd:compression/advanced@0.1.0"), __import_name__("decompress-advanced-with-dict")))
+extern void __wasm_import_zstd_compression_advanced_decompress_advanced_with_dict(uint8_t *, size_t, uint8_t *, size_t, int32_t, uint8_t *);
 
 // Canonical ABI intrinsics
 
@@ -594,6 +603,33 @@ bool zstd_compression_advanced_train_dict(zstd_cap_import_list_list_u8_t *sample
   }
 }
 
+bool zstd_compression_advanced_finalize_dict(zstd_cap_import_list_u8_t *dict_content, zstd_cap_import_list_list_u8_t *samples, uint32_t dict_size, int32_t level, zstd_cap_import_list_u8_t *ret, zstd_cap_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_zstd_compression_advanced_finalize_dict((uint8_t *) (*dict_content).ptr, (*dict_content).len, (uint8_t *) (*samples).ptr, (*samples).len, (int32_t) (dict_size), level, ptr);
+  zstd_compression_advanced_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (zstd_cap_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (zstd_cap_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
 bool zstd_compression_advanced_get_frame_size(zstd_cap_import_list_u8_t *frame, uint64_t *ret, zstd_cap_import_string_t *err) {
   __attribute__((__aligned__(8)))
   uint8_t ret_area[(8+2*sizeof(void*))];
@@ -653,6 +689,60 @@ bool zstd_compression_advanced_decompress_advanced(zstd_cap_import_list_u8_t *in
   uint8_t ret_area[(3*sizeof(void*))];
   uint8_t *ptr = (uint8_t *) &ret_area;
   __wasm_import_zstd_compression_advanced_decompress_advanced((uint8_t *) (*input).ptr, (*input).len, (uint8_t *) (*params).ptr, (*params).len, ptr);
+  zstd_compression_advanced_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (zstd_cap_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (zstd_cap_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool zstd_compression_advanced_compress_advanced_with_dict(zstd_cap_import_list_u8_t *input, int32_t level, zstd_compression_advanced_list_zstd_param_t *params, zstd_compression_advanced_borrow_zstd_dict_t dict, zstd_cap_import_list_u8_t *ret, zstd_cap_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_zstd_compression_advanced_compress_advanced_with_dict((uint8_t *) (*input).ptr, (*input).len, level, (uint8_t *) (*params).ptr, (*params).len, (dict).__handle, ptr);
+  zstd_compression_advanced_result_list_u8_string_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (zstd_cap_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      result.val.err = (zstd_cap_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool zstd_compression_advanced_decompress_advanced_with_dict(zstd_cap_import_list_u8_t *input, zstd_compression_advanced_list_zstd_param_t *params, zstd_compression_advanced_borrow_zstd_dict_t dict, zstd_cap_import_list_u8_t *ret, zstd_cap_import_string_t *err) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_zstd_compression_advanced_decompress_advanced_with_dict((uint8_t *) (*input).ptr, (*input).len, (uint8_t *) (*params).ptr, (*params).len, (dict).__handle, ptr);
   zstd_compression_advanced_result_list_u8_string_t result;
   switch ((int32_t) *((uint8_t*) (ptr + 0))) {
     case 0: {

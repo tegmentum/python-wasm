@@ -196,6 +196,14 @@ extern bool zstd_compression_advanced_decompress_with_dict(zstd_cap_import_list_
 // Train a dictionary from a set of samples. Returns the raw dict
 // bytes; wrap in zstd-dict to use.
 extern bool zstd_compression_advanced_train_dict(zstd_cap_import_list_list_u8_t *samples, uint32_t dict_size, zstd_cap_import_list_u8_t *ret, zstd_cap_import_string_t *err);
+// Refine a custom-content dictionary into a proper zstd dictionary
+// (libzstd's ZDICT_finalizeDictionary). Takes a hand-curated dict
+// body and adds statistics computed from samples. Returns the
+// finalized dictionary bytes ready to wrap with `zstd-dict.new`.
+// Useful for callers with domain knowledge about typical bytes who
+// want the standard dict header + frequency tables computed for
+// their workload.
+extern bool zstd_compression_advanced_finalize_dict(zstd_cap_import_list_u8_t *dict_content, zstd_cap_import_list_list_u8_t *samples, uint32_t dict_size, int32_t level, zstd_cap_import_list_u8_t *ret, zstd_cap_import_string_t *err);
 // Compressed size of the first frame in `frame` (ZSTD_findFrameCompressedSize).
 extern bool zstd_compression_advanced_get_frame_size(zstd_cap_import_list_u8_t *frame, uint64_t *ret, zstd_cap_import_string_t *err);
 // Advanced compress: apply ZSTD_CCtx_setParameter calls before
@@ -204,6 +212,14 @@ extern bool zstd_compression_advanced_get_frame_size(zstd_cap_import_list_u8_t *
 extern bool zstd_compression_advanced_compress_advanced(zstd_cap_import_list_u8_t *input, int32_t level, zstd_compression_advanced_list_zstd_param_t *params, zstd_cap_import_list_u8_t *ret, zstd_cap_import_string_t *err);
 // Advanced decompress.
 extern bool zstd_compression_advanced_decompress_advanced(zstd_cap_import_list_u8_t *input, zstd_compression_advanced_list_zstd_param_t *params, zstd_cap_import_list_u8_t *ret, zstd_cap_import_string_t *err);
+// Advanced compress + dictionary in one call. Equivalent to
+// compress-advanced plus a ZSTD_CCtx_loadDictionary before the
+// compress step. Lets callers tune the codec parameters AND use
+// a trained dictionary on the same payload, which the split
+// compress-advanced / compress-with-dict paths can't do alone.
+extern bool zstd_compression_advanced_compress_advanced_with_dict(zstd_cap_import_list_u8_t *input, int32_t level, zstd_compression_advanced_list_zstd_param_t *params, zstd_compression_advanced_borrow_zstd_dict_t dict, zstd_cap_import_list_u8_t *ret, zstd_cap_import_string_t *err);
+// Advanced decompress + dictionary in one call.
+extern bool zstd_compression_advanced_decompress_advanced_with_dict(zstd_cap_import_list_u8_t *input, zstd_compression_advanced_list_zstd_param_t *params, zstd_compression_advanced_borrow_zstd_dict_t dict, zstd_cap_import_list_u8_t *ret, zstd_cap_import_string_t *err);
 
 // Helper Functions
 

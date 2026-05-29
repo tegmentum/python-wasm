@@ -114,6 +114,17 @@ interface advanced {
     train-dict: func(samples: list<list<u8>>, dict-size: u32)
                     -> result<list<u8>, string>;
 
+    /// Refine a custom-content dictionary into a proper zstd dictionary
+    /// (libzstd's ZDICT_finalizeDictionary). Takes a hand-curated dict
+    /// body and adds statistics computed from samples. Returns the
+    /// finalized dictionary bytes ready to wrap with `zstd-dict.new`.
+    /// Useful for callers with domain knowledge about typical bytes who
+    /// want the standard dict header + frequency tables computed for
+    /// their workload.
+    finalize-dict: func(dict-content: list<u8>, samples: list<list<u8>>,
+                        dict-size: u32, level: s32)
+                       -> result<list<u8>, string>;
+
     /// Compressed size of the first frame in `frame` (ZSTD_findFrameCompressedSize).
     get-frame-size: func(frame: list<u8>) -> result<u64, string>;
 
@@ -127,6 +138,22 @@ interface advanced {
     /// Advanced decompress.
     decompress-advanced: func(input: list<u8>, params: list<zstd-param>)
                             -> result<list<u8>, string>;
+
+    /// Advanced compress + dictionary in one call. Equivalent to
+    /// compress-advanced plus a ZSTD_CCtx_loadDictionary before the
+    /// compress step. Lets callers tune the codec parameters AND use
+    /// a trained dictionary on the same payload, which the split
+    /// compress-advanced / compress-with-dict paths can't do alone.
+    compress-advanced-with-dict: func(input: list<u8>, level: s32,
+                                      params: list<zstd-param>,
+                                      dict: borrow<zstd-dict>)
+                                     -> result<list<u8>, string>;
+
+    /// Advanced decompress + dictionary in one call.
+    decompress-advanced-with-dict: func(input: list<u8>,
+                                        params: list<zstd-param>,
+                                        dict: borrow<zstd-dict>)
+                                       -> result<list<u8>, string>;
 }
 
 interface info {
