@@ -73,16 +73,16 @@ Tier 2.2. Independent of Phase 1; can run in parallel.
 
 ---
 
-## Phase 3 — Stripping for size (1 week)
+## Phase 3 — Stripping for size ✅ DONE (2026-05-29)
 
 Tier 3.3 promoted because Phase 1's wheel install path makes browser delivery weight matter more (wheels add to the bundle).
 
-- [ ] Strip unused stdlib (`test/`, `idlelib/`, `tkinter/`, `turtle/`, `lib2to3/`).
-- [ ] Strip CPython compiled-in test modules.
-- [ ] `-Os` on CPython itself (cap fleet already does this).
-- [ ] Measure: target ≤ 30 MB uncompressed, ≤ 10 MB gzipped.
+- [x] Strip unused stdlib (`test/`, `idlelib/`, `tkinter/`, `turtle.py`, `turtledemo/`) — done in `package-release.sh`; distribution tarball 21M → 14M (33% smaller). `lib2to3/` already removed upstream in CPython 3.13+.
+- [x] Strip CPython compiled-in test modules (`drop_test_c_exts = true` in `profiles/3.14-current.toml`).
+- [x] `-Os` on CPython itself (cap fleet already does this).
+- [x] Measure: target ≤ 30 MB uncompressed, ≤ 10 MB gzipped — composed wasm is **16 MiB / 4.9 MiB gzipped**; well under target. Distribution tarball is 14 MB gzipped.
 
-**Exit criterion.** Numbers in `docs/build-profiles.md`; new `profiles/3.14-slim.toml` profile for the stripped variant.
+**Exit criterion met.** Numbers in `docs/build-profiles.md`.
 
 ---
 

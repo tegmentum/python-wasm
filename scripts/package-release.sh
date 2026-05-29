@@ -57,6 +57,18 @@ BUNDLED_CPYTHON="$ROOT/lib/cpython"
 mkdir -p "$BUNDLED_CPYTHON/Lib" "$BUNDLED_CPYTHON/cross-build/$HOST_TRIPLE/build"
 
 cp -R "$CPYTHON_DIR/Lib"/ "$BUNDLED_CPYTHON/Lib/"
+
+# Phase 3 strip — remove stdlib dirs that wasi-p2 can't use anyway:
+#   test/       — CPython's own test suite (36 MB)
+#   tkinter/    — Tk GUI (no display in wasi)
+#   turtle.py + turtledemo/ — Tk-dependent
+#   idlelib/    — Tk-based IDE
+# ensurepip/_bundled/pip-*.whl stays — run-python.sh PYTHONPATH expects it.
+# unittest/ stays — pip imports it during install.
+for d in test tkinter turtle.py turtledemo idlelib; do
+    rm -rf "$BUNDLED_CPYTHON/Lib/$d"
+done
+
 LIBDIR_DIR="$(ls -d "$CPYTHON_DIR"/cross-build/"$HOST_TRIPLE"/build/lib.wasi-wasm32-* | head -1)"
 cp -R "$LIBDIR_DIR" "$BUNDLED_CPYTHON/cross-build/$HOST_TRIPLE/build/"
 
