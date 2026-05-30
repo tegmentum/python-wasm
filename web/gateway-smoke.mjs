@@ -7,30 +7,26 @@
 //
 //   node web/gateway-smoke.mjs
 //
-// CURRENT STATUS (2026-05-30): TCP-tunnel send path works end-to-end.
+// CURRENT STATUS (2026-05-30): END-TO-END WORKING.
 //
-// Verified for plain HTTP via a local upstream (test-upstream.mjs):
-//   wasm Python `s.connect((host, port))`     -> tunneled, ok
-//   wasm Python `s.sendall(b"GET ...")`        -> reaches upstream
-//   upstream sends 200 response + Connection:close
-//   gateway forwards response bytes back via WS
-//   wasm Python `s.recv(4096)`                 -> TIMES OUT (bug)
-//
-// The polyfill's WebSocket.onmessage doesn't fire for any frame after
-// the connect-handshake (HelloAck + OpenOk arrive fine; the post-
-// connect inbound DATA frame does not). Strongly suggests Node 25's
-// `globalThis.WebSocket` isn't delivering messages while the wasm is
-// suspended on a JSPI-backed import -- the event loop is processing
-// other tasks (timers fire) but WS callbacks stay queued.
-//
-// To-investigate: try `ws` package instead of globalThis.WebSocket in
-// TunnelManager; or check if Node 25's promising/Suspending integration
-// has known issues with stream-like callbacks.
+//   wasm Python `s.connect((host, port))`   -> tunneled, ok
+//   wasm Python `s.sendall(b"GET ...")`      -> reaches upstream
+//   upstream sends 200 + Connection:close
+//   gateway forwards response back via WS
+//   wasm Python `s.recv(4096)`               -> 133 bytes of response,
+//                                               body "hello, wasm!"
 //
 // Requires wasi-polyfill commits: 6e3d429 (createTcpSocket signature)
 // + 412b84b (canonical-ABI connect lifecycle + io blocking-op async +
-// tuple-2-resource WRAP) + c0f938a (synthetic localAddress so
-// __wasilibc_map_socket_error doesn't trap on InvalidState).
+// tuple-2-resource WRAP) + c0f938a (synthetic localAddress) +
+// 1e94091 (real readiness Pollable for input-stream subscribe;
+// previously always-ready -> wasm tight-spin -> host event-loop
+// starved -> 4 GB OOM).
+//
+// Run with `WASI_POLYFILL_USE_WS_PKG=1` to use the `ws` npm package
+// as the WebSocket impl (instead of node's built-in globalThis.WebSocket).
+// Both implementations work; the env var is a knob in case JSPI vs.
+// node-WebSocket interactions ever regress.
 
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:http'
