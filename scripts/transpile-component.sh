@@ -29,11 +29,25 @@ OUTPUT_DIR="$PROJECT_DIR/web/public/python-component"
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
 
+# JSPI is required for the ws-gateway path: pollable.block, the io
+# blocking ops, and input-stream.read all need WebAssembly.Suspending
+# so the wasm guest yields the host event loop while waiting on the
+# tunneled TCP roundtrip. --async-wasi-imports covers the standard
+# blocking ones; --async-imports explicitly adds input-stream.read
+# (spec'd non-blocking, but Python's recv translates to a tight
+# read-poll loop in wasi-libc -- without the yield the host event
+# loop is starved, inbound WS frames queue forever, and node OOMs).
+# Without these flags the same wasm bundle still works for non-network
+# code (cap-routed compression / sqlite / hashlib stay sync-fast).
 npx --prefix "$PROJECT_DIR/web" jco transpile "$PYTHON_WASM" \
     -o "$OUTPUT_DIR" \
     --no-nodejs-compat \
     --instantiation async \
-    --name python
+    --name python \
+    --async-mode jspi \
+    --async-wasi-imports \
+    --async-wasi-exports \
+    --async-imports 'wasi:io/streams@0.2.6#[method]input-stream.read'
 
 # Workaround for an upstream jco/wac issue: jco's emitted
 # `definedResourceTables` array doesn't include the RTIDs of resources

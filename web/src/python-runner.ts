@@ -255,7 +255,11 @@ export async function runPython(code: string): Promise<RunResult> {
       WebAssembly.compileStreaming(fetch(`/python-component/${name}`))
 
     const instance = await pythonModule.instantiate(getCoreModule, imports)
-    instance.run.run()
+    // The transpile uses `--async-mode jspi` so wasi:cli/run is wrapped
+    // in WebAssembly.promising and returns a Promise. We MUST await it,
+    // otherwise the wasm guest is left running in the background and
+    // every subsequent run starts before the previous one finishes.
+    await instance.run.run()
   } catch (e: unknown) {
     if (e instanceof ComponentExitError) {
       exitCode = e.status.code
