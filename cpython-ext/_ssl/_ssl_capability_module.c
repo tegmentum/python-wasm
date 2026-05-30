@@ -441,30 +441,48 @@ static int SSLContext_set_verify_mode(SSLContextObject *self, PyObject *value, v
 /* Forward to SSLSocket constructor — defined below. */
 static PyObject *SSLSocket_new_for_context(SSLContextObject *ctx,
                                            const char *host, uint16_t port,
-                                           const char *server_hostname);
+                                           const char *server_hostname,
+                                           const uint8_t *session_bytes,
+                                           Py_ssize_t session_len);
 
-/* wrap_socket(host: str, port: int, server_hostname: str | None) -> _SSLSocket
+/* wrap_socket(host: str, port: int, server_hostname: str | None,
+ *             session: bytes | None) -> _SSLSocket
  *
  * Departure from CPython: CPython's wrap_socket takes a `socket.socket`
  * argument and consumes its fd; openssl-component owns its TCP internally so
  * we take host/port directly. ssl.py-side compatibility shim translates the
- * old signature into ours. */
+ * old signature into ours.
+ *
+ * `session` is an opaque ticket previously returned by an SSLSocket's
+ * .session_ticket() — passed straight to client-config.resume-session for
+ * TLS 1.3 session resumption (skips the full handshake when the server
+ * accepts the ticket). */
 static PyObject *SSLContext_wrap_socket(SSLContextObject *self, PyObject *args, PyObject *kwds)
 {
     const char *host;
     int port;
     const char *server_hostname = NULL;
-    static char *kwlist[] = {"host", "port", "server_hostname", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "si|z:wrap_socket", kwlist,
-                                     &host, &port, &server_hostname)) {
+    Py_buffer session_buf = {0};
+    int has_session = 0;
+    static char *kwlist[] = {"host", "port", "server_hostname", "session", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "si|zy*:wrap_socket", kwlist,
+                                     &host, &port, &server_hostname,
+                                     &session_buf)) {
         return NULL;
     }
+    has_session = (session_buf.buf != NULL);
     if (port < 0 || port > 65535) {
+        if (has_session) PyBuffer_Release(&session_buf);
         PyErr_SetString(PyExc_ValueError, "port out of range");
         return NULL;
     }
-    return SSLSocket_new_for_context(self, host, (uint16_t) port,
-                                     server_hostname ? server_hostname : host);
+    PyObject *r = SSLSocket_new_for_context(
+        self, host, (uint16_t) port,
+        server_hostname ? server_hostname : host,
+        has_session ? (const uint8_t *) session_buf.buf : NULL,
+        has_session ? session_buf.len : 0);
+    if (has_session) PyBuffer_Release(&session_buf);
+    return r;
 }
 
 /* Forward declaration so SSLContext_methods can take the address — the
@@ -589,7 +607,9 @@ static int list_u8_dup(const uint8_t *src, size_t len, ssl_import_list_u8_t *out
 
 static PyObject *SSLSocket_new_for_context(SSLContextObject *ctx,
                                            const char *host, uint16_t port,
-                                           const char *server_hostname)
+                                           const char *server_hostname,
+                                           const uint8_t *session_bytes,
+                                           Py_ssize_t session_len)
 {
     SSLSocketObject *self = PyObject_New(SSLSocketObject, &SSLSocket_Type);
     if (!self) return NULL;
@@ -650,7 +670,20 @@ static PyObject *SSLSocket_new_for_context(SSLContextObject *ctx,
     config.ciphers.is_some = false;
     config.groups.is_some = false;
     config.enable_early_data = false;
-    /* resume_session, keylog: all zero/none from {0} init */
+    /* Optional TLS 1.3 session ticket for resumption. Cap consumes the
+     * bytes verbatim — they're the same blob client.session-ticket()
+     * returned earlier. */
+    config.resume_session.is_some = (session_bytes != NULL && session_len > 0);
+    if (config.resume_session.is_some) {
+        config.resume_session.val.ptr = (uint8_t *) malloc((size_t) session_len);
+        if (!config.resume_session.val.ptr) {
+            free(config.server_name.val.ptr);
+            Py_DECREF(self); PyErr_NoMemory(); return NULL;
+        }
+        memcpy(config.resume_session.val.ptr, session_bytes, (size_t) session_len);
+        config.resume_session.val.len = (size_t) session_len;
+    }
+    /* keylog: zero/none from {0} init */
 
     ssl_import_string_t host_str;
     if (list_u8_dup((const uint8_t *) host, strlen(host),
@@ -899,6 +932,23 @@ static PyObject *SSLSocket_get_server_hostname(SSLSocketObject *self, void *Py_U
     Py_RETURN_NONE;
 }
 
+/* session_ticket() — return the cap's session ticket as bytes (None if
+ * the server didn't issue one). Pass back to wrap_socket(..., session=)
+ * to resume the session and skip the full handshake on TLS 1.3. */
+static PyObject *SSLSocket_session_ticket(SSLSocketObject *self, PyObject *Py_UNUSED(args))
+{
+    if (!self->has_handle) Py_RETURN_NONE;
+    ssl_import_list_u8_t out;
+    openssl_component_tls_borrow_client_t b =
+        openssl_component_tls_borrow_client(self->handle);
+    bool ok = openssl_component_tls_method_client_session_ticket(b, &out);
+    if (!ok) Py_RETURN_NONE;
+    PyObject *r = PyBytes_FromStringAndSize((const char *) out.ptr,
+                                            (Py_ssize_t) out.len);
+    ssl_import_list_u8_free(&out);
+    return r;
+}
+
 /* peer_chain_der() — return the full peer cert chain as a list of bytes
  * (leaf first). Empty list if the handshake hasn't completed or the peer
  * sent no certificate. Cap-side iterates STACK_OF(X509) + i2d_X509. */
@@ -943,6 +993,10 @@ static PyMethodDef SSLSocket_methods[] = {
      "None if the peer didn't send one."},
     {"peer_chain_der",          (PyCFunction) SSLSocket_peer_chain_der,          METH_NOARGS,
      "peer_chain_der() -> list[bytes] — full peer cert chain (leaf first), DER."},
+    {"session_ticket",          (PyCFunction) SSLSocket_session_ticket,          METH_NOARGS,
+     "session_ticket() -> bytes | None — opaque TLS 1.3 ticket the server\n"
+     "issued for resumption; pass to wrap_socket(..., session=...) on the\n"
+     "next connect to skip the full handshake."},
     {"selected_alpn_protocol",  (PyCFunction) SSLSocket_selected_alpn_protocol,  METH_NOARGS,
      "selected_alpn_protocol() -> str | None"},
     {NULL, NULL, 0, NULL}

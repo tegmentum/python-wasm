@@ -87,6 +87,44 @@ class SSLWantWriteError(SSLError):
     ciphertext. Caller should drain its out-BIO to the network and retry."""
 
 
+class SSLSession:
+    """Opaque session-ticket wrapper. Pair with ``SSLContext.wrap_socket
+    (..., session=...)`` to resume a previous TLS 1.3 session and skip
+    the full handshake. Tickets come from
+    ``SSLSocket.session.ticket`` / ``SSLSocket.session_ticket()`` and
+    are good once (the server may rotate).
+
+    Stdlib ``ssl.SSLSession`` is opaque too; equality is by identity
+    here, mirroring the stdlib contract."""
+
+    __slots__ = ("_ticket",)
+
+    def __init__(self, ticket: bytes) -> None:
+        if not isinstance(ticket, (bytes, bytearray, memoryview)):
+            raise TypeError("SSLSession ticket must be bytes-like")
+        self._ticket = bytes(ticket)
+
+    @property
+    def ticket(self) -> bytes:
+        return self._ticket
+
+    @property
+    def has_ticket(self) -> bool:
+        return bool(self._ticket)
+
+    def __bytes__(self) -> bytes:
+        return self._ticket
+
+    def __len__(self) -> int:
+        return len(self._ticket)
+
+    def __bool__(self) -> bool:
+        return bool(self._ticket)
+
+    def __repr__(self) -> str:
+        return f"<SSLSession ticket={len(self._ticket)} bytes>"
+
+
 def _map_ssl_want(exc: BaseException) -> BaseException:
     """Translate the cap's SSL_ERROR_WANT_{READ,WRITE} marker (raised as
     SSLError with a tagged message) into the stdlib's typed exceptions
@@ -288,8 +326,18 @@ class SSLContext(_SSLContextDescriptors):
             raise TypeError("must pass either a socket or host+port")
         if server_hostname is None:
             server_hostname = host
-        inner = self._inner.wrap_socket(host, int(port),
-                                         server_hostname=server_hostname)
+        # session may be an SSLSession wrapper or raw bytes (forward-compat
+        # with callers that stashed `prev.session_ticket()` directly).
+        session_bytes = None
+        if session is not None:
+            session_bytes = session._ticket if isinstance(session, SSLSession) else bytes(session)
+        if session_bytes:
+            inner = self._inner.wrap_socket(host, int(port),
+                                             server_hostname=server_hostname,
+                                             session=session_bytes)
+        else:
+            inner = self._inner.wrap_socket(host, int(port),
+                                             server_hostname=server_hostname)
         return SSLSocket(inner, context=self)
 
     # --- memory-BIO mode (async TLS) ---
@@ -655,6 +703,19 @@ class SSLSocket:
             der = self._inner.peer_cert_der()
             return [der] if der else []
         return chain
+
+    @property
+    def session(self) -> "SSLSession | None":
+        """Stdlib API: an opaque SSLSession the caller can stash and
+        pass back via ``wrap_socket(..., session=...)`` to resume on
+        the next connect. Returns None if the server didn't issue a
+        ticket (e.g. TLS 1.2 without tickets, or session-tickets
+        disabled)."""
+        try:
+            ticket = self._inner.session_ticket()
+        except AttributeError:
+            return None
+        return SSLSession(ticket) if ticket else None
 
     @property
     def server_hostname(self):

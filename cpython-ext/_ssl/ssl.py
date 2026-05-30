@@ -289,9 +289,13 @@ def _stub_class(name: str, reason: str):
     return _Stub
 
 
-SSLSession = _stub_class(
-    "SSLSession",
-    "session resumption — deferred to openssl-component v1.1 per docs/phase-3-tls.md")
+# Real SSLSession: ssl_capability.SSLSession is an opaque bytes-wrapper.
+# Pair with `ctx.wrap_socket(..., session=...)` to resume a TLS 1.3
+# session (cap-side: openssl-component's client-config.resume-session +
+# client.session-ticket()). Sessions are good once — the server may
+# rotate tickets; stash the latest `SSLSocket.session` for the next
+# connect.
+SSLSession = _impl.SSLSession
 
 # Real SSLObject: ssl_capability.SSLObject wraps openssl-component's
 # mem-bio-client. Memory-BIO TLS works as of 2026-05-29; anyio + httpx
