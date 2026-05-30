@@ -25,7 +25,17 @@ A few flags every invocation needs today:
 - `--no-deps` — multi-package install steps currently hang in `Installing collected packages` when there are 2+ wheels (under investigation). Install dependencies one at a time as a workaround.
 - `--no-cache-dir` — pip's HTTP cache hits `os.stat`/`os.utime` calls we don't fully model; cheaper to disable.
 
-For wheel paths that shell out (sdist builds, post-install scripts), use
+For sdist installs (PEP 517 build backend hooks), use
+`./scripts/run-python-with-subprocess.sh -m pip install --no-build-isolation ...`.
+The `--no-build-isolation` flag is mandatory: pip's isolated build path
+spawns a fresh interpreter to install build deps, and our subprocess host
+has no `python` binary to spawn. With `--no-build-isolation`, the PEP
+517 in-process hook (`_in_process.py`) runs inside our Python via a
+subprocess intercept — `pip install markupsafe`, `pip install pyyaml`,
+etc. work end-to-end. Build dependencies (setuptools, wheel) need to
+be installed first via `pip install setuptools wheel`.
+
+For wheel paths that shell out (post-install scripts), use
 `./scripts/run-python-with-subprocess.sh -m pip ...` instead of
 `./scripts/run-python.sh -m pip ...` — the former wires v86-posix-host
 so `subprocess.run` actually fork-execs. See Phase 5 in

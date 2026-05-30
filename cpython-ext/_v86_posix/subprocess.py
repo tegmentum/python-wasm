@@ -245,6 +245,124 @@ def _v86_to_subprocess_error(exc: BaseException, args: Any) -> BaseException:
     return exc
 
 
+def _looks_like_pep517_hook(argv: Sequence[str]) -> bool:
+    """pip's PEP 517 build flow calls
+        <sys.executable> /tmp/.../_in_process.py <hook> <control_dir>
+    to run a backend hook (prepare_metadata_for_build_wheel,
+    build_wheel, ...). The script reads control_dir/input.json,
+    invokes the backend, and writes control_dir/output.json. It's
+    pure-Python and uses files (not pipes) for I/O — safe to execute
+    in-process. Detection is the trailing _in_process.py path plus a
+    recognised hook name."""
+    if len(argv) < 4:
+        return False
+    if not (isinstance(argv[1], str) and argv[1].endswith("_in_process.py")):
+        return False
+    if argv[2] not in {
+        "get_requires_for_build_wheel",
+        "get_requires_for_build_sdist",
+        "get_requires_for_build_editable",
+        "prepare_metadata_for_build_wheel",
+        "prepare_metadata_for_build_editable",
+        "build_wheel",
+        "build_sdist",
+        "build_editable",
+        "_supported_features",
+    }:
+        return False
+    return True
+
+
+def _run_pep517_hook_inprocess(argv: Sequence[str],
+                               env_pairs: Sequence[tuple[str, str]],
+                               cwd: str | None
+                               ) -> tuple[bytes, bytes, int]:
+    """Execute pip's _in_process.py inside this Python process.
+    Returns (stdout_bytes, stderr_bytes, exit_code)."""
+    import io as _io
+    import sys as _sys
+    import traceback as _tb
+
+    script_path = argv[1]
+    hook_args = list(argv[2:])
+
+    saved_argv = _sys.argv
+    saved_stdout = _sys.stdout
+    saved_stderr = _sys.stderr
+    saved_cwd = os.getcwd() if cwd else None
+    saved_env: dict[str, str] = {}
+    new_env_keys: list[str] = []
+    for k, v in env_pairs:
+        if k in os.environ:
+            saved_env[k] = os.environ[k]
+        else:
+            new_env_keys.append(k)
+        os.environ[k] = v
+
+    _sys.stdout = _io.StringIO()
+    _sys.stderr = _io.StringIO()
+    _sys.argv = [script_path] + hook_args
+    if cwd:
+        try:
+            os.chdir(cwd)
+        except OSError:
+            saved_cwd = None  # nothing to restore
+
+    exit_code = 0
+    try:
+        with open(script_path, "rb") as f:
+            src = f.read()
+        ns = {"__name__": "__main__", "__file__": script_path, "__builtins__": __builtins__}
+        try:
+            exec(compile(src, script_path, "exec"), ns)
+        except SystemExit as e:
+            exit_code = e.code if isinstance(e.code, int) else 1
+        except BaseException:
+            _tb.print_exc()
+            exit_code = 1
+    finally:
+        out_bytes = _sys.stdout.getvalue().encode("utf-8", "replace")
+        err_bytes = _sys.stderr.getvalue().encode("utf-8", "replace")
+        _sys.stdout = saved_stdout
+        _sys.stderr = saved_stderr
+        _sys.argv = saved_argv
+        if saved_cwd:
+            try: os.chdir(saved_cwd)
+            except OSError: pass
+        for k, v in saved_env.items():
+            os.environ[k] = v
+        for k in new_env_keys:
+            os.environ.pop(k, None)
+
+    return out_bytes, err_bytes, exit_code
+
+
+class _CompletedSentinel:
+    """Stands in for `_v86_posix.Process` after an in-process hook ran
+    (no real child to wait on). wait()/try_wait()/send_signal use it
+    via duck typing — exit status is already known."""
+
+    __slots__ = ("_code",)
+
+    def __init__(self, code: int) -> None:
+        self._code = int(code)
+
+    def wait(self) -> tuple[str, int]:
+        # _translate_status expects (kind, code). For in-process work
+        # there's no signal path; always 'exited'.
+        return ("exited", self._code)
+
+    def try_wait(self) -> tuple[str, int]:
+        return self.wait()
+
+    def signal(self, *_args, **_kwargs) -> None:
+        pass
+
+    def take_stdin(self): return None
+    def take_stdout(self): return None
+    def take_stderr(self): return None
+
+
 class _StdinBuffer:
     """Phase 3c: deferred-spawn stdin pseudo-stream.
 
@@ -430,10 +548,13 @@ class Popen:
             raise NotImplementedError("preexec_fn is not supported")
         if pass_fds:
             raise NotImplementedError("pass_fds is not supported")
-        if text or encoding is not None or universal_newlines:
-            raise NotImplementedError(
-                "text mode / encoding / universal_newlines require a stdio "
-                "stream wrapping refactor; use bytes-mode via PIPE+communicate")
+        # Text mode is triggered by ANY of text=True / encoding= / errors= /
+        # universal_newlines — matches stdlib. pip's call_subprocess passes
+        # errors='backslashreplace' so its read loop expects str lines.
+        self._text_mode = bool(
+            text or encoding is not None or errors is not None or universal_newlines)
+        self._text_encoding = encoding or "utf-8"
+        self._text_errors = errors or "strict"
 
         self.args = args
         program, argv = _normalise_args(args, shell)
@@ -464,7 +585,26 @@ class Popen:
         self.stderr = None
         self._stdin_tmpfile: str | None = None
 
-        if self._stdin_was_pipe:
+        # PEP 517 in-process intercept. pip routes every sdist build
+        # through `<sys.executable> _in_process.py <hook> <control_dir>`.
+        # Our subprocess host (v86's busybox) has no python to spawn,
+        # AND our sys.executable is empty — exit 127 every time.
+        # The script is pure-Python file-driven (input.json / output.json),
+        # so we can run it in this process and skip the spawn entirely.
+        # The build backend (setuptools.build_meta) must already be
+        # importable from sys.path — `pip install setuptools` first.
+        self._inprocess_hook = _looks_like_pep517_hook(argv)
+        if self._inprocess_hook:
+            self.stdin = _StdinBuffer(self) if self._stdin_was_pipe else None
+            if self._stdout_was_pipe:
+                self.stdout = _DeferredPipe(self, "stdout")
+            if self._stderr_was_pipe:
+                self.stderr = _DeferredPipe(self, "stderr")
+            # If stdin wasn't piped, run now (pip always pipes stdin
+            # for these hooks, but be defensive for other callers).
+            if not self._stdin_was_pipe:
+                self._ensure_spawned()
+        elif self._stdin_was_pipe:
             # Defer spawn. Caller writes to self.stdin; closing triggers
             # _ensure_spawned which routes through the shell-wrapper
             # path with the buffered bytes.
@@ -490,6 +630,21 @@ class Popen:
         as stdin via a regular file (sidesteps the wasmtime
         wasi:filesystem-on-FIFO blocker).
         """
+        # PEP 517 in-process intercept — see _looks_like_pep517_hook
+        # above. Skip the v86 spawn entirely; run the hook script in
+        # this Python and stage the captured stdout/stderr where the
+        # caller's later read() will pick them up.
+        if self._inprocess_hook:
+            out_bytes, err_bytes, exit_code = _run_pep517_hook_inprocess(
+                self._argv, self._env_pairs, self._cwd)
+            self.stdout = (self._wrap_pipe_bytes(out_bytes)
+                           if self._stdout_was_pipe else None)
+            self.stderr = (self._wrap_pipe_bytes(err_bytes)
+                           if self._stderr_was_pipe else None)
+            self.returncode = exit_code
+            # Mark "spawned" so wait()/communicate() short-circuit.
+            self._process = _CompletedSentinel(exit_code)
+            return
         program = self._program
         argv = self._argv
         stdin_kind = self._stdin_kind
@@ -539,9 +694,26 @@ class Popen:
         # readline(); pip's call_subprocess iterates line by line.
         # Wrap via io.BufferedReader on a thin RawIOBase adapter.
         if self._stdout_was_pipe:
-            self.stdout = _wrap_input(self._process.take_stdout())
+            raw = _wrap_input(self._process.take_stdout())
+            self.stdout = self._wrap_text(raw) if self._text_mode else raw
         if self._stderr_was_pipe:
-            self.stderr = _wrap_input(self._process.take_stderr())
+            raw = _wrap_input(self._process.take_stderr())
+            self.stderr = self._wrap_text(raw) if self._text_mode else raw
+
+    def _wrap_text(self, raw):
+        """Wrap a binary BufferedReader in io.TextIOWrapper using the
+        Popen call's encoding/errors. Mirrors stdlib subprocess's
+        text-mode pipe handling."""
+        return _io.TextIOWrapper(raw, encoding=self._text_encoding,
+                                  errors=self._text_errors,
+                                  newline=None,
+                                  write_through=True)
+
+    def _wrap_pipe_bytes(self, data: bytes):
+        """For the in-process intercept path: turn captured bytes into
+        the file-like the caller expects (bytes or text)."""
+        raw = _io.BufferedReader(_io.BytesIO(data))
+        return self._wrap_text(raw) if self._text_mode else raw
 
     def _ensure_spawned(self) -> None:
         """Trigger the deferred spawn if it hasn't happened yet.
