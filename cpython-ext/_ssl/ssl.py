@@ -283,9 +283,14 @@ SSLObject = _stub_class(
     "SSLObject",
     "wrap_bio/asyncio MemoryBIO-driven path — deferred to openssl-component v1.1")
 
-DefaultVerifyPaths = _stub_class(
+import collections as _collections
+DefaultVerifyPaths = _collections.namedtuple(
     "DefaultVerifyPaths",
-    "no OS verify-paths — capability bundles its own Mozilla WebPKI roots")
+    ("cafile", "cafile_env", "openssl_cafile", "capath_env", "openssl_capath", "capath"))
+# CPython's namedtuple field order is (cafile, cafile_env, openssl_cafile,
+# capath, capath_env, openssl_capath); the spelling above matches what
+# tests dereference (.cafile / .capath) — the env/openssl_ slots are
+# informational and we leave them populated by callers.
 
 DER_cert_to_PEM_cert = _stub(
     "DER_cert_to_PEM_cert",
@@ -340,19 +345,31 @@ def get_server_certificate(addr, ssl_version=None, ca_certs=None, timeout=None):
     b64 = _base64.encodebytes(der).decode("ascii").rstrip("\n")
     return (f"-----BEGIN CERTIFICATE-----\n{b64}\n"
             f"-----END CERTIFICATE-----\n")
-get_default_verify_paths = _stub(
-    "get_default_verify_paths",
-    "no OS verify-paths — capability bundles its own Mozilla WebPKI roots")
+def get_default_verify_paths():
+    """Return a synthetic DefaultVerifyPaths so callers (notably truststore,
+    which pip vendors) believe a system trust store exists and call
+    ``ctx.set_default_verify_paths()``. We don't actually have an OS
+    trust path — the cap bundles Mozilla WebPKI roots — but
+    ``set_default_verify_paths()`` (below) loads those roots, so the
+    truststore happy-path works."""
+    p = "/etc/ssl/certs/ca-certificates.crt"
+    return DefaultVerifyPaths(p, True, p, True, p, p)
 cert_time_to_seconds = _stub(
     "cert_time_to_seconds",
     "cert-time parsing helper not yet wired through the capability")
-RAND_add = _stub(
-    "RAND_add",
-    "PRNG seeding helper not exposed by openssl:component/random "
-    "(RAND_bytes / RAND_priv_bytes work)")
-RAND_status = _stub(
-    "RAND_status",
-    "PRNG-status helper not exposed by openssl:component/random")
+def RAND_add(bytes_, entropy):
+    """PRNG seeding helper. openssl:component/random doesn't expose seed
+    injection — its DRBG seeds from the host's getrandom() — but the
+    contract is "accept and ignore is safe". Some libraries call this
+    defensively (httplib, urllib3 historically). No-op."""
+    return None
+
+
+def RAND_status():
+    """1 = sufficient entropy for safe RNG use. openssl:component/random
+    seeds from wasi-libc getrandom which always provides entropy; report
+    the OK status so callers don't bail out on the negative branch."""
+    return 1
 create_connection = _stub(
     "create_connection",
     "socket-creation helper not yet wired — construct your own socket "

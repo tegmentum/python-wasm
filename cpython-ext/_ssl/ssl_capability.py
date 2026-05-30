@@ -103,7 +103,63 @@ def _map_ssl_want(exc: BaseException) -> BaseException:
 # SSLContext — wrapper around _ssl_capability._SSLContext
 # ----------------------------------------------------------------------------
 
-class SSLContext:
+class _SSLContextDescriptors:
+    """Base for ``SSLContext``. Defines the property descriptors that
+    truststore (and any future stdlib-protocol replicator) accesses
+    via ``super(SSLContext, instance).<name>.__set__(...)``.
+
+    truststore's ``SSLContext`` subclasses ``ssl.SSLContext`` and routes
+    setter side effects through ``_original_super_SSLContext.<name>
+    .__set__(self._ctx, value)``. That super-attribute lookup walks the
+    MRO _after_ ``ssl.SSLContext`` — so for the descriptor to be found
+    at all, it has to live on a base class, not on ``SSLContext`` itself.
+
+    CPython's stdlib ``SSLContext`` is ``class SSLContext(_SSLContext)``
+    where ``_SSLContext`` is the C-extension type that owns the
+    getset descriptors. We mirror that layering."""
+
+    @property
+    def verify_mode(self) -> int:
+        return self._inner.verify_mode
+
+    @verify_mode.setter
+    def verify_mode(self, value: int) -> None:
+        self._inner.verify_mode = value
+
+    @property
+    def options(self) -> int:
+        return getattr(self, "_options", 0)
+
+    @options.setter
+    def options(self, value: int) -> None:
+        self._options = int(value)
+
+    @property
+    def verify_flags(self) -> int:
+        return getattr(self, "_verify_flags", 0)
+
+    @verify_flags.setter
+    def verify_flags(self, value: int) -> None:
+        self._verify_flags = int(value)
+
+    @property
+    def maximum_version(self):
+        return getattr(self, "_maximum_version", None)
+
+    @maximum_version.setter
+    def maximum_version(self, value) -> None:
+        self._maximum_version = value
+
+    @property
+    def minimum_version(self):
+        return getattr(self, "_minimum_version", None)
+
+    @minimum_version.setter
+    def minimum_version(self, value) -> None:
+        self._minimum_version = value
+
+
+class SSLContext(_SSLContextDescriptors):
     """Configuration for a TLS connection. Mirrors ``ssl.SSLContext`` for the
     methods/properties most TLS users actually touch."""
 
@@ -114,30 +170,35 @@ class SSLContext:
         # them (with intent) — none affect TLS correctness.
         self.check_hostname        = True
         self.post_handshake_auth   = None   # TLS 1.3 post-handshake mTLS — out of v1 scope
-        self.options               = 0      # opaque option bitmask; no-op in v1
-        self.verify_flags          = 0      # X509 verify-flags bitmask; advisory
-        self.maximum_version       = None   # capability uses TLSv1.3 default
-        self.minimum_version       = None   # capability uses TLSv1.2 default
+        # `options`, `verify_flags`, `maximum_version`, `minimum_version`
+        # live on _SSLContextDescriptors as properties (so truststore's
+        # super().<name>.__set__() lookup succeeds). Init the underlying
+        # storage to the same defaults the prior direct-attribute form
+        # exposed.
+        self._options              = 0      # opaque option bitmask; no-op in v1
+        self._verify_flags         = 0      # X509 verify-flags bitmask; advisory
+        self._maximum_version      = None   # capability uses TLSv1.3 default
+        self._minimum_version      = None   # capability uses TLSv1.2 default
         self.num_tickets           = 0
         self.session_stats         = lambda: {}     # stdlib returns a dict
         self.set_ciphers           = lambda c: None # accept ssl.py's cipher str
         self.set_alpn_protocols    = lambda p: None # also via SSLSocket; ctx-level no-op
         self.set_ecdh_curve        = lambda c: None
 
-    # --- verify ---
-    @property
-    def verify_mode(self) -> int:
-        return self._inner.verify_mode
-
-    @verify_mode.setter
-    def verify_mode(self, value: int) -> None:
-        self._inner.verify_mode = value
-
     # --- trust / cert material ---
     def load_default_certs(self, purpose=Purpose.SERVER_AUTH) -> None:
         """Install bundled Mozilla WebPKI roots. `purpose` is accepted for
         API parity (v1 ignores it; SERVER_AUTH and CLIENT_AUTH use the same
         bundle)."""
+        self._inner.load_default_certs()
+
+    def set_default_verify_paths(self) -> None:
+        """Stdlib equivalent loads OPENSSL's compiled-in cafile/capath.
+        We have no OS trust path; load our bundled Mozilla WebPKI roots
+        instead. truststore's _configure_context (pip vendors it)
+        calls this when get_default_verify_paths() reports a usable
+        location — keeping both methods consistent lets the truststore
+        path succeed without --use-deprecated=legacy-certs."""
         self._inner.load_default_certs()
 
     def load_verify_locations(self, cafile=None, capath=None, cadata=None) -> None:
@@ -192,6 +253,7 @@ class SSLContext:
                     host=None, port=None,
                     do_handshake_on_connect=True,
                     suppress_ragged_eofs=True,
+                    server_side=False,
                     session=None) -> "SSLSocket":
         """Two calling conventions:
 
