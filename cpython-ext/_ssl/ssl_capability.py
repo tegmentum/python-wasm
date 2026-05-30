@@ -413,10 +413,14 @@ class SSLObject:
 
     def get_unverified_chain(self):
         """Same shape as SSLSocket.get_unverified_chain — see that
-        docstring. Needed by truststore's `_verify_peercerts` even
-        though the Linux verify impl is a no-op."""
-        der = self._cap.peer_cert_der()
-        return [der] if der else []
+        docstring. Returns the full peer chain (leaf first); falls
+        back to the leaf-only list if the cap returns an empty chain
+        for any reason."""
+        chain = self._cap.peer_chain_der()
+        if not chain:
+            der = self._cap.peer_cert_der()
+            return [der] if der else []
+        return chain
 
     def session_reused(self) -> bool:
         return False
@@ -639,17 +643,18 @@ class SSLSocket:
         }
 
     def get_unverified_chain(self):
-        """Stdlib API added in 3.13: return the raw peer chain as DER bytes
-        (or cert objects with .public_bytes(ENCODING_DER)). truststore
-        uses this in `_verify_peercerts`, walking ``sslobj._sslobj`` in a
-        ``while not hasattr(sslobj, 'get_unverified_chain')`` loop —
-        since our ``_sslobj`` is ``self`` for httpx-compat, that loop
-        would spin forever without this method. Returns a one-element
-        list with the leaf cert in DER (openssl-component doesn't expose
-        intermediates yet); truststore's Linux verify is a no-op so the
-        chain content doesn't matter for the happy path."""
-        der = self._inner.peer_cert_der()
-        return [der] if der else []
+        """Stdlib API added in 3.13: full peer chain as DER bytes (leaf
+        first, then intermediates the peer sent). Implemented via the
+        cap's `peer_chain_der` helper. truststore's `_verify_peercerts`
+        walks `sslobj._sslobj` in a `while not hasattr(sslobj,
+        'get_unverified_chain')` loop; since our `_sslobj` is `self`
+        for httpx-compat, that loop would spin forever without this
+        method."""
+        chain = self._inner.peer_chain_der()
+        if not chain:
+            der = self._inner.peer_cert_der()
+            return [der] if der else []
+        return chain
 
     @property
     def server_hostname(self):

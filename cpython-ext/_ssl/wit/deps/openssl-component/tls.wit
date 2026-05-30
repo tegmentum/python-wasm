@@ -194,6 +194,11 @@ interface tls {
         peer: func() -> peer-info;
         /// Returns a serialized session ticket if the peer issued one.
         session-ticket: func() -> option<list<u8>>;
+        /// Full peer cert chain as DER bytes (leaf first, then any
+        /// intermediates the peer sent). Convenience over `peer().peer-
+        /// chain` for callers that just want bytes — see
+        /// `mem-bio-client.peer-chain-der` for the async-mode twin.
+        peer-chain-der: func() -> list<list<u8>>;
 
         /// Take buffered NSS-format keylog lines. Empty unless
         /// `keylog` was set in the config.
@@ -301,6 +306,12 @@ interface tls {
         /// (anyio.streams.tls, httpx) inspect protocol/cipher post-
         /// handshake.
         peer: func() -> peer-info;
+        /// Full peer cert chain as DER bytes (leaf first, then any
+        /// intermediates the peer sent). Convenience over `peer().peer-
+        /// chain` so callers don't have to round-trip through the
+        /// x509.certificate resource just to get bytes. Empty if no
+        /// handshake yet.
+        peer-chain-der: func() -> list<list<u8>>;
 
         /// Begin TLS shutdown. Sends a close_notify; the caller
         /// drains bio-read once more to forward it to the peer.

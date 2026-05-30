@@ -244,6 +244,9 @@ extern void __wasm_import_openssl_component_tls_method_client_peer(int32_t, uint
 __attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]client.session-ticket")))
 extern void __wasm_import_openssl_component_tls_method_client_session_ticket(int32_t, uint8_t *);
 
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]client.peer-chain-der")))
+extern void __wasm_import_openssl_component_tls_method_client_peer_chain_der(int32_t, uint8_t *);
+
 __attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]client.drain-keylog")))
 extern void __wasm_import_openssl_component_tls_method_client_drain_keylog(int32_t, uint8_t *);
 
@@ -321,6 +324,9 @@ extern void __wasm_import_openssl_component_tls_method_mem_bio_client_selected_a
 
 __attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.peer")))
 extern void __wasm_import_openssl_component_tls_method_mem_bio_client_peer(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.peer-chain-der")))
+extern void __wasm_import_openssl_component_tls_method_mem_bio_client_peer_chain_der(int32_t, uint8_t *);
 
 __attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.shutdown")))
 extern void __wasm_import_openssl_component_tls_method_mem_bio_client_shutdown(int32_t, uint8_t *);
@@ -1122,6 +1128,17 @@ void openssl_component_tls_result_list_u8_tls_error_free(openssl_component_tls_r
     ssl_import_list_u8_free(&ptr->val.ok);
   } else {
     openssl_component_tls_tls_error_free(&ptr->val.err);
+  }
+}
+
+void ssl_import_list_list_u8_free(ssl_import_list_list_u8_t *ptr) {
+  size_t list_len = ptr->len;
+  if (list_len > 0) {
+    ssl_import_list_u8_t *list_ptr = ptr->ptr;
+    for (size_t i = 0; i < list_len; i++) {
+      ssl_import_list_u8_free(&list_ptr[i]);
+    }
+    free(list_ptr);
   }
 }
 
@@ -6080,6 +6097,14 @@ bool openssl_component_tls_method_client_session_ticket(openssl_component_tls_bo
   return option.is_some;
 }
 
+void openssl_component_tls_method_client_peer_chain_der(openssl_component_tls_borrow_client_t self, ssl_import_list_list_u8_t *ret) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(2*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_client_peer_chain_der((self).__handle, ptr);
+  *ret = (ssl_import_list_list_u8_t) { (ssl_import_list_u8_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) };
+}
+
 void openssl_component_tls_method_client_drain_keylog(openssl_component_tls_borrow_client_t self, ssl_import_list_string_t *ret) {
   __attribute__((__aligned__(sizeof(void*))))
   uint8_t ret_area[(2*sizeof(void*))];
@@ -7025,6 +7050,14 @@ void openssl_component_tls_method_mem_bio_client_peer(openssl_component_tls_borr
     (bool) (int32_t) *((uint8_t*) (ptr + (11*sizeof(void*)))),
     (ssl_import_option_string_t) option1,
   };
+}
+
+void openssl_component_tls_method_mem_bio_client_peer_chain_der(openssl_component_tls_borrow_mem_bio_client_t self, ssl_import_list_list_u8_t *ret) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(2*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_mem_bio_client_peer_chain_der((self).__handle, ptr);
+  *ret = (ssl_import_list_list_u8_t) { (ssl_import_list_u8_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) };
 }
 
 bool openssl_component_tls_method_mem_bio_client_shutdown(openssl_component_tls_borrow_mem_bio_client_t self, openssl_component_tls_tls_error_t *err) {

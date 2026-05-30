@@ -942,6 +942,11 @@ typedef struct {
 } openssl_component_tls_result_list_u8_tls_error_t;
 
 typedef struct {
+  ssl_import_list_u8_t *ptr;
+  size_t len;
+} ssl_import_list_list_u8_t;
+
+typedef struct {
   bool is_err;
   union {
     openssl_component_tls_own_server_listener_t ok;
@@ -1155,6 +1160,11 @@ extern bool openssl_component_tls_method_client_early_data_accepted(openssl_comp
 extern void openssl_component_tls_method_client_peer(openssl_component_tls_borrow_client_t self, openssl_component_tls_peer_info_t *ret);
 // Returns a serialized session ticket if the peer issued one.
 extern bool openssl_component_tls_method_client_session_ticket(openssl_component_tls_borrow_client_t self, ssl_import_list_u8_t *ret);
+// Full peer cert chain as DER bytes (leaf first, then any
+// intermediates the peer sent). Convenience over `peer().peer-
+// chain` for callers that just want bytes — see
+// `mem-bio-client.peer-chain-der` for the async-mode twin.
+extern void openssl_component_tls_method_client_peer_chain_der(openssl_component_tls_borrow_client_t self, ssl_import_list_list_u8_t *ret);
 // Take buffered NSS-format keylog lines. Empty unless
 // `keylog` was set in the config.
 extern void openssl_component_tls_method_client_drain_keylog(openssl_component_tls_borrow_client_t self, ssl_import_list_string_t *ret);
@@ -1222,6 +1232,12 @@ extern bool openssl_component_tls_method_mem_bio_client_selected_alpn_protocol(o
 // (anyio.streams.tls, httpx) inspect protocol/cipher post-
 // handshake.
 extern void openssl_component_tls_method_mem_bio_client_peer(openssl_component_tls_borrow_mem_bio_client_t self, openssl_component_tls_peer_info_t *ret);
+// Full peer cert chain as DER bytes (leaf first, then any
+// intermediates the peer sent). Convenience over `peer().peer-
+// chain` so callers don't have to round-trip through the
+// x509.certificate resource just to get bytes. Empty if no
+// handshake yet.
+extern void openssl_component_tls_method_mem_bio_client_peer_chain_der(openssl_component_tls_borrow_mem_bio_client_t self, ssl_import_list_list_u8_t *ret);
 // Begin TLS shutdown. Sends a close_notify; the caller
 // drains bio-read once more to forward it to the peer.
 extern bool openssl_component_tls_method_mem_bio_client_shutdown(openssl_component_tls_borrow_mem_bio_client_t self, openssl_component_tls_tls_error_t *err);
@@ -1460,6 +1476,8 @@ void openssl_component_tls_result_own_client_tls_error_free(openssl_component_tl
 void openssl_component_tls_result_u32_tls_error_free(openssl_component_tls_result_u32_tls_error_t *ptr);
 
 void openssl_component_tls_result_list_u8_tls_error_free(openssl_component_tls_result_list_u8_tls_error_t *ptr);
+
+void ssl_import_list_list_u8_free(ssl_import_list_list_u8_t *ptr);
 
 void openssl_component_tls_result_own_server_listener_tls_error_free(openssl_component_tls_result_own_server_listener_tls_error_t *ptr);
 

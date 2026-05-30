@@ -899,6 +899,28 @@ static PyObject *SSLSocket_get_server_hostname(SSLSocketObject *self, void *Py_U
     Py_RETURN_NONE;
 }
 
+/* peer_chain_der() — return the full peer cert chain as a list of bytes
+ * (leaf first). Empty list if the handshake hasn't completed or the peer
+ * sent no certificate. Cap-side iterates STACK_OF(X509) + i2d_X509. */
+static PyObject *SSLSocket_peer_chain_der(SSLSocketObject *self, PyObject *Py_UNUSED(args))
+{
+    if (!self->has_handle) return PyList_New(0);
+    ssl_import_list_list_u8_t chain;
+    openssl_component_tls_borrow_client_t b =
+        openssl_component_tls_borrow_client(self->handle);
+    openssl_component_tls_method_client_peer_chain_der(b, &chain);
+    PyObject *out = PyList_New((Py_ssize_t) chain.len);
+    if (!out) { ssl_import_list_list_u8_free(&chain); return NULL; }
+    for (size_t i = 0; i < chain.len; i++) {
+        PyObject *b = PyBytes_FromStringAndSize(
+            (const char *) chain.ptr[i].ptr, (Py_ssize_t) chain.ptr[i].len);
+        if (!b) { Py_DECREF(out); ssl_import_list_list_u8_free(&chain); return NULL; }
+        PyList_SET_ITEM(out, (Py_ssize_t) i, b);
+    }
+    ssl_import_list_list_u8_free(&chain);
+    return out;
+}
+
 static PyMethodDef SSLSocket_methods[] = {
     {"read",                    (PyCFunction) SSLSocket_read,                    METH_VARARGS,
      "read([max=8192]) -> bytes — decrypted application data."},
@@ -919,6 +941,8 @@ static PyMethodDef SSLSocket_methods[] = {
     {"peer_cert_der",           (PyCFunction) SSLSocket_peer_cert_der,           METH_NOARGS,
      "peer_cert_der() -> bytes | None — the peer's certificate in DER, or "
      "None if the peer didn't send one."},
+    {"peer_chain_der",          (PyCFunction) SSLSocket_peer_chain_der,          METH_NOARGS,
+     "peer_chain_der() -> list[bytes] — full peer cert chain (leaf first), DER."},
     {"selected_alpn_protocol",  (PyCFunction) SSLSocket_selected_alpn_protocol,  METH_NOARGS,
      "selected_alpn_protocol() -> str | None"},
     {NULL, NULL, 0, NULL}
@@ -1148,6 +1172,25 @@ static PyObject *mb_peer_cert_der(MemBioSSLClientObject *self, PyObject *Py_UNUS
     return r;
 }
 
+static PyObject *mb_peer_chain_der(MemBioSSLClientObject *self, PyObject *Py_UNUSED(args))
+{
+    if (!self->has_handle) return PyList_New(0);
+    ssl_import_list_list_u8_t chain;
+    openssl_component_tls_borrow_mem_bio_client_t b =
+        openssl_component_tls_borrow_mem_bio_client(self->handle);
+    openssl_component_tls_method_mem_bio_client_peer_chain_der(b, &chain);
+    PyObject *out = PyList_New((Py_ssize_t) chain.len);
+    if (!out) { ssl_import_list_list_u8_free(&chain); return NULL; }
+    for (size_t i = 0; i < chain.len; i++) {
+        PyObject *bb = PyBytes_FromStringAndSize(
+            (const char *) chain.ptr[i].ptr, (Py_ssize_t) chain.ptr[i].len);
+        if (!bb) { Py_DECREF(out); ssl_import_list_list_u8_free(&chain); return NULL; }
+        PyList_SET_ITEM(out, (Py_ssize_t) i, bb);
+    }
+    ssl_import_list_list_u8_free(&chain);
+    return out;
+}
+
 static PyObject *mb_selected_alpn_protocol(MemBioSSLClientObject *self, PyObject *Py_UNUSED(a))
 {
     if (!self->has_handle) Py_RETURN_NONE;
@@ -1229,6 +1272,8 @@ static PyMethodDef MemBioSSLClient_methods[] = {
      "Negotiated protocol version."},
     {"peer_cert_der",           (PyCFunction) mb_peer_cert_der,           METH_NOARGS,
      "Peer certificate in DER, or None before handshake."},
+    {"peer_chain_der",          (PyCFunction) mb_peer_chain_der,          METH_NOARGS,
+     "Full peer cert chain (leaf first), DER bytes per entry."},
     {"selected_alpn_protocol",  (PyCFunction) mb_selected_alpn_protocol,  METH_NOARGS,
      "Negotiated ALPN protocol, or None."},
     {"cipher",                  (PyCFunction) mb_cipher,                  METH_NOARGS,
