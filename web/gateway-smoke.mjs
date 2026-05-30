@@ -246,14 +246,60 @@ try:
 except Exception as e:
     print(f"  http-err: {type(e).__name__} {e}")
 
-print("--- HTTPS over tunnel is the next layer; pinned for follow-up ---")
-# Both wrap_socket (cap's internal TCP) and wrap_bio (python-driven IO)
-# fail the TLS handshake when the underlying TCP runs over the
-# ws-gateway tunnel. Bytes flow in both directions for plain HTTP,
-# so the issue is in the openssl-component <-> tunneled-stream
-# interaction, not the tunnel itself. To debug: instrument the cap's
-# SSL_do_handshake / SSL_read returns and confirm whether the
-# handshake bytes ever reach OpenSSL.
+print("--- HTTPS via wrap_bio to 127.0.0.1:28443 (verify_mode=NONE) ---")
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+incoming, outgoing = ssl.MemoryBIO(), ssl.MemoryBIO()
+obj = ctx.wrap_bio(incoming, outgoing, server_hostname="localhost")
+
+tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+tcp.connect(("127.0.0.1", 28443))
+tcp.settimeout(5.0)
+print(f"  tcp connected, attempting handshake...")
+
+try:
+    iters = 0
+    while iters < 20:
+        iters += 1
+        try:
+            obj.do_handshake()
+            print(f"  handshake ok after {iters} iters; version={obj.version()}")
+            break
+        except ssl.SSLWantReadError:
+            out = outgoing.read()
+            if out:
+                print(f"  iter {iters}: sending {len(out)} bytes")
+                tcp.sendall(out)
+            try:
+                data = tcp.recv(16384)
+                print(f"  iter {iters}: recv {len(data) if data else 'EOF'}")
+                if not data: raise RuntimeError("eof mid-handshake")
+                incoming.write(data)
+            except socket.timeout:
+                print(f"  iter {iters}: recv timeout")
+                if not outgoing.pending and not incoming.pending: break
+    else:
+        raise RuntimeError(f"handshake didn't complete in {iters} iters")
+    obj.write(b"GET / HTTP/1.0\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n")
+    out = outgoing.read()
+    if out: tcp.sendall(out)
+    body = b""
+    for _ in range(20):
+        try:
+            data = tcp.recv(16384)
+        except socket.timeout: break
+        if not data: break
+        incoming.write(data)
+        try:
+            chunk = obj.read(16384)
+            if chunk: body += chunk
+        except ssl.SSLWantReadError: pass
+        if len(body) > 32768: break
+    tcp.close()
+    print(f"  https bytes={len(body)} contains-tls-hello={b'hello, tls + wasm!' in body}")
+except Exception as e:
+    print(f"  https err: {type(e).__name__} {e}")
 `
   const policy = createPolicy({
     defaultAllow: true,
