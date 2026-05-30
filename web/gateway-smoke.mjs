@@ -11,18 +11,22 @@
 // working end-to-end at the protocol level (see gateway-client-probe.mjs
 // — real HTTP/1.1 200 from example.com via tunneled WebSocket). This
 // harness exercises the same gateway via wasi-polyfill's tunneled TCP
-// implementation, and that integration step is NOT yet working:
-// policy.configure correctly reports `implementation: 'tunneled'`
-// with the gateway URL, but TunneledTcpInstance never opens a WS
-// connection to the gateway when openssl-component calls connect().
-// The cap reports "TLS handshake failed" because no bytes flowed.
+// implementation; one of two known polyfill bugs is fixed (see
+// memory:ws-gateway-polyfill-tcp-gap), the other still blocks us:
 //
-// Pinned for follow-up. The gateway server is reusable as-is; the
-// integration debug is one or more of:
-//   1) tunneled TCP only connects lazily and a different path is hit first
-//   2) the polyfill's TunneledTcpInstance has a regression vs the spec
-//   3) the cap's libc connect() path doesn't go through the plugin we
-//      think it does (different wasi:sockets version routing).
+//   * FIXED upstream (wasi-polyfill 6e3d429): createTcpSocket had a
+//     wrong arg signature (`(network, family)` vs the WIT spec's
+//     `(family)`); every call returned InvalidArgument.
+//   * NOT FIXED: TunneledTcpInstance does its async work (tunnel open,
+//     stream open) inside `finish-connect`, but jco treats that as a
+//     sync result-collector — blocking belongs in `pollable.block`.
+//     The Promise returned by finish-connect trips guardSyncReturn.
+//     Needs a polyfill refactor to move the async into start-connect +
+//     a Pollable wired to the result.
+//
+// Until the second bug is fixed, this harness fails at
+// finish-connect; keep it around as a regression check for any future
+// integration progress.
 
 import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
