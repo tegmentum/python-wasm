@@ -286,6 +286,45 @@ extern void __wasm_import_openssl_component_tls_method_server_drain_keylog(int32
 __attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[static]server.close")))
 extern void __wasm_import_openssl_component_tls_static_server_close(int32_t);
 
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[static]mem-bio-client.new")))
+extern void __wasm_import_openssl_component_tls_static_mem_bio_client_new(uint8_t *, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.do-handshake")))
+extern void __wasm_import_openssl_component_tls_method_mem_bio_client_do_handshake(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.handshake-done")))
+extern int32_t __wasm_import_openssl_component_tls_method_mem_bio_client_handshake_done(int32_t);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.bio-write")))
+extern int32_t __wasm_import_openssl_component_tls_method_mem_bio_client_bio_write(int32_t, uint8_t *, size_t);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.bio-read")))
+extern void __wasm_import_openssl_component_tls_method_mem_bio_client_bio_read(int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.bio-pending")))
+extern int32_t __wasm_import_openssl_component_tls_method_mem_bio_client_bio_pending(int32_t);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.read")))
+extern void __wasm_import_openssl_component_tls_method_mem_bio_client_read(int32_t, int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.write")))
+extern void __wasm_import_openssl_component_tls_method_mem_bio_client_write(int32_t, uint8_t *, size_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.peer-cert-der")))
+extern void __wasm_import_openssl_component_tls_method_mem_bio_client_peer_cert_der(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.version")))
+extern void __wasm_import_openssl_component_tls_method_mem_bio_client_version(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.selected-alpn-protocol")))
+extern void __wasm_import_openssl_component_tls_method_mem_bio_client_selected_alpn_protocol(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.shutdown")))
+extern void __wasm_import_openssl_component_tls_method_mem_bio_client_shutdown(int32_t, uint8_t *);
+
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[static]mem-bio-client.close")))
+extern void __wasm_import_openssl_component_tls_static_mem_bio_client_close(int32_t);
+
 // Imported Functions from `openssl:component/random@0.1.0`
 
 __attribute__((__import_module__("openssl:component/random@0.1.0"), __import_name__("bytes")))
@@ -1046,6 +1085,21 @@ openssl_component_tls_borrow_server_t openssl_component_tls_borrow_server(openss
   return (openssl_component_tls_borrow_server_t) { arg.__handle };
 }
 
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[resource-drop]mem-bio-client")))
+extern void __wasm_import_openssl_component_tls_mem_bio_client_drop(int32_t handle);
+
+void openssl_component_tls_mem_bio_client_drop_own(openssl_component_tls_own_mem_bio_client_t handle) {
+  __wasm_import_openssl_component_tls_mem_bio_client_drop(handle.__handle);
+}
+
+void openssl_component_tls_mem_bio_client_drop_borrow(openssl_component_tls_borrow_mem_bio_client_t handle) {
+  __wasm_import_openssl_component_tls_mem_bio_client_drop(handle.__handle);
+}
+
+openssl_component_tls_borrow_mem_bio_client_t openssl_component_tls_borrow_mem_bio_client(openssl_component_tls_own_mem_bio_client_t arg) {
+  return (openssl_component_tls_borrow_mem_bio_client_t) { arg.__handle };
+}
+
 void openssl_component_tls_result_own_client_tls_error_free(openssl_component_tls_result_own_client_tls_error_t *ptr) {
   if (!ptr->is_err) {
   } else {
@@ -1076,6 +1130,20 @@ void openssl_component_tls_result_own_server_listener_tls_error_free(openssl_com
 }
 
 void openssl_component_tls_result_own_server_tls_error_free(openssl_component_tls_result_own_server_tls_error_t *ptr) {
+  if (!ptr->is_err) {
+  } else {
+    openssl_component_tls_tls_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_tls_result_own_mem_bio_client_tls_error_free(openssl_component_tls_result_own_mem_bio_client_tls_error_t *ptr) {
+  if (!ptr->is_err) {
+  } else {
+    openssl_component_tls_tls_error_free(&ptr->val.err);
+  }
+}
+
+void openssl_component_tls_result_void_tls_error_free(openssl_component_tls_result_void_tls_error_t *ptr) {
   if (!ptr->is_err) {
   } else {
     openssl_component_tls_tls_error_free(&ptr->val.err);
@@ -6438,6 +6506,540 @@ void openssl_component_tls_method_server_drain_keylog(openssl_component_tls_borr
 
 void openssl_component_tls_static_server_close(openssl_component_tls_own_server_t s) {
   __wasm_import_openssl_component_tls_static_server_close((s).__handle);
+}
+
+bool openssl_component_tls_static_mem_bio_client_new(openssl_component_tls_client_config_t *config, openssl_component_tls_own_mem_bio_client_t *ret, openssl_component_tls_tls_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(24+34*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  *((int8_t*)(ptr + 0)) = (int32_t) ((*config).protocols).min;
+  *((int8_t*)(ptr + 1)) = (int32_t) ((*config).protocols).max;
+  *((int8_t*)(ptr + 2)) = (int32_t) (*config).verify;
+  if (((*config).trust).is_some) {
+    const openssl_component_tls_own_store_t *payload0 = &((*config).trust).val;
+    *((int8_t*)(ptr + 4)) = 1;
+    *((int32_t*)(ptr + 8)) = (*payload0).__handle;
+  } else {
+    *((int8_t*)(ptr + 4)) = 0;
+  }
+  if (((*config).verify_options).is_some) {
+    const openssl_component_tls_verify_options_t *payload2 = &((*config).verify_options).val;
+    *((int8_t*)(ptr + (8+1*sizeof(void*)))) = 1;
+    if (((*payload2).hostname).is_some) {
+      const ssl_import_string_t *payload4 = &((*payload2).hostname).val;
+      *((int8_t*)(ptr + (8+2*sizeof(void*)))) = 1;
+      *((size_t*)(ptr + (8+4*sizeof(void*)))) = (*payload4).len;
+      *((uint8_t **)(ptr + (8+3*sizeof(void*)))) = (uint8_t *) (*payload4).ptr;
+    } else {
+      *((int8_t*)(ptr + (8+2*sizeof(void*)))) = 0;
+    }
+    if (((*payload2).ip).is_some) {
+      const ssl_import_string_t *payload6 = &((*payload2).ip).val;
+      *((int8_t*)(ptr + (8+5*sizeof(void*)))) = 1;
+      *((size_t*)(ptr + (8+7*sizeof(void*)))) = (*payload6).len;
+      *((uint8_t **)(ptr + (8+6*sizeof(void*)))) = (uint8_t *) (*payload6).ptr;
+    } else {
+      *((int8_t*)(ptr + (8+5*sizeof(void*)))) = 0;
+    }
+    if (((*payload2).purpose).is_some) {
+      const openssl_component_x509_extended_key_usage_t *payload8 = &((*payload2).purpose).val;
+      *((int8_t*)(ptr + (8+8*sizeof(void*)))) = 1;
+      *((int8_t*)(ptr + (9+8*sizeof(void*)))) = (int32_t) *payload8;
+    } else {
+      *((int8_t*)(ptr + (8+8*sizeof(void*)))) = 0;
+    }
+    if (((*payload2).at).is_some) {
+      const openssl_component_x509_timestamp_t *payload10 = &((*payload2).at).val;
+      *((int8_t*)(ptr + (8+9*sizeof(void*)))) = 1;
+      *((size_t*)(ptr + (8+11*sizeof(void*)))) = (*payload10).len;
+      *((uint8_t **)(ptr + (8+10*sizeof(void*)))) = (uint8_t *) (*payload10).ptr;
+    } else {
+      *((int8_t*)(ptr + (8+9*sizeof(void*)))) = 0;
+    }
+    *((int8_t*)(ptr + (8+12*sizeof(void*)))) = (*payload2).partial_chain;
+    *((int8_t*)(ptr + (9+12*sizeof(void*)))) = (*payload2).crl_check;
+    *((int8_t*)(ptr + (10+12*sizeof(void*)))) = (*payload2).crl_check_all;
+  } else {
+    *((int8_t*)(ptr + (8+1*sizeof(void*)))) = 0;
+  }
+  if (((*config).server_name).is_some) {
+    const ssl_import_string_t *payload12 = &((*config).server_name).val;
+    *((int8_t*)(ptr + (8+13*sizeof(void*)))) = 1;
+    *((size_t*)(ptr + (8+15*sizeof(void*)))) = (*payload12).len;
+    *((uint8_t **)(ptr + (8+14*sizeof(void*)))) = (uint8_t *) (*payload12).ptr;
+  } else {
+    *((int8_t*)(ptr + (8+13*sizeof(void*)))) = 0;
+  }
+  if (((*config).client_cert).is_some) {
+    const openssl_component_tls_own_certificate_t *payload14 = &((*config).client_cert).val;
+    *((int8_t*)(ptr + (8+16*sizeof(void*)))) = 1;
+    *((int32_t*)(ptr + (12+16*sizeof(void*)))) = (*payload14).__handle;
+  } else {
+    *((int8_t*)(ptr + (8+16*sizeof(void*)))) = 0;
+  }
+  if (((*config).client_key).is_some) {
+    const openssl_component_tls_own_pkey_t *payload16 = &((*config).client_key).val;
+    *((int8_t*)(ptr + (16+16*sizeof(void*)))) = 1;
+    *((int32_t*)(ptr + (20+16*sizeof(void*)))) = (*payload16).__handle;
+  } else {
+    *((int8_t*)(ptr + (16+16*sizeof(void*)))) = 0;
+  }
+  if (((*config).alpn).is_some) {
+    const openssl_component_tls_alpn_offer_t *payload18 = &((*config).alpn).val;
+    *((int8_t*)(ptr + (24+16*sizeof(void*)))) = 1;
+    *((size_t*)(ptr + (24+18*sizeof(void*)))) = ((*payload18).protocols).len;
+    *((uint8_t **)(ptr + (24+17*sizeof(void*)))) = (uint8_t *) ((*payload18).protocols).ptr;
+  } else {
+    *((int8_t*)(ptr + (24+16*sizeof(void*)))) = 0;
+  }
+  if (((*config).ciphers).is_some) {
+    const openssl_component_tls_cipher_preferences_t *payload20 = &((*config).ciphers).val;
+    *((int8_t*)(ptr + (24+19*sizeof(void*)))) = 1;
+    if (((*payload20).tls13).is_some) {
+      const ssl_import_string_t *payload22 = &((*payload20).tls13).val;
+      *((int8_t*)(ptr + (24+20*sizeof(void*)))) = 1;
+      *((size_t*)(ptr + (24+22*sizeof(void*)))) = (*payload22).len;
+      *((uint8_t **)(ptr + (24+21*sizeof(void*)))) = (uint8_t *) (*payload22).ptr;
+    } else {
+      *((int8_t*)(ptr + (24+20*sizeof(void*)))) = 0;
+    }
+    if (((*payload20).tls12).is_some) {
+      const ssl_import_string_t *payload24 = &((*payload20).tls12).val;
+      *((int8_t*)(ptr + (24+23*sizeof(void*)))) = 1;
+      *((size_t*)(ptr + (24+25*sizeof(void*)))) = (*payload24).len;
+      *((uint8_t **)(ptr + (24+24*sizeof(void*)))) = (uint8_t *) (*payload24).ptr;
+    } else {
+      *((int8_t*)(ptr + (24+23*sizeof(void*)))) = 0;
+    }
+  } else {
+    *((int8_t*)(ptr + (24+19*sizeof(void*)))) = 0;
+  }
+  if (((*config).groups).is_some) {
+    const ssl_import_string_t *payload26 = &((*config).groups).val;
+    *((int8_t*)(ptr + (24+26*sizeof(void*)))) = 1;
+    *((size_t*)(ptr + (24+28*sizeof(void*)))) = (*payload26).len;
+    *((uint8_t **)(ptr + (24+27*sizeof(void*)))) = (uint8_t *) (*payload26).ptr;
+  } else {
+    *((int8_t*)(ptr + (24+26*sizeof(void*)))) = 0;
+  }
+  *((int8_t*)(ptr + (24+29*sizeof(void*)))) = (*config).enable_early_data;
+  if (((*config).resume_session).is_some) {
+    const ssl_import_list_u8_t *payload28 = &((*config).resume_session).val;
+    *((int8_t*)(ptr + (24+30*sizeof(void*)))) = 1;
+    *((size_t*)(ptr + (24+32*sizeof(void*)))) = (*payload28).len;
+    *((uint8_t **)(ptr + (24+31*sizeof(void*)))) = (uint8_t *) (*payload28).ptr;
+  } else {
+    *((int8_t*)(ptr + (24+30*sizeof(void*)))) = 0;
+  }
+  *((int8_t*)(ptr + (24+33*sizeof(void*)))) = (*config).keylog;
+  uint8_t *ptr29 = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_static_mem_bio_client_new(ptr, ptr29);
+  openssl_component_tls_result_own_mem_bio_client_tls_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr29 + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (openssl_component_tls_own_mem_bio_client_t) { *((int32_t*) (ptr29 + 8)) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_tls_tls_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr29 + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.verify_failed = (openssl_component_tls_verify_failure_t) {
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr29 + 16))),
+            (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr29 + (16+1*sizeof(void*))))), (*((size_t*) (ptr29 + (16+2*sizeof(void*))))) },
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr29 + (16+3*sizeof(void*))))),
+          };
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr29 + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_tls_method_mem_bio_client_do_handshake(openssl_component_tls_borrow_mem_bio_client_t self, openssl_component_tls_tls_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(16+4*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_mem_bio_client_do_handshake((self).__handle, ptr);
+  openssl_component_tls_result_void_tls_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_tls_tls_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.verify_failed = (openssl_component_tls_verify_failure_t) {
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + 16))),
+            (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (16+1*sizeof(void*))))), (*((size_t*) (ptr + (16+2*sizeof(void*))))) },
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + (16+3*sizeof(void*))))),
+          };
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_tls_method_mem_bio_client_handshake_done(openssl_component_tls_borrow_mem_bio_client_t self) {
+  int32_t ret = __wasm_import_openssl_component_tls_method_mem_bio_client_handshake_done((self).__handle);
+  return ret;
+}
+
+uint32_t openssl_component_tls_method_mem_bio_client_bio_write(openssl_component_tls_borrow_mem_bio_client_t self, ssl_import_list_u8_t *data) {
+  int32_t ret = __wasm_import_openssl_component_tls_method_mem_bio_client_bio_write((self).__handle, (uint8_t *) (*data).ptr, (*data).len);
+  return (uint32_t) (ret);
+}
+
+void openssl_component_tls_method_mem_bio_client_bio_read(openssl_component_tls_borrow_mem_bio_client_t self, uint32_t max, ssl_import_list_u8_t *ret) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(2*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_mem_bio_client_bio_read((self).__handle, (int32_t) (max), ptr);
+  *ret = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) };
+}
+
+uint32_t openssl_component_tls_method_mem_bio_client_bio_pending(openssl_component_tls_borrow_mem_bio_client_t self) {
+  int32_t ret = __wasm_import_openssl_component_tls_method_mem_bio_client_bio_pending((self).__handle);
+  return (uint32_t) (ret);
+}
+
+bool openssl_component_tls_method_mem_bio_client_read(openssl_component_tls_borrow_mem_bio_client_t self, uint32_t max_bytes, ssl_import_list_u8_t *ret, openssl_component_tls_tls_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(16+4*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_mem_bio_client_read((self).__handle, (int32_t) (max_bytes), ptr);
+  openssl_component_tls_result_list_u8_tls_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + 8))), (*((size_t*) (ptr + (8+1*sizeof(void*))))) };
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_tls_tls_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.verify_failed = (openssl_component_tls_verify_failure_t) {
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + 16))),
+            (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (16+1*sizeof(void*))))), (*((size_t*) (ptr + (16+2*sizeof(void*))))) },
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + (16+3*sizeof(void*))))),
+          };
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_tls_method_mem_bio_client_write(openssl_component_tls_borrow_mem_bio_client_t self, ssl_import_list_u8_t *data, uint32_t *ret, openssl_component_tls_tls_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(16+4*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_mem_bio_client_write((self).__handle, (uint8_t *) (*data).ptr, (*data).len, ptr);
+  openssl_component_tls_result_u32_tls_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      result.val.ok = (uint32_t) (*((int32_t*) (ptr + 8)));
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_tls_tls_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.verify_failed = (openssl_component_tls_verify_failure_t) {
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + 16))),
+            (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (16+1*sizeof(void*))))), (*((size_t*) (ptr + (16+2*sizeof(void*))))) },
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + (16+3*sizeof(void*))))),
+          };
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    *ret = result.val.ok;
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+bool openssl_component_tls_method_mem_bio_client_peer_cert_der(openssl_component_tls_borrow_mem_bio_client_t self, ssl_import_list_u8_t *ret) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_mem_bio_client_peer_cert_der((self).__handle, ptr);
+  ssl_import_option_list_u8_t option;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      option.is_some = false;
+      break;
+    }
+    case 1: {
+      option.is_some = true;
+      option.val = (ssl_import_list_u8_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  *ret = option.val;
+  return option.is_some;
+}
+
+void openssl_component_tls_method_mem_bio_client_version(openssl_component_tls_borrow_mem_bio_client_t self, ssl_import_string_t *ret) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(2*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_mem_bio_client_version((self).__handle, ptr);
+  *ret = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + 0))), (*((size_t*) (ptr + sizeof(void*)))) };
+}
+
+bool openssl_component_tls_method_mem_bio_client_selected_alpn_protocol(openssl_component_tls_borrow_mem_bio_client_t self, ssl_import_string_t *ret) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(3*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_mem_bio_client_selected_alpn_protocol((self).__handle, ptr);
+  ssl_import_option_string_t option;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      option.is_some = false;
+      break;
+    }
+    case 1: {
+      option.is_some = true;
+      option.val = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) };
+      break;
+    }
+  }
+  *ret = option.val;
+  return option.is_some;
+}
+
+bool openssl_component_tls_method_mem_bio_client_shutdown(openssl_component_tls_borrow_mem_bio_client_t self, openssl_component_tls_tls_error_t *err) {
+  __attribute__((__aligned__(8)))
+  uint8_t ret_area[(16+4*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_mem_bio_client_shutdown((self).__handle, ptr);
+  openssl_component_tls_result_void_tls_error_t result;
+  switch ((int32_t) *((uint8_t*) (ptr + 0))) {
+    case 0: {
+      result.is_err = false;
+      break;
+    }
+    case 1: {
+      result.is_err = true;
+      openssl_component_tls_tls_error_t variant;
+      variant.tag = (int32_t) *((uint8_t*) (ptr + 8));
+      switch ((int32_t) variant.tag) {
+        case 0: {
+          break;
+        }
+        case 1: {
+          break;
+        }
+        case 2: {
+          variant.val.verify_failed = (openssl_component_tls_verify_failure_t) {
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + 16))),
+            (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (16+1*sizeof(void*))))), (*((size_t*) (ptr + (16+2*sizeof(void*))))) },
+            (uint32_t) (uint32_t) (*((int32_t*) (ptr + (16+3*sizeof(void*))))),
+          };
+          break;
+        }
+        case 3: {
+          break;
+        }
+        case 4: {
+          break;
+        }
+        case 5: {
+          break;
+        }
+        case 6: {
+          break;
+        }
+        case 7: {
+          break;
+        }
+        case 8: {
+          break;
+        }
+        case 9: {
+          variant.val.internal = (uint64_t) (*((int64_t*) (ptr + 16)));
+          break;
+        }
+      }
+
+      result.val.err = variant;
+      break;
+    }
+  }
+  if (!result.is_err) {
+    return 1;
+  } else {
+    *err = result.val.err;
+    return 0;
+  }
+}
+
+void openssl_component_tls_static_mem_bio_client_close(openssl_component_tls_own_mem_bio_client_t c) {
+  __wasm_import_openssl_component_tls_static_mem_bio_client_close((c).__handle);
 }
 
 bool openssl_component_random_bytes(uint32_t n, ssl_import_list_u8_t *ret, openssl_component_random_random_error_t *err) {

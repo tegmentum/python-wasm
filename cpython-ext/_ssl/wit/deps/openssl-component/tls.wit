@@ -229,4 +229,79 @@ interface tls {
         drain-keylog: func() -> list<string>;
         close: static func(s: server);
     }
+
+    /// Memory-BIO client. The caller owns the underlying network
+    /// transport (TCP socket, websocket, in-process pipe) and pumps
+    /// ciphertext through `bio-write`/`bio-read`. This is the surface
+    /// async TLS libraries need — anyio's `streams.tls.TLSStream`,
+    /// httpx's async transport, etc. — because they want to drive the
+    /// TLS state machine in step with their own event loop instead of
+    /// blocking inside a libc `read`.
+    ///
+    /// Typical lifecycle:
+    ///   c = mem-bio-client.new(cfg)
+    ///   loop:
+    ///     r = c.do-handshake()
+    ///     if ok: break
+    ///     if would-block:
+    ///       send_to_peer(c.bio-read(N))   // drain outgoing
+    ///       c.bio-write(recv_from_peer()) // inject incoming
+    ///   // post-handshake
+    ///   c.write(plaintext) ; send_to_peer(c.bio-read(N))
+    ///   c.bio-write(recv_from_peer()) ; plaintext = c.read(N)
+    resource mem-bio-client {
+        /// Construct an unconnected TLS client with memory BIOs.
+        /// Configures CTX from `config` (verify mode, trust store,
+        /// SNI, ALPN, ciphers, groups, optional keylog) but does NOT
+        /// touch the network.
+        new: static func(config: client-config)
+            -> result<mem-bio-client, tls-error>;
+
+        /// Drive the handshake forward.
+        /// ok: handshake completed.
+        /// err(would-block): more I/O is needed. Drain bio-read,
+        ///   send those bytes to the peer, then bio-write whatever
+        ///   you receive and call do-handshake again.
+        /// err(handshake-failed | verify-failed | …): fatal.
+        do-handshake: func() -> result<_, tls-error>;
+
+        /// True once `do-handshake` has returned ok.
+        handshake-done: func() -> bool;
+
+        /// Inject ciphertext received from the network. Returns the
+        /// number of bytes accepted (may be short if the internal
+        /// BIO is full — retry after a do-handshake or read).
+        bio-write: func(data: list<u8>) -> u32;
+
+        /// Drain ciphertext the TLS layer wants to send. Empty list
+        /// when nothing is pending. The caller is responsible for
+        /// forwarding the bytes to the peer.
+        bio-read: func(max: u32) -> list<u8>;
+
+        /// Bytes currently buffered for sending.
+        bio-pending: func() -> u32;
+
+        /// Read decrypted plaintext (post-handshake). Same semantics
+        /// as `client.read`; returns empty list on clean close.
+        read: func(max-bytes: u32) -> result<list<u8>, tls-error>;
+
+        /// Write plaintext (post-handshake). Returns bytes written.
+        /// May be short if the internal BIO is full — drain bio-read
+        /// and retry.
+        write: func(data: list<u8>) -> result<u32, tls-error>;
+
+        /// Peer's certificate in DER form (after handshake).
+        peer-cert-der: func() -> option<list<u8>>;
+        /// Negotiated protocol version ("TLSv1.3", …).
+        version: func() -> string;
+        /// Selected ALPN protocol if any.
+        selected-alpn-protocol: func() -> option<string>;
+
+        /// Begin TLS shutdown. Sends a close_notify; the caller
+        /// drains bio-read once more to forward it to the peer.
+        shutdown: func() -> result<_, tls-error>;
+
+        /// Free the resource.
+        close: static func(c: mem-bio-client);
+    }
 }

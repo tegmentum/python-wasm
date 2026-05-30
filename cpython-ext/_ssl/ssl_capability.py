@@ -40,6 +40,11 @@ from __future__ import annotations
 import io as _io
 import _ssl_capability
 
+# Re-export the C-side MemoryBIO type at the module surface so user code
+# (and the stdlib ssl shim) can construct it the same way ssl.MemoryBIO()
+# works.
+MemoryBIO = _ssl_capability.MemoryBIO
+
 # ----------------------------------------------------------------------------
 # Stdlib ssl mirror constants
 # ----------------------------------------------------------------------------
@@ -68,6 +73,30 @@ class SSLCertVerificationError(SSLError):
     In v1 we don't distinguish this from a generic SSLError at the binding
     layer; both surface as SSLError. Kept as a subclass for `except`
     compatibility — explicit handlers still match."""
+
+
+class SSLWantReadError(SSLError):
+    """Memory-BIO mode: the TLS state machine needs more ciphertext from
+    the peer. Caller should drain its out-BIO, send those bytes over the
+    network, receive whatever the peer sends back, push into the in-BIO,
+    and retry the operation."""
+
+
+class SSLWantWriteError(SSLError):
+    """Memory-BIO mode: the TLS state machine needs to send more
+    ciphertext. Caller should drain its out-BIO to the network and retry."""
+
+
+def _map_ssl_want(exc: BaseException) -> BaseException:
+    """Translate the cap's SSL_ERROR_WANT_{READ,WRITE} marker (raised as
+    SSLError with a tagged message) into the stdlib's typed exceptions
+    so async drivers (anyio, httpx) can branch on the type."""
+    msg = str(exc)
+    if "SSL_ERROR_WANT_READ" in msg:
+        return SSLWantReadError(msg)
+    if "SSL_ERROR_WANT_WRITE" in msg:
+        return SSLWantWriteError(msg)
+    return exc
 
 
 # ----------------------------------------------------------------------------
@@ -200,6 +229,144 @@ class SSLContext:
         inner = self._inner.wrap_socket(host, int(port),
                                          server_hostname=server_hostname)
         return SSLSocket(inner)
+
+    # --- memory-BIO mode (async TLS) ---
+    def wrap_bio(self, incoming, outgoing, *,
+                 server_side=False, server_hostname=None,
+                 session=None) -> "SSLObject":
+        """Memory-BIO TLS — the caller owns the transport.
+        Matches ``ssl.SSLContext.wrap_bio`` for anyio / httpx async TLS.
+        Returns an ``SSLObject`` that drives the cap-side TLS state
+        machine; the caller pumps ciphertext between the network and
+        ``incoming``/``outgoing`` MemoryBIOs."""
+        if session is not None:
+            raise NotImplementedError("wrap_bio: session resumption not supported")
+        cap = self._inner.wrap_bio(incoming, outgoing,
+                                    server_side=int(bool(server_side)),
+                                    server_hostname=server_hostname)
+        return SSLObject(cap, incoming, outgoing, server_hostname)
+
+
+class SSLObject:
+    """Memory-BIO TLS connection. Same method surface as
+    ``ssl.SSLObject``. The caller drives I/O via two MemoryBIOs:
+    write ciphertext received from the peer into ``_incoming``, read
+    ciphertext to send to the peer from ``_outgoing``. Plaintext
+    reads/writes go through ``read()`` / ``write()``."""
+
+    def __init__(self, cap, incoming, outgoing, server_hostname):
+        self._cap = cap
+        self._incoming = incoming
+        self._outgoing = outgoing
+        self.server_hostname = server_hostname
+
+    def _push_in(self) -> None:
+        """Drain the user's in-BIO into the cap."""
+        # ssl.MemoryBIO.read() drains the buffer; the cap's BIO is the
+        # actual ingress queue, so this is a one-way pump.
+        if getattr(self._incoming, "pending", 0):
+            data = self._incoming.read()
+            if data:
+                self._cap.bio_write(data)
+
+    def _pull_out(self) -> None:
+        """Drain the cap's out-BIO into the user's out-BIO."""
+        while self._cap.bio_pending() > 0:
+            data = self._cap.bio_read(16384)
+            if not data:
+                break
+            self._outgoing.write(data)
+
+    def _drive(self, fn, *args):
+        """Push in-BIO bytes, call the cap method, pull out-BIO bytes,
+        re-raise SSL_ERROR_WANT_* as the typed stdlib exceptions."""
+        self._push_in()
+        try:
+            result = fn(*args)
+        except SSLError as e:
+            # Always drain outgoing even on error: the TLS layer may
+            # have queued bytes (e.g. handshake's ClientHello) before
+            # raising WANT_READ.
+            self._pull_out()
+            raise _map_ssl_want(e) from None
+        self._pull_out()
+        return result
+
+    def do_handshake(self) -> None:
+        self._drive(self._cap.do_handshake)
+
+    def read(self, len_=1024, buffer=None) -> bytes:
+        # CPython's SSLObject.read takes (len, buffer=None); when buffer
+        # is given, fill it and return number of bytes written.
+        data = self._drive(self._cap.read, int(len_))
+        if buffer is None:
+            return data
+        n = len(data)
+        buffer[:n] = data
+        return n
+
+    def write(self, data) -> int:
+        return self._drive(self._cap.write, bytes(data))
+
+    def unwrap(self):
+        """Initiate close_notify; returns None (stdlib returns the wrapped
+        socket, which we never owned)."""
+        try:
+            self._drive(self._cap.shutdown)
+        except SSLError:
+            pass
+        return None
+
+    def pending(self) -> int:
+        # Plaintext bytes the SSL has already decrypted but the caller
+        # hasn't read. The cap doesn't expose a pending-plaintext probe
+        # for memory BIOs (the read() returns whatever's available);
+        # report 0 — matches the conservative path for ssl.SSLObject
+        # callers that fall back to read() when this is 0.
+        return 0
+
+    def getpeercert(self, binary_form=False):
+        der = self._cap.peer_cert_der()
+        if der is None:
+            return None if binary_form else {}
+        if binary_form:
+            return der
+        host = self.server_hostname or ""
+        return {
+            "subjectAltName": (("DNS", host),) if host else (),
+            "subject":        ((("commonName", host),),) if host else (),
+            "issuer":         ((("commonName", "python-wasm ssl_capability"),),),
+        }
+
+    def version(self) -> str:
+        return self._cap.version()
+
+    def cipher(self):
+        # The cap doesn't expose a cipher() method for mem-bio yet.
+        # Most async TLS callers don't actually inspect this; return a
+        # tuple that's structurally valid (name, protocol, secret bits).
+        return ("UNKNOWN", self.version(), 0)
+
+    def selected_alpn_protocol(self):
+        return self._cap.selected_alpn_protocol()
+
+    def session_reused(self) -> bool:
+        return False
+
+    def get_channel_binding(self, cb_type="tls-unique"):
+        # Channel binding requires SSL_get_tls_unique / SSL_get_finished
+        # which aren't exposed by openssl-component yet. Return None;
+        # anyio/httpx tolerate it (only matters for SCRAM-SHA auth).
+        return None
+
+    def compression(self):
+        # TLS-level compression has been removed in modern TLS (CRIME
+        # mitigation). Return None — stdlib returns None when no
+        # compression is in effect.
+        return None
+
+    def shared_ciphers(self):
+        return None
 
 
 class SSLSocket:

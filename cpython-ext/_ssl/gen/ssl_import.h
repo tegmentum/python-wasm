@@ -909,6 +909,14 @@ typedef struct openssl_component_tls_borrow_server_t {
   int32_t __handle;
 } openssl_component_tls_borrow_server_t;
 
+typedef struct openssl_component_tls_own_mem_bio_client_t {
+  int32_t __handle;
+} openssl_component_tls_own_mem_bio_client_t;
+
+typedef struct openssl_component_tls_borrow_mem_bio_client_t {
+  int32_t __handle;
+} openssl_component_tls_borrow_mem_bio_client_t;
+
 typedef struct {
   bool is_err;
   union {
@@ -948,6 +956,21 @@ typedef struct {
     openssl_component_tls_tls_error_t err;
   } val;
 } openssl_component_tls_result_own_server_tls_error_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    openssl_component_tls_own_mem_bio_client_t ok;
+    openssl_component_tls_tls_error_t err;
+  } val;
+} openssl_component_tls_result_own_mem_bio_client_tls_error_t;
+
+typedef struct {
+  bool is_err;
+  union {
+    openssl_component_tls_tls_error_t err;
+  } val;
+} openssl_component_tls_result_void_tls_error_t;
 
 typedef openssl_component_error_code_t openssl_component_random_code_t;
 
@@ -1157,6 +1180,48 @@ extern void openssl_component_tls_method_server_peer(openssl_component_tls_borro
 // `keylog` was set in the listener's server-config.
 extern void openssl_component_tls_method_server_drain_keylog(openssl_component_tls_borrow_server_t self, ssl_import_list_string_t *ret);
 extern void openssl_component_tls_static_server_close(openssl_component_tls_own_server_t s);
+// Construct an unconnected TLS client with memory BIOs.
+// Configures CTX from `config` (verify mode, trust store,
+// SNI, ALPN, ciphers, groups, optional keylog) but does NOT
+// touch the network.
+extern bool openssl_component_tls_static_mem_bio_client_new(openssl_component_tls_client_config_t *config, openssl_component_tls_own_mem_bio_client_t *ret, openssl_component_tls_tls_error_t *err);
+// Drive the handshake forward.
+// ok: handshake completed.
+// err(would-block): more I/O is needed. Drain bio-read,
+//   send those bytes to the peer, then bio-write whatever
+//   you receive and call do-handshake again.
+// err(handshake-failed | verify-failed | …): fatal.
+extern bool openssl_component_tls_method_mem_bio_client_do_handshake(openssl_component_tls_borrow_mem_bio_client_t self, openssl_component_tls_tls_error_t *err);
+// True once `do-handshake` has returned ok.
+extern bool openssl_component_tls_method_mem_bio_client_handshake_done(openssl_component_tls_borrow_mem_bio_client_t self);
+// Inject ciphertext received from the network. Returns the
+// number of bytes accepted (may be short if the internal
+// BIO is full — retry after a do-handshake or read).
+extern uint32_t openssl_component_tls_method_mem_bio_client_bio_write(openssl_component_tls_borrow_mem_bio_client_t self, ssl_import_list_u8_t *data);
+// Drain ciphertext the TLS layer wants to send. Empty list
+// when nothing is pending. The caller is responsible for
+// forwarding the bytes to the peer.
+extern void openssl_component_tls_method_mem_bio_client_bio_read(openssl_component_tls_borrow_mem_bio_client_t self, uint32_t max, ssl_import_list_u8_t *ret);
+// Bytes currently buffered for sending.
+extern uint32_t openssl_component_tls_method_mem_bio_client_bio_pending(openssl_component_tls_borrow_mem_bio_client_t self);
+// Read decrypted plaintext (post-handshake). Same semantics
+// as `client.read`; returns empty list on clean close.
+extern bool openssl_component_tls_method_mem_bio_client_read(openssl_component_tls_borrow_mem_bio_client_t self, uint32_t max_bytes, ssl_import_list_u8_t *ret, openssl_component_tls_tls_error_t *err);
+// Write plaintext (post-handshake). Returns bytes written.
+// May be short if the internal BIO is full — drain bio-read
+// and retry.
+extern bool openssl_component_tls_method_mem_bio_client_write(openssl_component_tls_borrow_mem_bio_client_t self, ssl_import_list_u8_t *data, uint32_t *ret, openssl_component_tls_tls_error_t *err);
+// Peer's certificate in DER form (after handshake).
+extern bool openssl_component_tls_method_mem_bio_client_peer_cert_der(openssl_component_tls_borrow_mem_bio_client_t self, ssl_import_list_u8_t *ret);
+// Negotiated protocol version ("TLSv1.3", …).
+extern void openssl_component_tls_method_mem_bio_client_version(openssl_component_tls_borrow_mem_bio_client_t self, ssl_import_string_t *ret);
+// Selected ALPN protocol if any.
+extern bool openssl_component_tls_method_mem_bio_client_selected_alpn_protocol(openssl_component_tls_borrow_mem_bio_client_t self, ssl_import_string_t *ret);
+// Begin TLS shutdown. Sends a close_notify; the caller
+// drains bio-read once more to forward it to the peer.
+extern bool openssl_component_tls_method_mem_bio_client_shutdown(openssl_component_tls_borrow_mem_bio_client_t self, openssl_component_tls_tls_error_t *err);
+// Free the resource.
+extern void openssl_component_tls_static_mem_bio_client_close(openssl_component_tls_own_mem_bio_client_t c);
 
 // Imported Functions from `openssl:component/random@0.1.0`
 // Public (non-sensitive) random bytes.
@@ -1379,6 +1444,12 @@ extern void openssl_component_tls_server_drop_borrow(openssl_component_tls_borro
 
 extern openssl_component_tls_borrow_server_t openssl_component_tls_borrow_server(openssl_component_tls_own_server_t handle);
 
+extern void openssl_component_tls_mem_bio_client_drop_own(openssl_component_tls_own_mem_bio_client_t handle);
+
+extern void openssl_component_tls_mem_bio_client_drop_borrow(openssl_component_tls_borrow_mem_bio_client_t handle);
+
+extern openssl_component_tls_borrow_mem_bio_client_t openssl_component_tls_borrow_mem_bio_client(openssl_component_tls_own_mem_bio_client_t handle);
+
 void openssl_component_tls_result_own_client_tls_error_free(openssl_component_tls_result_own_client_tls_error_t *ptr);
 
 void openssl_component_tls_result_u32_tls_error_free(openssl_component_tls_result_u32_tls_error_t *ptr);
@@ -1388,6 +1459,10 @@ void openssl_component_tls_result_list_u8_tls_error_free(openssl_component_tls_r
 void openssl_component_tls_result_own_server_listener_tls_error_free(openssl_component_tls_result_own_server_listener_tls_error_t *ptr);
 
 void openssl_component_tls_result_own_server_tls_error_free(openssl_component_tls_result_own_server_tls_error_t *ptr);
+
+void openssl_component_tls_result_own_mem_bio_client_tls_error_free(openssl_component_tls_result_own_mem_bio_client_tls_error_t *ptr);
+
+void openssl_component_tls_result_void_tls_error_free(openssl_component_tls_result_void_tls_error_t *ptr);
 
 void openssl_component_random_random_error_free(openssl_component_random_random_error_t *ptr);
 

@@ -152,12 +152,11 @@ class SSLSyscallError(SSLError):
     """An underlying syscall failed during TLS I/O."""
 
 
-class SSLWantReadError(SSLError):
-    """Non-blocking SSLSocket needs to read more data — try again later."""
-
-
-class SSLWantWriteError(SSLError):
-    """Non-blocking SSLSocket needs to write more data — try again later."""
+# Re-export ssl_capability's SSLWantReadError / SSLWantWriteError so async
+# TLS drivers (anyio, httpx) catching `ssl.SSLWantReadError` match the
+# exception our SSLObject (wrap_bio path) actually raises.
+SSLWantReadError = _impl.SSLWantReadError
+SSLWantWriteError = _impl.SSLWantWriteError
 
 
 class SSLZeroReturnError(SSLError):

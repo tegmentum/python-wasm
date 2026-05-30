@@ -467,6 +467,11 @@ static PyObject *SSLContext_wrap_socket(SSLContextObject *self, PyObject *args, 
                                      server_hostname ? server_hostname : host);
 }
 
+/* Forward declaration so SSLContext_methods can take the address — the
+ * full definition is below the MemBioSSLClient type, which can't move
+ * up because SSLContext_wrap_bio needs MemBioSSLClient_Type. */
+static PyObject *SSLContext_wrap_bio(SSLContextObject *ctx, PyObject *args, PyObject *kwds);
+
 static PyMethodDef SSLContext_methods[] = {
     {"set_ca_certs",        (PyCFunction) SSLContext_set_ca_certs,        METH_VARARGS,
      "set_ca_certs(pem: bytes)\n\nInline trust roots (alternative to load_verify_locations)."},
@@ -480,6 +485,12 @@ static PyMethodDef SSLContext_methods[] = {
      "set_alpn_protocols(protos: list[str|bytes])\n\nALPN preference list."},
     {"wrap_socket",         (PyCFunction) SSLContext_wrap_socket,         METH_VARARGS | METH_KEYWORDS,
      "wrap_socket(host: str, port: int, server_hostname: str=None) -> _SSLSocket"},
+    {"wrap_bio",            (PyCFunction) SSLContext_wrap_bio,            METH_VARARGS | METH_KEYWORDS,
+     "wrap_bio(bio_in, bio_out, server_side=False, server_hostname=None)\n"
+     "  -> _MemBioSSLClient\n\n"
+     "Memory-BIO TLS client for async transports (anyio, httpx). The\n"
+     "returned object owns no socket — pump ciphertext through bio_write\n"
+     "/ bio_read in step with your event loop."},
     {NULL, NULL, 0, NULL}
 };
 
@@ -933,6 +944,377 @@ static PyTypeObject SSLSocket_Type = {
 };
 
 /* -------------------------------------------------------------------------
+ * MemBioSSLClient — memory-BIO mode TLS client. Returned by
+ * _SSLContext.wrap_bio(). Wraps openssl:component/tls.mem-bio-client,
+ * which owns the SSL state machine but no socket — the caller pumps
+ * ciphertext through bio_write/bio_read in their own event loop. This
+ * is the surface async TLS libraries need (anyio TLSStream, httpx async
+ * transport, ...).
+ * ------------------------------------------------------------------------- */
+
+typedef struct {
+    PyObject_HEAD
+    openssl_component_tls_own_mem_bio_client_t handle;
+    int       has_handle;
+    PyObject *server_hostname;        /* str — for getter only */
+} MemBioSSLClientObject;
+
+static PyTypeObject MemBioSSLClient_Type;
+
+static int mb_ensure_open(MemBioSSLClientObject *self)
+{
+    if (!self->has_handle) {
+        PyErr_SetString(SSLError, "SSL connection is closed");
+        return -1;
+    }
+    return 0;
+}
+
+static PyObject *mb_do_handshake(MemBioSSLClientObject *self, PyObject *Py_UNUSED(a))
+{
+    if (mb_ensure_open(self) < 0) return NULL;
+    openssl_component_tls_tls_error_t err;
+    openssl_component_tls_borrow_mem_bio_client_t b =
+        openssl_component_tls_borrow_mem_bio_client(self->handle);
+    bool ok = openssl_component_tls_method_mem_bio_client_do_handshake(b, &err);
+    if (ok) Py_RETURN_NONE;
+    /* The would-block tag means "needs more I/O" — surface as
+     * SSL_ERROR_WANT_READ-ish by raising SSLError with a distinguishable
+     * message so the Python shim can map it to SSLWantReadError. */
+    int is_would_block = (err.tag == OPENSSL_COMPONENT_TLS_TLS_ERROR_WOULD_BLOCK);
+    openssl_component_tls_tls_error_free(&err);
+    if (is_would_block) {
+        PyErr_SetString(SSLError, "SSL_ERROR_WANT_READ");
+        return NULL;
+    }
+    PyErr_SetString(SSLError, "TLS handshake failed");
+    return NULL;
+}
+
+static PyObject *mb_handshake_done(MemBioSSLClientObject *self, PyObject *Py_UNUSED(a))
+{
+    if (!self->has_handle) Py_RETURN_FALSE;
+    openssl_component_tls_borrow_mem_bio_client_t b =
+        openssl_component_tls_borrow_mem_bio_client(self->handle);
+    bool r = openssl_component_tls_method_mem_bio_client_handshake_done(b);
+    return PyBool_FromLong(r ? 1 : 0);
+}
+
+static PyObject *mb_bio_write(MemBioSSLClientObject *self, PyObject *args)
+{
+    if (mb_ensure_open(self) < 0) return NULL;
+    Py_buffer view;
+    if (!PyArg_ParseTuple(args, "y*:bio_write", &view)) return NULL;
+    ssl_import_list_u8_t input;
+    if (list_u8_dup((const uint8_t *) view.buf, (size_t) view.len, &input) < 0) {
+        PyBuffer_Release(&view);
+        return NULL;
+    }
+    PyBuffer_Release(&view);
+    openssl_component_tls_borrow_mem_bio_client_t b =
+        openssl_component_tls_borrow_mem_bio_client(self->handle);
+    uint32_t n = openssl_component_tls_method_mem_bio_client_bio_write(b, &input);
+    return PyLong_FromUnsignedLong((unsigned long) n);
+}
+
+static PyObject *mb_bio_read(MemBioSSLClientObject *self, PyObject *args)
+{
+    if (mb_ensure_open(self) < 0) return NULL;
+    int max = 16384;
+    if (!PyArg_ParseTuple(args, "|i:bio_read", &max)) return NULL;
+    if (max <= 0) return PyBytes_FromStringAndSize(NULL, 0);
+    ssl_import_list_u8_t out;
+    openssl_component_tls_borrow_mem_bio_client_t b =
+        openssl_component_tls_borrow_mem_bio_client(self->handle);
+    openssl_component_tls_method_mem_bio_client_bio_read(b, (uint32_t) max, &out);
+    PyObject *r = PyBytes_FromStringAndSize((const char *) out.ptr,
+                                            (Py_ssize_t) out.len);
+    ssl_import_list_u8_free(&out);
+    return r;
+}
+
+static PyObject *mb_bio_pending(MemBioSSLClientObject *self, PyObject *Py_UNUSED(a))
+{
+    if (!self->has_handle) return PyLong_FromLong(0);
+    openssl_component_tls_borrow_mem_bio_client_t b =
+        openssl_component_tls_borrow_mem_bio_client(self->handle);
+    uint32_t n = openssl_component_tls_method_mem_bio_client_bio_pending(b);
+    return PyLong_FromUnsignedLong((unsigned long) n);
+}
+
+static PyObject *mb_read(MemBioSSLClientObject *self, PyObject *args)
+{
+    if (mb_ensure_open(self) < 0) return NULL;
+    int max = 8192;
+    if (!PyArg_ParseTuple(args, "|i:read", &max)) return NULL;
+    if (max <= 0) return PyBytes_FromStringAndSize(NULL, 0);
+    ssl_import_list_u8_t out;
+    openssl_component_tls_tls_error_t err;
+    openssl_component_tls_borrow_mem_bio_client_t b =
+        openssl_component_tls_borrow_mem_bio_client(self->handle);
+    bool ok = openssl_component_tls_method_mem_bio_client_read(
+        b, (uint32_t) max, &out, &err);
+    if (!ok) {
+        int is_would_block = (err.tag == OPENSSL_COMPONENT_TLS_TLS_ERROR_WOULD_BLOCK);
+        int is_closed = (err.tag == OPENSSL_COMPONENT_TLS_TLS_ERROR_IO_CLOSED);
+        openssl_component_tls_tls_error_free(&err);
+        if (is_would_block) {
+            PyErr_SetString(SSLError, "SSL_ERROR_WANT_READ");
+            return NULL;
+        }
+        if (is_closed) {
+            return PyBytes_FromStringAndSize(NULL, 0);
+        }
+        PyErr_SetString(SSLError, "TLS read failed");
+        return NULL;
+    }
+    PyObject *r = PyBytes_FromStringAndSize((const char *) out.ptr,
+                                            (Py_ssize_t) out.len);
+    ssl_import_list_u8_free(&out);
+    return r;
+}
+
+static PyObject *mb_write(MemBioSSLClientObject *self, PyObject *args)
+{
+    if (mb_ensure_open(self) < 0) return NULL;
+    Py_buffer view;
+    if (!PyArg_ParseTuple(args, "y*:write", &view)) return NULL;
+    ssl_import_list_u8_t input;
+    if (list_u8_dup((const uint8_t *) view.buf, (size_t) view.len, &input) < 0) {
+        PyBuffer_Release(&view);
+        return NULL;
+    }
+    PyBuffer_Release(&view);
+    uint32_t written;
+    openssl_component_tls_tls_error_t err;
+    openssl_component_tls_borrow_mem_bio_client_t b =
+        openssl_component_tls_borrow_mem_bio_client(self->handle);
+    bool ok = openssl_component_tls_method_mem_bio_client_write(b, &input, &written, &err);
+    if (!ok) {
+        int is_would_block = (err.tag == OPENSSL_COMPONENT_TLS_TLS_ERROR_WOULD_BLOCK);
+        openssl_component_tls_tls_error_free(&err);
+        if (is_would_block) {
+            PyErr_SetString(SSLError, "SSL_ERROR_WANT_WRITE");
+            return NULL;
+        }
+        PyErr_SetString(SSLError, "TLS write failed");
+        return NULL;
+    }
+    return PyLong_FromUnsignedLong((unsigned long) written);
+}
+
+static PyObject *mb_shutdown(MemBioSSLClientObject *self, PyObject *Py_UNUSED(a))
+{
+    if (!self->has_handle) Py_RETURN_NONE;
+    openssl_component_tls_tls_error_t err;
+    openssl_component_tls_borrow_mem_bio_client_t b =
+        openssl_component_tls_borrow_mem_bio_client(self->handle);
+    bool ok = openssl_component_tls_method_mem_bio_client_shutdown(b, &err);
+    if (!ok) {
+        int is_would_block = (err.tag == OPENSSL_COMPONENT_TLS_TLS_ERROR_WOULD_BLOCK);
+        openssl_component_tls_tls_error_free(&err);
+        if (is_would_block) {
+            PyErr_SetString(SSLError, "SSL_ERROR_WANT_READ");
+            return NULL;
+        }
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *mb_version(MemBioSSLClientObject *self, PyObject *Py_UNUSED(a))
+{
+    if (!self->has_handle) Py_RETURN_NONE;
+    ssl_import_string_t out;
+    openssl_component_tls_borrow_mem_bio_client_t b =
+        openssl_component_tls_borrow_mem_bio_client(self->handle);
+    openssl_component_tls_method_mem_bio_client_version(b, &out);
+    PyObject *r = PyUnicode_FromStringAndSize((const char *) out.ptr,
+                                              (Py_ssize_t) out.len);
+    ssl_import_string_free(&out);
+    return r;
+}
+
+static PyObject *mb_peer_cert_der(MemBioSSLClientObject *self, PyObject *Py_UNUSED(a))
+{
+    if (!self->has_handle) Py_RETURN_NONE;
+    ssl_import_list_u8_t out;
+    openssl_component_tls_borrow_mem_bio_client_t b =
+        openssl_component_tls_borrow_mem_bio_client(self->handle);
+    bool ok = openssl_component_tls_method_mem_bio_client_peer_cert_der(b, &out);
+    if (!ok) Py_RETURN_NONE;
+    PyObject *r = PyBytes_FromStringAndSize((const char *) out.ptr,
+                                            (Py_ssize_t) out.len);
+    ssl_import_list_u8_free(&out);
+    return r;
+}
+
+static PyObject *mb_selected_alpn_protocol(MemBioSSLClientObject *self, PyObject *Py_UNUSED(a))
+{
+    if (!self->has_handle) Py_RETURN_NONE;
+    ssl_import_string_t out;
+    openssl_component_tls_borrow_mem_bio_client_t b =
+        openssl_component_tls_borrow_mem_bio_client(self->handle);
+    bool ok = openssl_component_tls_method_mem_bio_client_selected_alpn_protocol(b, &out);
+    if (!ok) Py_RETURN_NONE;
+    PyObject *r = PyUnicode_FromStringAndSize((const char *) out.ptr,
+                                              (Py_ssize_t) out.len);
+    ssl_import_string_free(&out);
+    return r;
+}
+
+static PyObject *mb_get_server_hostname(MemBioSSLClientObject *self, void *Py_UNUSED(c))
+{
+    if (self->server_hostname) {
+        Py_INCREF(self->server_hostname);
+        return self->server_hostname;
+    }
+    Py_RETURN_NONE;
+}
+
+static void MemBioSSLClient_dealloc(MemBioSSLClientObject *self)
+{
+    if (self->has_handle) {
+        openssl_component_tls_static_mem_bio_client_close(self->handle);
+        self->has_handle = 0;
+    }
+    Py_XDECREF(self->server_hostname);
+    PyObject_Free(self);
+}
+
+static PyMethodDef MemBioSSLClient_methods[] = {
+    {"do_handshake",            (PyCFunction) mb_do_handshake,            METH_NOARGS,
+     "Drive the handshake; raises SSLError(SSL_ERROR_WANT_READ) until enough\n"
+     "ciphertext has been bio_write()-ed."},
+    {"handshake_done",          (PyCFunction) mb_handshake_done,          METH_NOARGS,
+     "True once the handshake has succeeded."},
+    {"bio_write",               (PyCFunction) mb_bio_write,               METH_VARARGS,
+     "bio_write(b: bytes) -> int — inject ciphertext from the network."},
+    {"bio_read",                (PyCFunction) mb_bio_read,                METH_VARARGS,
+     "bio_read([n=16384]) -> bytes — drain ciphertext for the network."},
+    {"bio_pending",             (PyCFunction) mb_bio_pending,             METH_NOARGS,
+     "Bytes the TLS layer wants to send."},
+    {"read",                    (PyCFunction) mb_read,                    METH_VARARGS,
+     "read([n=8192]) -> bytes — decrypted plaintext."},
+    {"write",                   (PyCFunction) mb_write,                   METH_VARARGS,
+     "write(b: bytes) -> int — encrypt and queue for sending."},
+    {"shutdown",                (PyCFunction) mb_shutdown,                METH_NOARGS,
+     "Send close_notify."},
+    {"version",                 (PyCFunction) mb_version,                 METH_NOARGS,
+     "Negotiated protocol version."},
+    {"peer_cert_der",           (PyCFunction) mb_peer_cert_der,           METH_NOARGS,
+     "Peer certificate in DER, or None before handshake."},
+    {"selected_alpn_protocol",  (PyCFunction) mb_selected_alpn_protocol,  METH_NOARGS,
+     "Negotiated ALPN protocol, or None."},
+    {NULL, NULL, 0, NULL}
+};
+
+static PyGetSetDef MemBioSSLClient_getset[] = {
+    {"server_hostname",  (getter) mb_get_server_hostname, NULL,
+     "SNI / hostname recorded at wrap_bio time.", NULL},
+    {NULL, NULL, NULL, NULL, NULL}
+};
+
+static PyTypeObject MemBioSSLClient_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name      = "_ssl_capability._MemBioSSLClient",
+    .tp_basicsize = sizeof(MemBioSSLClientObject),
+    .tp_dealloc   = (destructor) MemBioSSLClient_dealloc,
+    .tp_flags     = Py_TPFLAGS_DEFAULT,
+    .tp_doc       = "Memory-BIO TLS client. Not user-constructible; obtain\n"
+                    "via _SSLContext.wrap_bio().",
+    .tp_methods   = MemBioSSLClient_methods,
+    .tp_getset    = MemBioSSLClient_getset,
+};
+
+/* SSLContext.wrap_bio(bio_in, bio_out, server_side=False,
+ *                     server_hostname=None) -> _MemBioSSLClient
+ *
+ * Departs from CPython: we don't actually retain the user's MemoryBIO
+ * instances — the cap owns its own internal BIOs, and the Python shim
+ * (Lib/ssl_capability.py) pumps bytes between the user's bios and
+ * ours. The signature matches CPython's so the shim can pass through
+ * the MemoryBIO objects to its SSLObject wrapper. */
+static PyObject *SSLContext_wrap_bio(SSLContextObject *ctx, PyObject *args, PyObject *kwds)
+{
+    PyObject *bio_in;
+    PyObject *bio_out;
+    int server_side = 0;
+    const char *server_hostname = NULL;
+    static char *kwlist[] = {"bio_in", "bio_out", "server_side", "server_hostname", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|iz:wrap_bio", kwlist,
+                                     &bio_in, &bio_out, &server_side, &server_hostname)) {
+        return NULL;
+    }
+    if (server_side) {
+        PyErr_SetString(PyExc_NotImplementedError,
+                        "wrap_bio: server_side not implemented yet");
+        return NULL;
+    }
+    /* Lazy trust store, identical to wrap_socket. */
+    if (!ctx->has_trust_store && ctx->ca_pem_bytes != NULL) {
+        if (SSLContext_build_trust_store(ctx) < 0) return NULL;
+    }
+
+    openssl_component_tls_client_config_t config = {0};
+    config.protocols.min = (uint8_t) ctx->min_protocol;
+    config.protocols.max = (uint8_t) ctx->max_protocol;
+    config.verify = (uint8_t) ctx->verify_mode;
+    config.trust.is_some = false;
+    if (ctx->has_trust_store) {
+        config.trust.is_some = true;
+        config.trust.val = ctx->trust_store;
+        ctx->has_trust_store = 0;
+    }
+    config.verify_options.is_some = false;
+    config.server_name.is_some = (server_hostname != NULL);
+    if (config.server_name.is_some) {
+        size_t n = strlen(server_hostname);
+        config.server_name.val.ptr = (uint8_t *) malloc(n);
+        if (!config.server_name.val.ptr) { PyErr_NoMemory(); return NULL; }
+        memcpy(config.server_name.val.ptr, server_hostname, n);
+        config.server_name.val.len = n;
+    }
+    config.client_cert.is_some = false;
+    config.client_key.is_some = false;
+    config.alpn.is_some = (ctx->alpn_protocols != NULL
+                           && PyList_Size(ctx->alpn_protocols) > 0);
+    if (config.alpn.is_some) {
+        if (alpn_list_from_pylist(ctx->alpn_protocols, &config.alpn.val.protocols) < 0) {
+            if (config.server_name.is_some) free(config.server_name.val.ptr);
+            return NULL;
+        }
+    }
+    config.ciphers.is_some = false;
+    config.groups.is_some = false;
+    config.enable_early_data = false;
+
+    openssl_component_tls_own_mem_bio_client_t cap_client;
+    openssl_component_tls_tls_error_t err;
+    bool ok = openssl_component_tls_static_mem_bio_client_new(
+        &config, &cap_client, &err);
+    if (!ok) {
+        return raise_tls_error("wrap_bio failed", &err);
+    }
+
+    MemBioSSLClientObject *self = PyObject_New(MemBioSSLClientObject,
+                                                &MemBioSSLClient_Type);
+    if (!self) {
+        openssl_component_tls_static_mem_bio_client_close(cap_client);
+        return NULL;
+    }
+    self->handle = cap_client;
+    self->has_handle = 1;
+    self->server_hostname = (server_hostname
+                             ? PyUnicode_FromString(server_hostname)
+                             : NULL);
+    /* Note: bio_in / bio_out are accepted to match CPython's signature
+     * but not used here — the shim layer keeps references and pumps
+     * bytes through them. Suppress unused-arg warnings. */
+    (void) bio_in; (void) bio_out;
+    return (PyObject *) self;
+}
+
+/* -------------------------------------------------------------------------
  * Module plumbing
  * ------------------------------------------------------------------------- */
 
@@ -1009,6 +1391,7 @@ PyMODINIT_FUNC PyInit__ssl_capability(void)
     if (PyType_Ready(&MemoryBIO_Type) < 0) return NULL;
     if (PyType_Ready(&SSLContext_Type) < 0) return NULL;
     if (PyType_Ready(&SSLSocket_Type) < 0) return NULL;
+    if (PyType_Ready(&MemBioSSLClient_Type) < 0) return NULL;
 
     PyObject *m = PyModule_Create(&ssl_capability_module);
     if (!m) return NULL;
@@ -1024,6 +1407,8 @@ PyMODINIT_FUNC PyInit__ssl_capability(void)
     if (PyModule_AddObject(m, "_SSLContext", (PyObject *) &SSLContext_Type) < 0) goto fail;
     Py_INCREF(&SSLSocket_Type);
     if (PyModule_AddObject(m, "_SSLSocket", (PyObject *) &SSLSocket_Type) < 0) goto fail;
+    Py_INCREF(&MemBioSSLClient_Type);
+    if (PyModule_AddObject(m, "_MemBioSSLClient", (PyObject *) &MemBioSSLClient_Type) < 0) goto fail;
 
     /* Mirror CPython ssl.CERT_NONE / CERT_OPTIONAL / CERT_REQUIRED. */
     PyModule_AddIntConstant(m, "CERT_NONE", 0);
