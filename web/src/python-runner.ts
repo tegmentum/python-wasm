@@ -13,8 +13,9 @@ import {
   ComponentExitError,
 } from '@tegmentum/wasi-polyfill/plugins/cli'
 import {
-  getGlobalFilesystemInstance,
-  type MemoryFileSystem,
+  MemoryFileSystem,
+  setGlobalFilesystem,
+  resetGlobalFilesystem,
 } from '@tegmentum/wasi-polyfill/plugins/filesystem'
 import { socketPlugins } from '@tegmentum/wasi-polyfill/plugins/sockets'
 import {
@@ -61,7 +62,6 @@ const PYTHONPATH = '/Lib:/cross-build/wasm32-wasip2/build/lib.wasi-wasm32-3.14'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let pythonModule: any = null
 let stdlibFiles: Map<string, Uint8Array> | null = null
-let filesystemPopulated = false
 
 export interface RunResult {
   stdout: string
@@ -190,9 +190,11 @@ function createPythonPolicy(userCode: string): Policy {
 /**
  * Populate the in-memory filesystem with stdlib files (first run only).
  */
-function populateFilesystem(fs: MemoryFileSystem): void {
-  if (filesystemPopulated || !stdlibFiles) return
-
+function buildStdlibFilesystem(): MemoryFileSystem {
+  if (!stdlibFiles) {
+    throw new Error('stdlib not loaded yet — call initialize() first')
+  }
+  const fs = new MemoryFileSystem()
   for (const [path, content] of stdlibFiles) {
     // Ensure parent directories exist
     const parts = path.split('/')
@@ -204,16 +206,13 @@ function populateFilesystem(fs: MemoryFileSystem): void {
         fs.createDirectory(dirPath)
       }
     }
-
-    // Create the file
     const filePath = '/' + path
     const createResult = fs.createFile(filePath, { create: true, truncate: true })
     if (createResult.tag === 'ok') {
       createResult.val.content = content
     }
   }
-
-  filesystemPopulated = true
+  return fs
 }
 
 /**
@@ -233,6 +232,14 @@ export async function runPython(code: string): Promise<RunResult> {
     createCustomStdio(new EmptyInputStream(), stdoutCapture, stderrCapture),
   )
 
+  // Per-polyfill FS isolation (wasi-polyfill Phase 2.10): the FS instance
+  // gets created lazily inside forInterfaces, so populating after the fact
+  // is too late. Stage a pre-populated MemoryFileSystem via
+  // setGlobalFilesystem before constructing the Polyfill — the next FS
+  // plugin instantiated picks it up.
+  resetGlobalFilesystem()
+  setGlobalFilesystem(buildStdlibFilesystem())
+
   const policy = createPythonPolicy(code)
   const polyfill = new Polyfill({ policy })
 
@@ -242,12 +249,6 @@ export async function runPython(code: string): Promise<RunResult> {
     const { imports } = await polyfill.forInterfaces(WASI_INTERFACES, {
       jcoCompat: true,
     })
-
-    // Populate filesystem on first run (singleton persists across runs)
-    const fsInstance = getGlobalFilesystemInstance()
-    if (fsInstance && !filesystemPopulated) {
-      populateFilesystem(fsInstance.getFileSystem())
-    }
 
     // Provide core module loader for jco instantiation
     const getCoreModule = (name: string) =>
