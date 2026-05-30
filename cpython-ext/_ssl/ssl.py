@@ -395,13 +395,27 @@ def RAND_status():
     seeds from wasi-libc getrandom which always provides entropy; report
     the OK status so callers don't bail out on the negative branch."""
     return 1
-create_connection = _stub(
-    "create_connection",
-    "socket-creation helper not yet wired — construct your own socket "
-    "+ ctx.wrap_socket() in the meantime")
-get_protocol_name = _stub(
-    "get_protocol_name",
-    "minor helper not yet wired through the capability")
+def create_connection(addr, timeout=None, source_address=None):
+    """Thin alias for socket.create_connection — kept on ssl for
+    `from ssl import create_connection` callers (stdlib re-exports it
+    too)."""
+    import socket as _socket
+    kwargs = {}
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    if source_address is not None:
+        kwargs["source_address"] = source_address
+    return _socket.create_connection(addr, **kwargs)
+
+
+def get_protocol_name(version: int) -> str:
+    """Return a human label for a PROTOCOL_* value (informational)."""
+    return {
+        0: "PROTOCOL_SSLv23",
+        2: "PROTOCOL_TLS",
+        16: "PROTOCOL_TLS_CLIENT",
+        17: "PROTOCOL_TLS_SERVER",
+    }.get(int(version), f"<unknown TLSv? ({version})>")
 
 
 # ---------------------------------------------------------------------------
