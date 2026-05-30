@@ -162,7 +162,7 @@ Against `build/3.14-current/python.composed.wasm` post-`c2fc788`:
 | ~~`hashlib.scrypt` unwired~~ | ✅ resolved — `_hashlib.scrypt` delegates to `_kdf_cap.derive_scrypt`; smoke-tested 2026-05-29 |
 | ~~`asyncio.to_thread` traps in `pthread_cond_wait`~~ | ✅ resolved 2026-05-29 — `sitecustomize.py` overrides `BaseEventLoop.run_in_executor` to run synchronously; unblocks `to_thread`, `gather`, and the first stage of `httpx`/`anyio` async |
 | `subprocess.Popen.spawn()` | Phase 5 (v86 subprocess) — upstream-driven |
-| `ssl.SSLObject` / `wrap_bio` (memory BIO for async TLS) | Phase 8 — blocks anyio/httpx async TLS; needs openssl-component memory-BIO export |
+| ~~`ssl.SSLObject` / `wrap_bio` (memory BIO for async TLS)~~ | ✅ **fixed 2026-05-29** — added `mem-bio-client` WIT resource in openssl-component@661ec3e and `SSLContext.wrap_bio` shim. httpx async over https smoke-tested end-to-end. |
 | `ssl.get_server_certificate`, RAND_add/status | Phase 8 — needs openssl-component v0.2.x with `SSL_get_peer_certificate`/`i2d_X509` |
 | ~~`mmap`~~ | ✅ resolved — `Lib/mmap.py` pure-Python shim installed |
 
