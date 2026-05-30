@@ -138,6 +138,98 @@ def _map_ssl_want(exc: BaseException) -> BaseException:
 
 
 # ----------------------------------------------------------------------------
+# getpeercert() helpers — turn the C ext's raw certificate-info dict into
+# the stdlib's nested-tuple shape (((( 'commonName', 'host'),),),) with
+# GMT-formatted dates and normalised SAN entries.
+# ----------------------------------------------------------------------------
+
+# OID short name → stdlib long name. The cap returns whatever OpenSSL's
+# X509_NAME_ENTRY short-name lookup yields ("CN", "O", "C", "emailAddress",
+# raw OID dotted-string for the rest). Stdlib spells the common ones out.
+_OID_LONG_NAMES = {
+    "CN":           "commonName",
+    "C":            "countryName",
+    "ST":           "stateOrProvinceName",
+    "L":            "localityName",
+    "O":            "organizationName",
+    "OU":           "organizationalUnitName",
+    "emailAddress": "emailAddress",
+    "SN":           "surname",
+    "GN":           "givenName",
+    "T":            "title",
+    "DC":           "domainComponent",
+    "serialNumber": "serialNumber",
+    "businessCategory": "businessCategory",
+    "street":       "streetAddress",
+    "postalCode":   "postalCode",
+}
+
+_MONTH_ABBR = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def _name_to_stdlib(raw_name):
+    """[(oid, val), …]  →  ((('longName', 'val'),), …)"""
+    return tuple(
+        ((_OID_LONG_NAMES.get(oid, oid), val),)
+        for oid, val in raw_name
+    )
+
+
+def _iso_to_gmt(iso):
+    """`2025-08-24T00:00:00Z`  →  `Aug 24 00:00:00 2025 GMT` (the
+    format stdlib `getpeercert` returns under notBefore/notAfter)."""
+    try:
+        date_part, time_part = iso.split("T", 1)
+        y, m, d = date_part.split("-")
+        time_part = time_part.rstrip("Z")
+        if "." in time_part:
+            time_part = time_part.split(".", 1)[0]
+        # stdlib zero-pads the day to width 2 with a leading space.
+        return f"{_MONTH_ABBR[int(m) - 1]} {int(d):2d} {time_part} {y} GMT"
+    except Exception:
+        return iso
+
+
+def _san_to_stdlib(raw_sans):
+    """Translate the cap's general-name list into stdlib's
+    subjectAltName tuple-of-(kind, value) shape. `IP` entries arrive as
+    bytes (4 = IPv4, 16 = IPv6); format them as ipaddress.IPv*Address
+    strings to match what OpenSSL prints under "IP Address"."""
+    out = []
+    for kind, val in raw_sans:
+        if kind == "IP" and isinstance(val, (bytes, bytearray)):
+            try:
+                import ipaddress
+                b = bytes(val)
+                if len(b) == 4:
+                    out.append(("IP Address", str(ipaddress.IPv4Address(b))))
+                elif len(b) == 16:
+                    out.append(("IP Address", str(ipaddress.IPv6Address(b))))
+                else:
+                    out.append(("IP Address", b.hex()))
+            except Exception:
+                out.append(("IP Address", bytes(val).hex()))
+        else:
+            out.append((kind, val))
+    return tuple(out)
+
+
+def _format_peer_cert(info):
+    """Project the C ext's raw certificate-info dict into the stdlib
+    `getpeercert(False)` shape."""
+    return {
+        "subject":        _name_to_stdlib(info["subject"]),
+        "issuer":         _name_to_stdlib(info["issuer"]),
+        "version":        info["version"],
+        "serialNumber":   info["serial_hex"],
+        "notBefore":      _iso_to_gmt(info["not_before"]),
+        "notAfter":       _iso_to_gmt(info["not_after"]),
+        "subjectAltName": _san_to_stdlib(info["subject_alt_names"]),
+    }
+
+
+# ----------------------------------------------------------------------------
 # SSLContext — wrapper around _ssl_capability._SSLContext
 # ----------------------------------------------------------------------------
 
@@ -441,6 +533,15 @@ class SSLObject:
             return None if binary_form else {}
         if binary_form:
             return der
+        # Real parsed dict via the cap's x509.certificate.info() — falls
+        # back to the synthetic dict if the cap can't parse (e.g. very
+        # old peers, or post-handshake cert eviction).
+        try:
+            info = self._cap.peer_cert_info()
+        except AttributeError:
+            info = None
+        if info:
+            return _format_peer_cert(info)
         host = self.server_hostname or ""
         return {
             "subjectAltName": (("DNS", host),) if host else (),
@@ -672,17 +773,23 @@ class SSLSocket:
         """Return the peer's certificate.
 
         binary_form=True returns DER bytes (the stdlib API). binary_form=False
-        returns a minimal parsed-dict echoing the server hostname under
-        ``subjectAltName`` so urllib3/requests hostname matching succeeds.
-        The cap's openssl-component already validated the cert against
-        server_hostname during the handshake, so if we got here, the hostname
-        is in the cert's SAN by definition. Full x509 parsing is tracked for
-        openssl-component v0.2.x."""
+        returns a parsed dict built from the cap's
+        ``x509.certificate.info()`` — subject/issuer/version/serialNumber/
+        notBefore/notAfter/subjectAltName populated; signature/key-usage
+        fields omitted because no stdlib caller reads them. Falls back to
+        the synthetic single-SAN dict when the cap can't parse (very rare
+        — usually means the peer sent no cert)."""
         der = self._inner.peer_cert_der()
         if der is None:
             return {} if not binary_form else None
         if binary_form:
             return der
+        try:
+            info = self._inner.peer_cert_info()
+        except AttributeError:
+            info = None
+        if info:
+            return _format_peer_cert(info)
         host = self._inner.server_hostname or ""
         return {
             "subjectAltName": (("DNS", host),) if host else (),

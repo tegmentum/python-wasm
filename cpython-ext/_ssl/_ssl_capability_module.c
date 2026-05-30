@@ -869,6 +869,119 @@ static PyObject *SSLSocket_cipher(SSLSocketObject *self, PyObject *Py_UNUSED(arg
     return t;
 }
 
+/* ------ x509 certificate-info marshaling (shared by SSLSocket + MemBio) ------
+ *
+ * Pull `certificate-info` off a borrowed cert handle and project it into a
+ * raw dict the Python wrapper massages into the stdlib getpeercert(False)
+ * shape. We keep the C side as a thin pass-through (raw OIDs, raw ISO 8601
+ * timestamps, raw general-name tags) so the OID→long-name table and date
+ * formatting live in Python where they're easy to extend. */
+
+static const char *gn_tag_str(uint8_t tag)
+{
+    switch (tag) {
+        case OPENSSL_COMPONENT_X509_GENERAL_NAME_DNS:   return "DNS";
+        case OPENSSL_COMPONENT_X509_GENERAL_NAME_EMAIL: return "email";
+        case OPENSSL_COMPONENT_X509_GENERAL_NAME_URI:   return "URI";
+        case OPENSSL_COMPONENT_X509_GENERAL_NAME_IP:    return "IP";
+        default:                                          return "other";
+    }
+}
+
+static PyObject *build_name_list(const openssl_component_x509_name_t *n)
+{
+    PyObject *out = PyList_New((Py_ssize_t) n->len);
+    if (!out) return NULL;
+    for (size_t i = 0; i < n->len; i++) {
+        openssl_component_x509_name_entry_t *e = &n->ptr[i];
+        PyObject *t = Py_BuildValue("(s#s#)",
+            (const char *) e->oid.ptr,   (Py_ssize_t) e->oid.len,
+            (const char *) e->value.ptr, (Py_ssize_t) e->value.len);
+        if (!t) { Py_DECREF(out); return NULL; }
+        PyList_SET_ITEM(out, (Py_ssize_t) i, t);
+    }
+    return out;
+}
+
+static PyObject *build_san_list(const openssl_component_x509_list_general_name_t *l)
+{
+    PyObject *out = PyList_New((Py_ssize_t) l->len);
+    if (!out) return NULL;
+    for (size_t i = 0; i < l->len; i++) {
+        openssl_component_x509_general_name_t *g = &l->ptr[i];
+        const char *kind = gn_tag_str(g->tag);
+        PyObject *t = NULL;
+        switch (g->tag) {
+            case OPENSSL_COMPONENT_X509_GENERAL_NAME_DNS:
+                t = Py_BuildValue("(ss#)", kind,
+                    (const char *) g->val.dns.ptr,   (Py_ssize_t) g->val.dns.len);
+                break;
+            case OPENSSL_COMPONENT_X509_GENERAL_NAME_EMAIL:
+                t = Py_BuildValue("(ss#)", kind,
+                    (const char *) g->val.email.ptr, (Py_ssize_t) g->val.email.len);
+                break;
+            case OPENSSL_COMPONENT_X509_GENERAL_NAME_URI:
+                t = Py_BuildValue("(ss#)", kind,
+                    (const char *) g->val.uri.ptr,   (Py_ssize_t) g->val.uri.len);
+                break;
+            case OPENSSL_COMPONENT_X509_GENERAL_NAME_IP:
+                t = Py_BuildValue("(sy#)", kind,
+                    (const char *) g->val.ip.ptr,    (Py_ssize_t) g->val.ip.len);
+                break;
+            default:
+                t = Py_BuildValue("(sy#)", kind,
+                    (const char *) g->val.other.ptr, (Py_ssize_t) g->val.other.len);
+                break;
+        }
+        if (!t) { Py_DECREF(out); return NULL; }
+        PyList_SET_ITEM(out, (Py_ssize_t) i, t);
+    }
+    return out;
+}
+
+static PyObject *build_cert_info_dict(openssl_component_x509_borrow_certificate_t cert)
+{
+    openssl_component_x509_certificate_info_t info;
+    openssl_component_x509_method_certificate_info(cert, &info);
+
+    PyObject *d = PyDict_New();
+    if (!d) { openssl_component_x509_certificate_info_free(&info); return NULL; }
+
+#define SET_OR_FAIL(key, expr) do { \
+    PyObject *_v = (expr); \
+    if (!_v) goto err; \
+    if (PyDict_SetItemString(d, (key), _v) < 0) { Py_DECREF(_v); goto err; } \
+    Py_DECREF(_v); \
+} while (0)
+
+    SET_OR_FAIL("version", PyLong_FromUnsignedLong(info.version));
+    SET_OR_FAIL("serial_hex", PyUnicode_FromStringAndSize(
+        (const char *) info.serial_hex.ptr, (Py_ssize_t) info.serial_hex.len));
+    SET_OR_FAIL("subject", build_name_list(&info.subject));
+    SET_OR_FAIL("issuer",  build_name_list(&info.issuer));
+    SET_OR_FAIL("not_before", PyUnicode_FromStringAndSize(
+        (const char *) info.validity.not_before.ptr,
+        (Py_ssize_t)   info.validity.not_before.len));
+    SET_OR_FAIL("not_after", PyUnicode_FromStringAndSize(
+        (const char *) info.validity.not_after.ptr,
+        (Py_ssize_t)   info.validity.not_after.len));
+    SET_OR_FAIL("subject_alt_names", build_san_list(&info.subject_alt_names));
+    SET_OR_FAIL("issuer_alt_names",  build_san_list(&info.issuer_alt_names));
+    SET_OR_FAIL("signature_algorithm", PyUnicode_FromStringAndSize(
+        (const char *) info.signature_algorithm.ptr,
+        (Py_ssize_t)   info.signature_algorithm.len));
+
+#undef SET_OR_FAIL
+
+    openssl_component_x509_certificate_info_free(&info);
+    return d;
+
+err:
+    Py_DECREF(d);
+    openssl_component_x509_certificate_info_free(&info);
+    return NULL;
+}
+
 /* peer_cert_der() — return the peer's certificate as DER bytes (or None
  * if the peer didn't send one). Powers ssl.get_server_certificate +
  * stdlib SSLSocket.getpeercert(binary_form=True). */
@@ -971,6 +1084,26 @@ static PyObject *SSLSocket_peer_chain_der(SSLSocketObject *self, PyObject *Py_UN
     return out;
 }
 
+/* peer_cert_info() — return a raw dict pulled from
+ * x509.certificate.info() on the peer's leaf cert. The Python wrapper
+ * (SSLSocket.getpeercert) projects it into the stdlib's nested-tuple
+ * shape with long OID names + GMT-formatted dates. Returns None if no
+ * peer cert was sent. */
+static PyObject *SSLSocket_peer_cert_info(SSLSocketObject *self, PyObject *Py_UNUSED(a))
+{
+    openssl_component_tls_peer_info_t info;
+    if (load_peer_info(self, &info) < 0) return NULL;
+    if (info.peer_chain.len == 0) {
+        openssl_component_tls_peer_info_free(&info);
+        Py_RETURN_NONE;
+    }
+    openssl_component_x509_borrow_certificate_t bc =
+        openssl_component_x509_borrow_certificate(info.peer_chain.ptr[0]);
+    PyObject *d = build_cert_info_dict(bc);
+    openssl_component_tls_peer_info_free(&info);
+    return d;
+}
+
 static PyMethodDef SSLSocket_methods[] = {
     {"read",                    (PyCFunction) SSLSocket_read,                    METH_VARARGS,
      "read([max=8192]) -> bytes — decrypted application data."},
@@ -993,6 +1126,9 @@ static PyMethodDef SSLSocket_methods[] = {
      "None if the peer didn't send one."},
     {"peer_chain_der",          (PyCFunction) SSLSocket_peer_chain_der,          METH_NOARGS,
      "peer_chain_der() -> list[bytes] — full peer cert chain (leaf first), DER."},
+    {"peer_cert_info",          (PyCFunction) SSLSocket_peer_cert_info,          METH_NOARGS,
+     "peer_cert_info() -> dict | None — raw x509 certificate-info for the\n"
+     "peer's leaf cert; Python wrapper massages into stdlib getpeercert shape."},
     {"session_ticket",          (PyCFunction) SSLSocket_session_ticket,          METH_NOARGS,
      "session_ticket() -> bytes | None — opaque TLS 1.3 ticket the server\n"
      "issued for resumption; pass to wrap_socket(..., session=...) on the\n"
@@ -1245,6 +1381,34 @@ static PyObject *mb_peer_chain_der(MemBioSSLClientObject *self, PyObject *Py_UNU
     return out;
 }
 
+/* mb_peer_cert_info() — counterpart to SSLSocket_peer_cert_info for the
+ * memory-BIO client. The mem-bio cap doesn't surface owned cert handles
+ * on `peer()` (it returns the leaf as DER), so we have to parse the DER
+ * back into an x509.certificate to call info() on it, then drop. */
+static PyObject *mb_peer_cert_info(MemBioSSLClientObject *self, PyObject *Py_UNUSED(a))
+{
+    if (!self->has_handle) Py_RETURN_NONE;
+    ssl_import_list_u8_t der;
+    openssl_component_tls_borrow_mem_bio_client_t b =
+        openssl_component_tls_borrow_mem_bio_client(self->handle);
+    if (!openssl_component_tls_method_mem_bio_client_peer_cert_der(b, &der))
+        Py_RETURN_NONE;
+
+    openssl_component_x509_own_certificate_t cert;
+    openssl_component_x509_x509_error_t err;
+    bool parsed = openssl_component_x509_static_certificate_parse(
+        &der, OPENSSL_COMPONENT_PKEY_ENCODING_DER, &cert, &err);
+    if (!parsed) {
+        openssl_component_x509_x509_error_free(&err);
+        Py_RETURN_NONE;
+    }
+    openssl_component_x509_borrow_certificate_t bc =
+        openssl_component_x509_borrow_certificate(cert);
+    PyObject *d = build_cert_info_dict(bc);
+    openssl_component_x509_certificate_drop_own(cert);
+    return d;
+}
+
 static PyObject *mb_selected_alpn_protocol(MemBioSSLClientObject *self, PyObject *Py_UNUSED(a))
 {
     if (!self->has_handle) Py_RETURN_NONE;
@@ -1328,6 +1492,9 @@ static PyMethodDef MemBioSSLClient_methods[] = {
      "Peer certificate in DER, or None before handshake."},
     {"peer_chain_der",          (PyCFunction) mb_peer_chain_der,          METH_NOARGS,
      "Full peer cert chain (leaf first), DER bytes per entry."},
+    {"peer_cert_info",          (PyCFunction) mb_peer_cert_info,          METH_NOARGS,
+     "peer_cert_info() -> dict | None — raw x509 certificate-info; the\n"
+     "Python wrapper formats it for stdlib getpeercert."},
     {"selected_alpn_protocol",  (PyCFunction) mb_selected_alpn_protocol,  METH_NOARGS,
      "Negotiated ALPN protocol, or None."},
     {"cipher",                  (PyCFunction) mb_cipher,                  METH_NOARGS,
