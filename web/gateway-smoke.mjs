@@ -5,7 +5,17 @@
 // just like the browser would. The Python code does a real HTTPS
 // request via ssl_capability + cap-routed sockets.
 //
-//   node web/gateway-smoke.mjs
+//   WASI_POLYFILL_ASYNC_READ_YIELD=1 \
+//   WASI_POLYFILL_USE_WS_PKG=1 \
+//     node web/gateway-smoke.mjs
+//
+// WASI_POLYFILL_ASYNC_READ_YIELD=1 is required (since wasi-polyfill
+// 60f852b) for the polyfill's input-stream.read to yield the host
+// event loop -- the JSPI bundle's read trampoline is manuallyAsync so
+// the polyfill's Promise return works correctly.
+//
+// WASI_POLYFILL_USE_WS_PKG=1 is optional; both globalThis.WebSocket
+// and the `ws` npm package work.
 //
 // CURRENT STATUS (2026-05-30): END-TO-END FULL HTTP LIFECYCLE WORKING.
 //
@@ -17,18 +27,12 @@
 //   wasm Python `s.recv(4096)` iter=2        -> 0 bytes (clean EOF)
 //   loop breaks; "done. total bytes: 133"; exit 0
 //
-// Requires wasi-polyfill commits: 6e3d429 (createTcpSocket signature)
-// + 412b84b (canonical-ABI connect lifecycle + io blocking-op async +
-// tuple-2-resource WRAP) + c0f938a (synthetic localAddress) +
-// 1e94091 (real readiness Pollable for input-stream subscribe) +
-// fe131cf (treat closed rxQueue as EOF in read paths) +
-// 2768a2b (atomic EOF: readDataAsync null-on-empty-closed) +
-// 988d8c7 (input-stream.read async + microtask-yield -- fixes the
-// 100,000-call tight-loop that starved the event loop and OOM'd
-// node when Python's recv didn't get yielded to).
-//
-// Run with `WASI_POLYFILL_USE_WS_PKG=1` to use the `ws` npm package
-// as the WebSocket impl. Both implementations work.
+// Requires wasi-polyfill ≥ 60f852b (createTcpSocket signature,
+// canonical-ABI connect lifecycle for JSPI, synthetic localAddress,
+// real readiness Pollable for input-stream, closed-rxQueue EOF in
+// read paths, atomic null-on-empty-closed in readDataAsync, and the
+// opt-in async-read microtask yield gated by
+// WASI_POLYFILL_ASYNC_READ_YIELD=1).
 
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:http'
