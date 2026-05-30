@@ -404,10 +404,9 @@ class SSLObject:
         return self._cap.version()
 
     def cipher(self):
-        # The cap doesn't expose a cipher() method for mem-bio yet.
-        # Most async TLS callers don't actually inspect this; return a
-        # tuple that's structurally valid (name, protocol, secret bits).
-        return ("UNKNOWN", self.version(), 0)
+        # Forward to the cap (mem-bio-client.peer post-handshake).
+        # Stdlib shape: (name, protocol_version, secret_bits).
+        return self._cap.cipher()
 
     def selected_alpn_protocol(self):
         return self._cap.selected_alpn_protocol()

@@ -1217,6 +1217,11 @@ extern bool openssl_component_tls_method_mem_bio_client_peer_cert_der(openssl_co
 extern void openssl_component_tls_method_mem_bio_client_version(openssl_component_tls_borrow_mem_bio_client_t self, ssl_import_string_t *ret);
 // Selected ALPN protocol if any.
 extern bool openssl_component_tls_method_mem_bio_client_selected_alpn_protocol(openssl_component_tls_borrow_mem_bio_client_t self, ssl_import_string_t *ret);
+// Full handshake summary (cipher suite, protocol, ALPN, SNI).
+// Same shape as `client.peer` for parity — async TLS callers
+// (anyio.streams.tls, httpx) inspect protocol/cipher post-
+// handshake.
+extern void openssl_component_tls_method_mem_bio_client_peer(openssl_component_tls_borrow_mem_bio_client_t self, openssl_component_tls_peer_info_t *ret);
 // Begin TLS shutdown. Sends a close_notify; the caller
 // drains bio-read once more to forward it to the peer.
 extern bool openssl_component_tls_method_mem_bio_client_shutdown(openssl_component_tls_borrow_mem_bio_client_t self, openssl_component_tls_tls_error_t *err);

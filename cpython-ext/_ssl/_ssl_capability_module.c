@@ -1162,6 +1162,32 @@ static PyObject *mb_selected_alpn_protocol(MemBioSSLClientObject *self, PyObject
     return r;
 }
 
+/* cipher() — stdlib SSLObject.cipher() returns
+ *   (cipher_name: str, protocol_version: str, secret_bits: int)
+ * Built from the cap's peer_info.cipher_suite + protocol enum;
+ * secret_bits is the conventional 256 for AES-256-GCM / 128 for
+ * AES-128-GCM. We surface 0 when the cap doesn't expose secret bits. */
+static PyObject *mb_cipher(MemBioSSLClientObject *self, PyObject *Py_UNUSED(a))
+{
+    if (!self->has_handle) Py_RETURN_NONE;
+    openssl_component_tls_peer_info_t pi;
+    openssl_component_tls_borrow_mem_bio_client_t b =
+        openssl_component_tls_borrow_mem_bio_client(self->handle);
+    openssl_component_tls_method_mem_bio_client_peer(b, &pi);
+    /* protocol enum: tls12=0, tls13=1, dtls12=2. Map to stdlib string. */
+    const char *proto = (pi.protocol == 1) ? "TLSv1.3"
+                      : (pi.protocol == 2) ? "DTLSv1.2"
+                      : "TLSv1.2";
+    PyObject *name = PyUnicode_FromStringAndSize(
+        (const char *) pi.cipher_suite.ptr, (Py_ssize_t) pi.cipher_suite.len);
+    PyObject *r = name
+        ? Py_BuildValue("(OsI)", name, proto, 0u)
+        : NULL;
+    Py_XDECREF(name);
+    openssl_component_tls_peer_info_free(&pi);
+    return r;
+}
+
 static PyObject *mb_get_server_hostname(MemBioSSLClientObject *self, void *Py_UNUSED(c))
 {
     if (self->server_hostname) {
@@ -1205,6 +1231,9 @@ static PyMethodDef MemBioSSLClient_methods[] = {
      "Peer certificate in DER, or None before handshake."},
     {"selected_alpn_protocol",  (PyCFunction) mb_selected_alpn_protocol,  METH_NOARGS,
      "Negotiated ALPN protocol, or None."},
+    {"cipher",                  (PyCFunction) mb_cipher,                  METH_NOARGS,
+     "cipher() -> (name, protocol_version, secret_bits)\n"
+     "Stdlib SSLObject.cipher shape. Returns None before handshake."},
     {NULL, NULL, 0, NULL}
 };
 

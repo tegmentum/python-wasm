@@ -319,6 +319,9 @@ extern void __wasm_import_openssl_component_tls_method_mem_bio_client_version(in
 __attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.selected-alpn-protocol")))
 extern void __wasm_import_openssl_component_tls_method_mem_bio_client_selected_alpn_protocol(int32_t, uint8_t *);
 
+__attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.peer")))
+extern void __wasm_import_openssl_component_tls_method_mem_bio_client_peer(int32_t, uint8_t *);
+
 __attribute__((__import_module__("openssl:component/tls@0.1.0"), __import_name__("[method]mem-bio-client.shutdown")))
 extern void __wasm_import_openssl_component_tls_method_mem_bio_client_shutdown(int32_t, uint8_t *);
 
@@ -6970,6 +6973,58 @@ bool openssl_component_tls_method_mem_bio_client_selected_alpn_protocol(openssl_
   }
   *ret = option.val;
   return option.is_some;
+}
+
+void openssl_component_tls_method_mem_bio_client_peer(openssl_component_tls_borrow_mem_bio_client_t self, openssl_component_tls_peer_info_t *ret) {
+  __attribute__((__aligned__(sizeof(void*))))
+  uint8_t ret_area[(15*sizeof(void*))];
+  uint8_t *ptr = (uint8_t *) &ret_area;
+  __wasm_import_openssl_component_tls_method_mem_bio_client_peer((self).__handle, ptr);
+  ssl_import_option_string_t option;
+  switch ((int32_t) *((uint8_t*) (ptr + (3*sizeof(void*))))) {
+    case 0: {
+      option.is_some = false;
+      break;
+    }
+    case 1: {
+      option.is_some = true;
+      option.val = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (4*sizeof(void*))))), (*((size_t*) (ptr + (5*sizeof(void*))))) };
+      break;
+    }
+  }
+  ssl_import_option_string_t option0;
+  switch ((int32_t) *((uint8_t*) (ptr + (6*sizeof(void*))))) {
+    case 0: {
+      option0.is_some = false;
+      break;
+    }
+    case 1: {
+      option0.is_some = true;
+      option0.val = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (7*sizeof(void*))))), (*((size_t*) (ptr + (8*sizeof(void*))))) };
+      break;
+    }
+  }
+  ssl_import_option_string_t option1;
+  switch ((int32_t) *((uint8_t*) (ptr + (12*sizeof(void*))))) {
+    case 0: {
+      option1.is_some = false;
+      break;
+    }
+    case 1: {
+      option1.is_some = true;
+      option1.val = (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + (13*sizeof(void*))))), (*((size_t*) (ptr + (14*sizeof(void*))))) };
+      break;
+    }
+  }
+  *ret = (openssl_component_tls_peer_info_t) {
+    (openssl_component_tls_protocol_t) (int32_t) *((uint8_t*) (ptr + 0)),
+    (ssl_import_string_t) (ssl_import_string_t) { (uint8_t*)(*((uint8_t **) (ptr + sizeof(void*)))), (*((size_t*) (ptr + (2*sizeof(void*))))) },
+    (ssl_import_option_string_t) option,
+    (ssl_import_option_string_t) option0,
+    (openssl_component_tls_list_own_certificate_t) (openssl_component_tls_list_own_certificate_t) { (openssl_component_tls_own_certificate_t*)(*((uint8_t **) (ptr + (9*sizeof(void*))))), (*((size_t*) (ptr + (10*sizeof(void*))))) },
+    (bool) (int32_t) *((uint8_t*) (ptr + (11*sizeof(void*)))),
+    (ssl_import_option_string_t) option1,
+  };
 }
 
 bool openssl_component_tls_method_mem_bio_client_shutdown(openssl_component_tls_borrow_mem_bio_client_t self, openssl_component_tls_tls_error_t *err) {

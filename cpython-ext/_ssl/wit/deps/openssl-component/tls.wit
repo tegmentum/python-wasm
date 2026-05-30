@@ -296,6 +296,11 @@ interface tls {
         version: func() -> string;
         /// Selected ALPN protocol if any.
         selected-alpn-protocol: func() -> option<string>;
+        /// Full handshake summary (cipher suite, protocol, ALPN, SNI).
+        /// Same shape as `client.peer` for parity — async TLS callers
+        /// (anyio.streams.tls, httpx) inspect protocol/cipher post-
+        /// handshake.
+        peer: func() -> peer-info;
 
         /// Begin TLS shutdown. Sends a close_notify; the caller
         /// drains bio-read once more to forward it to the peer.
