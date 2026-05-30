@@ -73,6 +73,19 @@ for f in "${REQUIRED_PLUGS[@]}"; do
     [ -f "$f" ] || { echo "compose-python-component: capability not found: $f" >&2; exit 1; }
 done
 command -v wac >/dev/null 2>&1 || { echo "compose-python-component: 'wac' (wac-cli) is required on PATH." >&2; exit 1; }
+# wac-cli < 0.10 ships a canonical-ABI lowering bug: method calls on
+# guest-defined resources receive the raw handle instead of the rep
+# pointer when run under jco-transpiled bundles (works in wasmtime where
+# the component runtime does the handle->rep translation itself).
+# Manifested as `_zlib_cap.deflate_compress: compress_chunk: stream error`
+# in the browser while the same .composed.wasm worked under wasmtime.
+wac_ver=$(wac --version | awk '{print $2}')
+wac_major=$(echo "$wac_ver" | cut -d. -f1)
+wac_minor=$(echo "$wac_ver" | cut -d. -f2)
+if [ "$wac_major" = "0" ] && [ "$wac_minor" -lt 10 ]; then
+    echo "compose-python-component: wac-cli $wac_ver detected -- need >= 0.10.0 (resource-method canonical-ABI fix). 'cargo install wac-cli --version 0.10.0' to upgrade." >&2
+    exit 1
+fi
 
 mkdir -p "$OUT_DIR"
 wac plug "$PYW" "${PLUG_ARGS[@]}" -o "$OUT"
