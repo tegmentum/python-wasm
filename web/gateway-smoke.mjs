@@ -34,10 +34,10 @@
 // opt-in async-read microtask yield gated by
 // WASI_POLYFILL_ASYNC_READ_YIELD=1).
 
-import { spawn } from 'node:child_process'
-import { createServer } from 'node:http'
-import { readFileSync } from 'node:fs'
+import { spawn, execFileSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import url from 'node:url'
 
@@ -159,12 +159,29 @@ async function waitFor(url, timeoutMs = 10000) {
 }
 
 async function main() {
-  // 1a) Upstream in a child process. Co-resident with the wasm event
-  //     loop, JSPI suspension wouldn't reliably yield to the http server's
-  //     accept/read handlers — Cloudflare-style RST + node OOM ensued.
+  // 1a) Two upstream servers, each in a child process. HTTP for the
+  //     warm-up sanity, HTTPS for the full openssl-component + TLS
+  //     exercise. Self-signed cert generated inline; gets cleaned up
+  //     in stopAll.
+  const certDir = mkdtempSync(path.join(tmpdir(), 'gateway-smoke-tls-'))
+  const certPath = path.join(certDir, 'cert.pem')
+  const keyPath  = path.join(certDir, 'key.pem')
+  execFileSync('openssl', [
+    'req', '-x509', '-nodes', '-newkey', 'rsa:2048',
+    '-keyout', keyPath, '-out', certPath,
+    '-days', '1', '-subj', '/CN=localhost',
+  ], { stdio: ['ignore', 'ignore', 'ignore'] })
+  // Stash the cert PEM so the python guest can trust it.
+  const certPem = readFileSync(certPath, 'utf8')
+
   const upstream = spawn(process.execPath, [path.join(HERE, 'test-upstream.mjs')], {
     stdio: ['ignore', 'inherit', 'inherit'],
     detached: false,
+  })
+  const upstreamHttps = spawn(process.execPath, [path.join(HERE, 'test-upstream-https.mjs')], {
+    stdio: ['ignore', 'inherit', 'inherit'],
+    detached: false,
+    env: { ...process.env, UPSTREAM_CERT: certPath, UPSTREAM_KEY: keyPath },
   })
 
   // 1b) Start gateway
@@ -175,6 +192,8 @@ async function main() {
   const stopAll = () => {
     try { gateway.kill('SIGTERM') } catch {}
     try { upstream.kill('SIGTERM') } catch {}
+    try { upstreamHttps.kill('SIGTERM') } catch {}
+    try { rmSync(certDir, { recursive: true, force: true }) } catch {}
   }
   process.on('exit', stopAll)
   process.on('SIGINT', () => { stopAll(); process.exit(1) })
@@ -203,33 +222,38 @@ async function main() {
   // to respond with a small 200 + Connection:close, so we can verify
   // the full send/recv/close loop without depending on an external host.
   //
-  // Default blocking recv (no settimeout). With the polyfill's atomic
-  // EOF fixes, second recv should return cleanly on EOF.
+  // Real HTTPS through ssl_capability + openssl-component +
+  // tunneled TCP. Local upstream on 127.0.0.1:28443 (self-signed cert
+  // passed in via CERT_PEM env so the python guest can trust it
+  // without a hostname-verified CA chain).
+  const certPemEscaped = certPem.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/"/g, '\\"')
   const code = `
-import socket
-print("opening plain TCP via gateway to 127.0.0.1:28080 ...")
+import ssl_capability as ssl, socket
+
+print("--- warm-up plain TCP via gateway to 127.0.0.1:28080 ---")
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 try:
     s.connect(("127.0.0.1", 28080))
-    print("connected; sending GET")
     s.sendall(b"GET / HTTP/1.0\\r\\nHost: local\\r\\nConnection: close\\r\\n\\r\\n")
-    print("recv loop...")
     data = b""
-    iters = 0
-    while iters < 50:
-        iters += 1
+    while True:
         chunk = s.recv(4096)
-        print(f"  iter={iters} got={len(chunk)} bytes")
         if not chunk: break
         data += chunk
         if len(data) > 65536: break
     s.close()
-    print("done. total bytes:", len(data))
-    if data:
-        print("first-line:", data.split(b"\\r\\n", 1)[0].decode(errors="replace")[:80])
-        print("contains-hello:", b"hello, wasm!" in data)
+    print(f"  http-ok bytes={len(data)} contains-hello={b'hello, wasm!' in data}")
 except Exception as e:
-    print("err:", type(e).__name__, e)
+    print(f"  http-err: {type(e).__name__} {e}")
+
+print("--- HTTPS over tunnel is the next layer; pinned for follow-up ---")
+# Both wrap_socket (cap's internal TCP) and wrap_bio (python-driven IO)
+# fail the TLS handshake when the underlying TCP runs over the
+# ws-gateway tunnel. Bytes flow in both directions for plain HTTP,
+# so the issue is in the openssl-component <-> tunneled-stream
+# interaction, not the tunnel itself. To debug: instrument the cap's
+# SSL_do_handshake / SSL_read returns and confirm whether the
+# handshake bytes ever reach OpenSSL.
 `
   const policy = createPolicy({
     defaultAllow: true,

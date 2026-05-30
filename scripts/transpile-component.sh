@@ -29,25 +29,33 @@ OUTPUT_DIR="$PROJECT_DIR/web/public/python-component"
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
 
-# JSPI is required for the ws-gateway path: pollable.block, the io
-# blocking ops, and input-stream.read all need WebAssembly.Suspending
-# so the wasm guest yields the host event loop while waiting on the
-# tunneled TCP roundtrip. --async-wasi-imports covers the standard
-# blocking ones; --async-imports explicitly adds input-stream.read
-# (spec'd non-blocking, but Python's recv translates to a tight
-# read-poll loop in wasi-libc -- without the yield the host event
-# loop is starved, inbound WS frames queue forever, and node OOMs).
-# Without these flags the same wasm bundle still works for non-network
-# code (cap-routed compression / sqlite / hashlib stay sync-fast).
+# JSPI is required for the ws-gateway path (real network from the
+# in-browser python guest): pollable.block, the io blocking ops, and
+# input-stream.read all need WebAssembly.Suspending so the wasm guest
+# yields the host event loop while waiting on the tunneled TCP
+# roundtrip. Opt in with TRANSPILE_JSPI=1.
+#
+# Default is sync mode -- works in every browser (Safari, Firefox,
+# Chrome) for non-network code (cap-routed compression / sqlite /
+# hashlib / openssl ctx construction). With JSPI on, Safari/Firefox
+# would throw "undefined is not a constructor (evaluating 'new
+# WebAssembly.Suspending')" because they don't ship JSPI yet (Chrome
+# 137+ and Node 22+ only).
+JSPI_FLAGS=()
+if [ "${TRANSPILE_JSPI:-0}" = "1" ]; then
+    JSPI_FLAGS+=(--async-mode jspi --async-wasi-imports --async-wasi-exports)
+    JSPI_FLAGS+=(--async-imports 'wasi:io/streams@0.2.6#[method]input-stream.read')
+    echo "Transpile JSPI: ON (requires Chrome 137+ / Node 22+; supports ws-gateway TCP)."
+else
+    echo "Transpile JSPI: OFF (default; works in every browser; network ops return NotSupported)."
+fi
+
 npx --prefix "$PROJECT_DIR/web" jco transpile "$PYTHON_WASM" \
     -o "$OUTPUT_DIR" \
     --no-nodejs-compat \
     --instantiation async \
     --name python \
-    --async-mode jspi \
-    --async-wasi-imports \
-    --async-wasi-exports \
-    --async-imports 'wasi:io/streams@0.2.6#[method]input-stream.read'
+    "${JSPI_FLAGS[@]}"
 
 # Workaround for an upstream jco/wac issue: jco's emitted
 # `definedResourceTables` array doesn't include the RTIDs of resources
