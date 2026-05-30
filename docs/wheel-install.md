@@ -11,7 +11,7 @@ Three things make `pip install` work in python-wasm today:
 
 ```bash
 # Default profile (CPython 3.14, cap-routed TLS + DNS + compression):
-./scripts/run-python.sh -m pip install --use-deprecated=legacy-certs \
+./scripts/run-python.sh -m pip install \
     --no-deps --target /site-packages --no-cache-dir requests
 
 ./scripts/run-python.sh -c "import requests; print(requests.get('https://example.com').status_code)"
@@ -20,7 +20,7 @@ Three things make `pip install` work in python-wasm today:
 
 A few flags every invocation needs today:
 
-- `--use-deprecated=legacy-certs` — opts out of pip's `truststore` SSLContext (it expects native `ssl.SSLContext` subclassing semantics our cap-routed wrapper doesn't provide).
+- ~~`--use-deprecated=legacy-certs`~~ — no longer required (2026-05-29): truststore subclassing now works.
 - `--target /site-packages` — pip's default install prefix doesn't match the writable mount; force the destination.
 - `--no-deps` — multi-package install steps currently hang in `Installing collected packages` when there are 2+ wheels (under investigation). Install dependencies one at a time as a workaround.
 - `--no-cache-dir` — pip's HTTP cache hits `os.stat`/`os.utime` calls we don't fully model; cheaper to disable.
@@ -79,7 +79,7 @@ Possible but discouraged. uv-core is a large reactor component and embedding it 
 |---|---|---|
 | ~~Multi-package install step hangs in `Installing collected packages`~~ | ✅ **fixed 2026-05-29** — pip's rich progress thread looped in our inline threading shim; Thread.start() now defers subclass-override `run()` until `join()` | done |
 | `OSError(8, 'Bad file descriptor')` on every download (retried successfully) | tolerated by pip's retry logic; openssl-component closes the connection prematurely after the response, before urllib3 expects a clean keepalive | Phase 8 — needs openssl-component v0.2.x non-blocking peek to safely drain TLS records before close-notify |
-| `--use-deprecated=legacy-certs` required | pip ships truststore which expects native SSLContext subclassing; our wrapper doesn't satisfy `super().verify_mode.__set__` | Phase 8 — openssl-component v0.2.x |
+| ~~`--use-deprecated=legacy-certs` required~~ | ✅ **fixed 2026-05-29** — moved verify_mode/options/verify_flags/max+min_version into an `_SSLContextDescriptors` base class so truststore's `super().<name>.__set__()` lookup walks the MRO into the base and finds them. Also added `SSLSocket.get_unverified_chain()`, `.context` back-ref, and real `set_default_verify_paths()`. | done |
 | `getpeercert(binary_form=False)` returns synthetic dict | openssl-component validates hostname during handshake, so the synthetic SAN matches | Phase 8 — openssl-component v0.2.x |
 | `asyncio.run()` works ✅ | self-pipe stubbed via sitecustomize (Phase 2) | done |
 | ~~`httpx`/`httpcore` async HTTP fails on `select.poll(socket)`~~ | ✅ **httpx sync fixed 2026-05-29** via openssl-component@0.2.x socket-fd + sitecustomize patch of `httpcore.is_socket_readable`. ✅ **asyncio.to_thread trap fixed 2026-05-29** (`run_in_executor` patched). ✅ **httpx async fixed 2026-05-29** — added `mem-bio-client` to openssl-component and wired `SSLContext.wrap_bio` + `SSLObject` Python shim. End-to-end: `httpx.AsyncClient().get('https://example.com')` returns 200. | done |

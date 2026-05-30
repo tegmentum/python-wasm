@@ -290,7 +290,7 @@ class SSLContext(_SSLContextDescriptors):
             server_hostname = host
         inner = self._inner.wrap_socket(host, int(port),
                                          server_hostname=server_hostname)
-        return SSLSocket(inner)
+        return SSLSocket(inner, context=self)
 
     # --- memory-BIO mode (async TLS) ---
     def wrap_bio(self, incoming, outgoing, *,
@@ -412,6 +412,13 @@ class SSLObject:
     def selected_alpn_protocol(self):
         return self._cap.selected_alpn_protocol()
 
+    def get_unverified_chain(self):
+        """Same shape as SSLSocket.get_unverified_chain — see that
+        docstring. Needed by truststore's `_verify_peercerts` even
+        though the Linux verify impl is a no-op."""
+        der = self._cap.peer_cert_der()
+        return [der] if der else []
+
     def session_reused(self) -> bool:
         return False
 
@@ -435,13 +442,18 @@ class SSLSocket:
     """An open TLS connection. Wraps ``_ssl_capability._SSLSocket``; method
     names match stdlib ``ssl.SSLSocket`` for drop-in use."""
 
-    def __init__(self, inner):
+    def __init__(self, inner, context=None):
         self._inner = inner
         # httpx/httpcore reach for `_sslobj` (the stdlib's internal _ssl
         # C-extension SSL object) to introspect the connection. We don't
         # expose a separate C-level object — the inner cap IS that level —
         # so present self as the sslobj.
         self._sslobj = self
+        # truststore (and any future verify-impl) expects an SSLSocket to
+        # carry a `.context` back-reference to the SSLContext that made
+        # it. Optional in case a future code path constructs SSLSocket
+        # without going through wrap_socket().
+        self.context = context
         # Internal buffer for excess bytes the drain loop pulled past the
         # caller's buflen. Served on the next read() before going back to
         # the cap.
@@ -626,6 +638,19 @@ class SSLSocket:
             "subject":        ((("commonName", host),),) if host else (),
             "issuer":         ((("commonName", "python-wasm ssl_capability"),),),
         }
+
+    def get_unverified_chain(self):
+        """Stdlib API added in 3.13: return the raw peer chain as DER bytes
+        (or cert objects with .public_bytes(ENCODING_DER)). truststore
+        uses this in `_verify_peercerts`, walking ``sslobj._sslobj`` in a
+        ``while not hasattr(sslobj, 'get_unverified_chain')`` loop —
+        since our ``_sslobj`` is ``self`` for httpx-compat, that loop
+        would spin forever without this method. Returns a one-element
+        list with the leaf cert in DER (openssl-component doesn't expose
+        intermediates yet); truststore's Linux verify is a no-op so the
+        chain content doesn't matter for the happy path."""
+        der = self._inner.peer_cert_der()
+        return [der] if der else []
 
     @property
     def server_hostname(self):
