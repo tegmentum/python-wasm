@@ -35,5 +35,28 @@ npx --prefix "$PROJECT_DIR/web" jco transpile "$PYTHON_WASM" \
     --instantiation async \
     --name python
 
+# Workaround for an upstream jco/wac issue: jco's emitted
+# `definedResourceTables` array doesn't include the RTIDs of resources
+# defined by composed-in capability components (zlib's compressor,
+# sqlite's connection, etc.). When transferBorrow runs across the
+# python.wasm -> cap boundary it checks this array; if false, it wraps
+# the rep in a new borrow handle instead of returning the rep directly.
+# The cap's wit-bindgen-c export wrapper then dereferences that handle
+# as a pointer and reads garbage (-> compress_chunk: stream error;
+# sqlite Connection is closed).
+#
+# Replace the static array with an always-true Proxy. For our setup
+# every guest-defined resource SHOULD return rep -- callers are
+# python.wasm importing from caps, so the cap (definer) always wants
+# the rep. Wasmtime does this implicitly; jco's emitted JS forgets to.
+PATCH_FILE="$OUTPUT_DIR/python.js"
+if grep -q "^const definedResourceTables = \[" "$PATCH_FILE"; then
+    sed -i.bak 's|^const definedResourceTables = \[.*\];$|const definedResourceTables = new Proxy([], { get: () => true });|' "$PATCH_FILE"
+    rm -f "$PATCH_FILE.bak"
+    echo "Applied definedResourceTables -> Proxy(always-true) patch (cap-resource fix)."
+else
+    echo "WARN: transpile-component: definedResourceTables line not found -- patch skipped." >&2
+fi
+
 echo "Transpiled to $OUTPUT_DIR"
 ls -lh "$OUTPUT_DIR"
