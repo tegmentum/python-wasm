@@ -7,28 +7,33 @@
 //
 //   node web/gateway-smoke.mjs
 //
-// CURRENT STATUS (2026-05-30): TCP-tunnel path works through the wasm
-// connect lifecycle. Verified flow:
+// CURRENT STATUS (2026-05-30): TCP-tunnel send path works end-to-end.
 //
-//   create-tcp-socket  -> start-connect (kicks off WS open + KSW1 OPEN
-//                         in background) -> subscribe (returns Pollable
-//                         tied to the connect promise) -> pollable.block
-//                         (JSPI suspends the guest) -> finish-connect
-//                         (sync, returns the InputStream + OutputStream
-//                         tuple) -> output-stream.write (TLS ClientHello
-//                         1542 bytes -> tunnel -> Cloudflare).
+// Verified for plain HTTP via a local upstream (test-upstream.mjs):
+//   wasm Python `s.connect((host, port))`     -> tunneled, ok
+//   wasm Python `s.sendall(b"GET ...")`        -> reaches upstream
+//   upstream sends 200 response + Connection:close
+//   gateway forwards response bytes back via WS
+//   wasm Python `s.recv(4096)`                 -> TIMES OUT (bug)
 //
-// Open issue: Cloudflare RSTs the upstream TCP right after our
-// ClientHello (likely SNI/cipher pickiness when we connect by IP),
-// and the wasm guest then enters a tight loop on the closed stream
-// that OOMs node at 4 GB. Smoke against a more lenient TLS endpoint
-// to isolate. See memory:ws-gateway-polyfill-tcp-gap.
+// The polyfill's WebSocket.onmessage doesn't fire for any frame after
+// the connect-handshake (HelloAck + OpenOk arrive fine; the post-
+// connect inbound DATA frame does not). Strongly suggests Node 25's
+// `globalThis.WebSocket` isn't delivering messages while the wasm is
+// suspended on a JSPI-backed import -- the event loop is processing
+// other tasks (timers fire) but WS callbacks stay queued.
 //
-// Requires the polyfill changes from wasi-polyfill commits 6e3d429
-// (createTcpSocket signature) + 412b84b (canonical-ABI connect
-// lifecycle + io blocking-op async + tuple-2-resource WRAP).
+// To-investigate: try `ws` package instead of globalThis.WebSocket in
+// TunnelManager; or check if Node 25's promising/Suspending integration
+// has known issues with stream-like callbacks.
+//
+// Requires wasi-polyfill commits: 6e3d429 (createTcpSocket signature)
+// + 412b84b (canonical-ABI connect lifecycle + io blocking-op async +
+// tuple-2-resource WRAP) + c0f938a (synthetic localAddress so
+// __wasilibc_map_socket_error doesn't trap on InvalidState).
 
 import { spawn } from 'node:child_process'
+import { createServer } from 'node:http'
 import { readFileSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
 import path from 'node:path'
@@ -149,15 +154,28 @@ async function waitFor(url, timeoutMs = 10000) {
 }
 
 async function main() {
-  // 1) Start gateway
+  // 1a) Upstream in a child process. Co-resident with the wasm event
+  //     loop, JSPI suspension wouldn't reliably yield to the http server's
+  //     accept/read handlers — Cloudflare-style RST + node OOM ensued.
+  const upstream = spawn(process.execPath, [path.join(HERE, 'test-upstream.mjs')], {
+    stdio: ['ignore', 'inherit', 'inherit'],
+    detached: false,
+  })
+
+  // 1b) Start gateway
   const gateway = spawn(process.execPath, [path.join(HERE, 'ws-gateway-server.mjs')], {
     stdio: ['ignore', 'inherit', 'inherit'],
     detached: false,
   })
-  const stopGateway = () => { try { gateway.kill('SIGTERM') } catch {} }
-  process.on('exit', stopGateway)
-  process.on('SIGINT', () => { stopGateway(); process.exit(1) })
+  const stopAll = () => {
+    try { gateway.kill('SIGTERM') } catch {}
+    try { upstream.kill('SIGTERM') } catch {}
+  }
+  process.on('exit', stopAll)
+  process.on('SIGINT', () => { stopAll(); process.exit(1) })
+  process.on('SIGTERM', () => { stopAll(); process.exit(1) })
   await waitFor(GATEWAY_URL)
+  await new Promise((r) => setTimeout(r, 500))  // let upstream bind
   console.log('gateway reachable, booting python...')
 
   // 2) Register polyfill plugins (with ws-gateway TCP)
@@ -176,29 +194,35 @@ async function main() {
 
   // 4) Policy: route TCP through the gateway, route DNS through the
   //    gateway too (it does node:dns lookups). Filesystem in-memory.
-  // Skip DNS - hit example.com by current IP directly (104.20.23.154 as
-  // of 2026-05-30; example.com is on Cloudflare now). If TCP-through-gateway
-  // works for IP connects, DNS is a separable problem.
+  // Hit our own local HTTP server through the gateway. Server is known
+  // to respond with a small 200 + Connection:close, so we can verify
+  // the full send/recv/close loop without depending on an external host.
   const code = `
-import socket, ssl_capability as ssl
-print("connecting to 104.20.23.154:443 (example.com via Cloudflare)...")
-ctx = ssl.create_default_context()
-ctx.check_hostname = False  # IP literal, no hostname match
-ctx.verify_mode = ssl.CERT_NONE
-sock = ctx.wrap_socket(host="104.20.23.154", port=443, server_hostname="example.com")
-print("version:", sock.version(), "cipher:", sock.cipher()[0])
-req = b"GET / HTTP/1.0\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n"
-sock.write(req)
-data = b""
-while True:
-    chunk = sock.read(4096)
-    if not chunk: break
-    data += chunk
-    if len(data) > 16384: break
-print("bytes:", len(data))
-print("first-line:", data.split(b"\\r\\n",1)[0].decode())
-print("contains-Example:", b"Example Domain" in data)
-sock.shutdown()
+import socket
+print("opening plain TCP via gateway to 127.0.0.1:28080 ...")
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.settimeout(10.0)
+try:
+    s.connect(("127.0.0.1", 28080))
+    print("connected; sending GET")
+    s.sendall(b"GET / HTTP/1.0\\r\\nHost: local\\r\\nConnection: close\\r\\n\\r\\n")
+    print("recv loop...")
+    data = b""
+    iters = 0
+    while iters < 50:
+        iters += 1
+        chunk = s.recv(4096)
+        print(f"  iter={iters} got={len(chunk)} bytes")
+        if not chunk: break
+        data += chunk
+        if len(data) > 65536: break
+    s.close()
+    print("done. total bytes:", len(data))
+    if data:
+        print("first-line:", data.split(b"\\r\\n", 1)[0].decode(errors="replace")[:80])
+        print("contains-hello:", b"hello, wasm!" in data)
+except Exception as e:
+    print("err:", type(e).__name__, e)
 `
   const policy = createPolicy({
     defaultAllow: true,
@@ -249,7 +273,7 @@ sock.shutdown()
     console.log(stderrCap.text.trim().split('\n').slice(-10).join('\n'))
   }
   console.log(`--- exit ${exit} ---`)
-  stopGateway()
+  stopAll()
   process.exit(exit)
 }
 

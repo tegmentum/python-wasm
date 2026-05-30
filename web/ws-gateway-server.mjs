@@ -184,6 +184,7 @@ function handleConnection(ws, log) {
         const sid = hdr.streamId
         log(`open stream=${sid} -> ${host}:${open.port}`)
         sock.on('connect', () => {
+          log(`tcp connected sid=${sid}`)
           streams.set(sid, sock)
           send(createOpenOkFrame(sid))
         })
@@ -195,12 +196,14 @@ function handleConnection(ws, log) {
           send(createDataFrame(sid, new Uint8Array(0), true))
         })
         sock.on('close', () => {
+          log(`tcp closed sid=${sid}`)
           if (streams.has(sid)) {
             streams.delete(sid)
             send(createCloseFrame(sid, 0))
           }
         })
         sock.on('error', (err) => {
+          log(`tcp error sid=${sid} code=${err?.code} msg=${err?.message}`)
           if (streams.has(sid)) {
             // Connection already up — surface as close.
             streams.delete(sid)
