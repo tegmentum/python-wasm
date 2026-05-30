@@ -145,7 +145,12 @@ def _install_urllib3_patch():
 
     class _Finder(importlib.abc.MetaPathFinder):
         def find_spec(self, name, path, target=None):
-            if name != "urllib3.util.wait":
+            # Match both the top-level urllib3 (user-installed via pip)
+            # AND pip's own bundled copy at pip._vendor.urllib3 — pip
+            # routes all HTTP through the vendor path, so without the
+            # vendor match, EBADF retries fire on every pip download.
+            if name not in ("urllib3.util.wait",
+                            "pip._vendor.urllib3.util.wait"):
                 return None
             sys.meta_path.remove(self)
             try:

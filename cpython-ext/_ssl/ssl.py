@@ -279,9 +279,11 @@ def _stub_class(name: str, reason: str):
 SSLSession = _stub_class(
     "SSLSession",
     "session resumption — deferred to openssl-component v1.1 per docs/phase-3-tls.md")
-SSLObject = _stub_class(
-    "SSLObject",
-    "wrap_bio/asyncio MemoryBIO-driven path — deferred to openssl-component v1.1")
+
+# Real SSLObject: ssl_capability.SSLObject wraps openssl-component's
+# mem-bio-client. Memory-BIO TLS works as of 2026-05-29; anyio + httpx
+# async use this class via ctx.wrap_bio().
+SSLObject = _impl.SSLObject
 
 import collections as _collections
 DefaultVerifyPaths = _collections.namedtuple(
@@ -292,12 +294,32 @@ DefaultVerifyPaths = _collections.namedtuple(
 # tests dereference (.cafile / .capath) — the env/openssl_ slots are
 # informational and we leave them populated by callers.
 
-DER_cert_to_PEM_cert = _stub(
-    "DER_cert_to_PEM_cert",
-    "cert-format conversion helper not yet wired through the capability")
-PEM_cert_to_DER_cert = _stub(
-    "PEM_cert_to_DER_cert",
-    "cert-format conversion helper not yet wired through the capability")
+def DER_cert_to_PEM_cert(der_bytes: bytes) -> str:
+    """Wrap a DER-encoded X.509 certificate in PEM armor. No OpenSSL
+    needed — base64 + PEM header/footer."""
+    import base64 as _base64
+    b64 = _base64.encodebytes(bytes(der_bytes)).decode("ascii").rstrip("\n")
+    return (f"-----BEGIN CERTIFICATE-----\n{b64}\n"
+            f"-----END CERTIFICATE-----\n")
+
+
+def PEM_cert_to_DER_cert(pem_cert: str) -> bytes:
+    """Inverse of DER_cert_to_PEM_cert."""
+    import base64 as _base64
+    body = []
+    in_cert = False
+    for line in pem_cert.splitlines():
+        line = line.strip()
+        if line == "-----BEGIN CERTIFICATE-----":
+            in_cert = True
+            continue
+        if line == "-----END CERTIFICATE-----":
+            break
+        if in_cert and line:
+            body.append(line)
+    if not body:
+        raise ValueError("no PEM CERTIFICATE block found")
+    return _base64.b64decode("".join(body))
 def get_server_certificate(addr, ssl_version=None, ca_certs=None, timeout=None):
     """Connect to (host, port) and return the server's certificate as PEM.
 
@@ -354,9 +376,12 @@ def get_default_verify_paths():
     truststore happy-path works."""
     p = "/etc/ssl/certs/ca-certificates.crt"
     return DefaultVerifyPaths(p, True, p, True, p, p)
-cert_time_to_seconds = _stub(
-    "cert_time_to_seconds",
-    "cert-time parsing helper not yet wired through the capability")
+def cert_time_to_seconds(cert_time):
+    """Parse a notBefore/notAfter time string from a cert into seconds-
+    since-epoch. Format is RFC 5280: "MMM DD HH:MM:SS YYYY GMT" (with a
+    single space day-padding for single-digit days, not two)."""
+    import calendar as _calendar, time as _time
+    return _calendar.timegm(_time.strptime(cert_time, "%b %d %H:%M:%S %Y GMT"))
 def RAND_add(bytes_, entropy):
     """PRNG seeding helper. openssl:component/random doesn't expose seed
     injection — its DRBG seeds from the host's getrandom() — but the
