@@ -364,16 +364,25 @@ class SSLContext(_SSLContextDescriptors):
 
     def load_cert_chain(self, certfile=None, keyfile=None, password=None,
                         certdata=None, keydata=None) -> None:
-        """Same file-vs-bytes story as load_verify_locations. Stdlib only
-        takes paths; ssl_capability adds certdata/keydata bytes parameters
-        for the path-less wasm lane."""
-        if certfile is not None or keyfile is not None:
-            raise NotImplementedError(
-                "ssl_capability.load_cert_chain: certfile/keyfile need "
-                "host-FS access; pass certdata=/keydata= bytes instead.")
+        """Stdlib ``load_cert_chain`` plus the bytes-direct certdata/keydata
+        kwargs for the no-FS browser lane. Loads the same material into
+        BOTH the client-side mTLS slot AND the server-side bind_tls slot
+        — context (client vs server) determines which is consulted at
+        connect/bind time."""
+        if certfile is not None:
+            with open(certfile, "rb") as f:
+                certdata = f.read()
+        if keyfile is not None:
+            with open(keyfile, "rb") as f:
+                keydata = f.read()
+        elif keyfile is None and certfile is not None and keydata is None:
+            # Stdlib: when keyfile is omitted, the key is expected to be
+            # in certfile alongside the cert.
+            keydata = certdata
         if certdata is None or keydata is None:
-            raise TypeError("must pass certdata + keydata (PEM bytes)")
+            raise TypeError("must pass certfile/keyfile or certdata/keydata")
         self._inner.set_client_cert(certdata, keydata)
+        self._inner.set_server_cert(certdata, keydata)
 
     def set_alpn_protocols(self, protocols) -> None:
         self._inner.set_alpn_protocols(list(protocols))
@@ -401,6 +410,13 @@ class SSLContext(_SSLContextDescriptors):
         Practically, mode 1 closes `sock` and opens a fresh one. Document
         the limitation; the alternative is upstream changes to
         openssl-component to take an fd."""
+        if server_side:
+            raise NotImplementedError(
+                "ssl_capability.wrap_socket(server_side=True) is not "
+                "supported — openssl-component owns its own socket "
+                "lifetimes (it calls bind/listen/accept internally), so "
+                "the stdlib fd-handoff model doesn't fit. Use "
+                "ctx.bind_tls(host, port).accept() instead.")
         if sock is not None and (host is not None or port is not None):
             raise TypeError("pass either a socket OR host/port, not both")
         if sock is not None:
@@ -447,6 +463,45 @@ class SSLContext(_SSLContextDescriptors):
                                     server_side=int(bool(server_side)),
                                     server_hostname=server_hostname)
         return SSLObject(cap, incoming, outgoing, server_hostname)
+
+    # --- server-side TLS ---
+    def bind_tls(self, host: str, port: int) -> "SSLServerListener":
+        """Cap-native server-side TLS entry point. Stdlib uses
+        ``wrap_socket(sock, server_side=True)`` after the caller does its
+        own ``socket.socket().bind().listen().accept()``; openssl-component
+        owns its socket lifetimes internally, so we expose bind+accept
+        through this method instead.
+
+        Returns an ``SSLServerListener``; call ``.accept()`` for each
+        inbound connection. Requires ``load_cert_chain()`` (or
+        ``_inner.set_server_cert()``) to have been called first."""
+        return SSLServerListener(self._inner.bind_tls(host, int(port)))
+
+
+class SSLServerListener:
+    """A bound TLS listener. Constructed via ``SSLContext.bind_tls()``.
+    Iteration / context-manager support: ``with ctx.bind_tls(...) as l:``
+    closes the listener on exit."""
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def accept(self) -> "SSLSocket":
+        return SSLSocket(self._inner.accept())
+
+    @property
+    def local_port(self) -> int:
+        return self._inner.local_port()
+
+    def close(self) -> None:
+        self._inner.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
 
 
 class SSLObject:

@@ -244,6 +244,11 @@ typedef struct {
     PyObject *ca_pem_bytes;       /* bytes — concatenated CA roots */
     PyObject *client_cert_bytes;  /* bytes — client cert PEM */
     PyObject *client_key_bytes;   /* bytes — client key PEM */
+    /* Server-side material for bind_tls(). server_cert_pem holds the leaf
+     * + any intermediates as a PEM bundle (parse_chain splits them); the
+     * key is the server's private key matching cert_chain[0]. */
+    PyObject *server_cert_pem;    /* bytes — server cert chain PEM */
+    PyObject *server_key_pem;     /* bytes — server private key PEM */
     /* ALPN list as Python list-of-bytes (each item is ASCII proto name). */
     PyObject *alpn_protocols;     /* list[bytes] */
     /* Lazy-built trust store from ca_pem_bytes; owned by this context.
@@ -269,6 +274,8 @@ static int SSLContext_init(SSLContextObject *self, PyObject *args, PyObject *kwd
     self->ca_pem_bytes = NULL;
     self->client_cert_bytes = NULL;
     self->client_key_bytes = NULL;
+    self->server_cert_pem = NULL;
+    self->server_key_pem = NULL;
     self->alpn_protocols = NULL;
     self->has_trust_store = 0;
     return 0;
@@ -288,6 +295,8 @@ static void SSLContext_dealloc(SSLContextObject *self)
     Py_XDECREF(self->ca_pem_bytes);
     Py_XDECREF(self->client_cert_bytes);
     Py_XDECREF(self->client_key_bytes);
+    Py_XDECREF(self->server_cert_pem);
+    Py_XDECREF(self->server_key_pem);
     Py_XDECREF(self->alpn_protocols);
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
@@ -386,6 +395,20 @@ static PyObject *SSLContext_set_client_cert(SSLContextObject *self, PyObject *ar
     Py_INCREF(key);
     Py_XSETREF(self->client_cert_bytes, cert);
     Py_XSETREF(self->client_key_bytes, key);
+    Py_RETURN_NONE;
+}
+
+/* set_server_cert(cert_pem: bytes, key_pem: bytes) — store the server
+ * cert chain + private key PEM blobs for bind_tls(). Parsed lazily into
+ * x509.certificate + pkey resources at bind time. */
+static PyObject *SSLContext_set_server_cert(SSLContextObject *self, PyObject *args)
+{
+    PyObject *cert, *key;
+    if (!PyArg_ParseTuple(args, "SS:set_server_cert", &cert, &key)) return NULL;
+    Py_INCREF(cert);
+    Py_INCREF(key);
+    Py_XSETREF(self->server_cert_pem, cert);
+    Py_XSETREF(self->server_key_pem,  key);
     Py_RETURN_NONE;
 }
 
@@ -489,6 +512,9 @@ static PyObject *SSLContext_wrap_socket(SSLContextObject *self, PyObject *args, 
  * full definition is below the MemBioSSLClient type, which can't move
  * up because SSLContext_wrap_bio needs MemBioSSLClient_Type. */
 static PyObject *SSLContext_wrap_bio(SSLContextObject *ctx, PyObject *args, PyObject *kwds);
+/* Same forward-decl for bind_tls — its full definition lives alongside
+ * the server-side types below the wrap_bio code. */
+static PyObject *SSLContext_bind_tls(SSLContextObject *self, PyObject *args, PyObject *kwds);
 
 static PyMethodDef SSLContext_methods[] = {
     {"set_ca_certs",        (PyCFunction) SSLContext_set_ca_certs,        METH_VARARGS,
@@ -499,6 +525,10 @@ static PyMethodDef SSLContext_methods[] = {
      "After this, CERT_REQUIRED can validate normal HTTPS servers."},
     {"set_client_cert",     (PyCFunction) SSLContext_set_client_cert,     METH_VARARGS,
      "set_client_cert(cert_pem: bytes, key_pem: bytes)\n\nClient certificate + key for mTLS."},
+    {"set_server_cert",     (PyCFunction) SSLContext_set_server_cert,     METH_VARARGS,
+     "set_server_cert(cert_pem: bytes, key_pem: bytes)\n\n"
+     "Store the server cert chain + private key PEM blobs. Parsed into\n"
+     "cap resources at bind_tls() time."},
     {"set_alpn_protocols",  (PyCFunction) SSLContext_set_alpn_protocols,  METH_VARARGS,
      "set_alpn_protocols(protos: list[str|bytes])\n\nALPN preference list."},
     {"wrap_socket",         (PyCFunction) SSLContext_wrap_socket,         METH_VARARGS | METH_KEYWORDS,
@@ -509,6 +539,13 @@ static PyMethodDef SSLContext_methods[] = {
      "Memory-BIO TLS client for async transports (anyio, httpx). The\n"
      "returned object owns no socket — pump ciphertext through bio_write\n"
      "/ bio_read in step with your event loop."},
+    {"bind_tls",            (PyCFunction) SSLContext_bind_tls,            METH_VARARGS | METH_KEYWORDS,
+     "bind_tls(host: str, port: int) -> _SSLServerListener\n\n"
+     "Bind a TLS listener on host:port using the cert+key registered via\n"
+     "set_server_cert(). accept() on the returned listener yields one\n"
+     "_SSLServerSocket per inbound client. Cap-native API: stdlib's\n"
+     "wrap_socket(sock, server_side=True) doesn't fit because openssl-\n"
+     "component owns its own socket lifetimes."},
     {NULL, NULL, 0, NULL}
 };
 
@@ -1609,6 +1646,533 @@ static PyObject *SSLContext_wrap_bio(SSLContextObject *ctx, PyObject *args, PyOb
     return (PyObject *) self;
 }
 
+/* =========================================================================
+ * Server-side TLS — _SSLServerListener + _SSLServerSocket
+ *
+ * The cap exposes a `server-listener` resource that owns the TCP listen
+ * socket and a per-connection `server` resource for accepted TLS sessions.
+ * We surface those as two new Python types and wire bind via a new
+ * `_SSLContext.bind_tls(host, port)` method that parses the stored
+ * server_cert_pem / server_key_pem blobs into x509.certificate + pkey
+ * resources right before handing them to the listener config.
+ *
+ * Stdlib's `wrap_socket(sock, server_side=True)` model requires the caller
+ * to bind+listen+accept on a Python socket and hand the connected fd off
+ * for the TLS handshake — but openssl-component owns its own socket
+ * lifetimes (it calls `bind`/`accept` internally via wasi-libc). We bridge
+ * the gap with the cap-native `bind_tls` API rather than try to fake fd
+ * passing; the Python wrapper raises NotImplementedError on the stdlib
+ * shape with a pointer to bind_tls().
+ * ========================================================================= */
+
+typedef struct {
+    PyObject_HEAD
+    openssl_component_tls_own_server_t handle;
+    int                                has_handle;  /* 0 after close/shutdown */
+} SSLServerSocketObject;
+
+static PyTypeObject SSLServerSocket_Type;
+
+static void SSLServerSocket_dealloc(SSLServerSocketObject *self)
+{
+    if (self->has_handle) {
+        openssl_component_tls_static_server_close(self->handle);
+        self->has_handle = 0;
+    }
+    PyObject_Free(self);
+}
+
+static int sss_ensure_open(SSLServerSocketObject *self)
+{
+    if (!self->has_handle) {
+        PyErr_SetString(SSLError, "SSL server connection is closed");
+        return -1;
+    }
+    return 0;
+}
+
+static PyObject *sss_read(SSLServerSocketObject *self, PyObject *args)
+{
+    int maxn = 8192;
+    if (!PyArg_ParseTuple(args, "|i:read", &maxn)) return NULL;
+    if (sss_ensure_open(self) < 0) return NULL;
+    ssl_import_list_u8_t out;
+    openssl_component_tls_tls_error_t err;
+    openssl_component_tls_borrow_server_t b =
+        openssl_component_tls_borrow_server(self->handle);
+    bool ok = openssl_component_tls_method_server_read(b, (uint32_t) maxn, &out, &err);
+    if (!ok) return raise_tls_error("server read failed", &err);
+    PyObject *r = PyBytes_FromStringAndSize((const char *) out.ptr,
+                                            (Py_ssize_t) out.len);
+    ssl_import_list_u8_free(&out);
+    return r;
+}
+
+static PyObject *sss_write(SSLServerSocketObject *self, PyObject *args)
+{
+    Py_buffer buf;
+    if (!PyArg_ParseTuple(args, "y*:write", &buf)) return NULL;
+    if (sss_ensure_open(self) < 0) { PyBuffer_Release(&buf); return NULL; }
+    ssl_import_list_u8_t data;
+    if (list_u8_dup((const uint8_t *) buf.buf, (size_t) buf.len, &data) < 0) {
+        PyBuffer_Release(&buf);
+        return NULL;
+    }
+    PyBuffer_Release(&buf);
+    uint32_t n;
+    openssl_component_tls_tls_error_t err;
+    openssl_component_tls_borrow_server_t b =
+        openssl_component_tls_borrow_server(self->handle);
+    bool ok = openssl_component_tls_method_server_write(b, &data, &n, &err);
+    if (!ok) return raise_tls_error("server write failed", &err);
+    return PyLong_FromUnsignedLong((unsigned long) n);
+}
+
+static PyObject *sss_has_pending(SSLServerSocketObject *self, PyObject *Py_UNUSED(a))
+{
+    if (!self->has_handle) Py_RETURN_FALSE;
+    openssl_component_tls_borrow_server_t b =
+        openssl_component_tls_borrow_server(self->handle);
+    return PyBool_FromLong(openssl_component_tls_method_server_has_pending(b));
+}
+
+static PyObject *sss_socket_readable(SSLServerSocketObject *self, PyObject *Py_UNUSED(a))
+{
+    if (!self->has_handle) Py_RETURN_FALSE;
+    openssl_component_tls_borrow_server_t b =
+        openssl_component_tls_borrow_server(self->handle);
+    return PyBool_FromLong(openssl_component_tls_method_server_socket_readable(b));
+}
+
+static PyObject *sss_fileno(SSLServerSocketObject *self, PyObject *Py_UNUSED(a))
+{
+    if (!self->has_handle) return PyLong_FromLong(-1);
+    openssl_component_tls_borrow_server_t b =
+        openssl_component_tls_borrow_server(self->handle);
+    return PyLong_FromLong((long) openssl_component_tls_method_server_socket_fd(b));
+}
+
+static PyObject *sss_shutdown(SSLServerSocketObject *self, PyObject *Py_UNUSED(a))
+{
+    if (!self->has_handle) Py_RETURN_NONE;
+    openssl_component_tls_static_server_close(self->handle);
+    self->has_handle = 0;
+    Py_RETURN_NONE;
+}
+
+/* Shared: load peer_info from a server handle. */
+static int sss_load_peer_info(SSLServerSocketObject *self,
+                              openssl_component_tls_peer_info_t *out)
+{
+    if (sss_ensure_open(self) < 0) return -1;
+    openssl_component_tls_borrow_server_t b =
+        openssl_component_tls_borrow_server(self->handle);
+    openssl_component_tls_method_server_peer(b, out);
+    return 0;
+}
+
+static PyObject *sss_version(SSLServerSocketObject *self, PyObject *Py_UNUSED(a))
+{
+    openssl_component_tls_peer_info_t info;
+    if (sss_load_peer_info(self, &info) < 0) return NULL;
+    const char *name;
+    switch (info.protocol) {
+        case OPENSSL_COMPONENT_TLS_PROTOCOL_TLS12: name = "TLSv1.2"; break;
+        case OPENSSL_COMPONENT_TLS_PROTOCOL_TLS13: name = "TLSv1.3"; break;
+        default: name = "unknown"; break;
+    }
+    openssl_component_tls_peer_info_free(&info);
+    return PyUnicode_FromString(name);
+}
+
+static PyObject *sss_cipher(SSLServerSocketObject *self, PyObject *Py_UNUSED(a))
+{
+    openssl_component_tls_peer_info_t info;
+    if (sss_load_peer_info(self, &info) < 0) return NULL;
+    const char *version =
+        info.protocol == OPENSSL_COMPONENT_TLS_PROTOCOL_TLS13 ? "TLSv1.3" :
+        info.protocol == OPENSSL_COMPONENT_TLS_PROTOCOL_TLS12 ? "TLSv1.2" : "unknown";
+    PyObject *t = Py_BuildValue("(s#si)",
+        (const char *) info.cipher_suite.ptr,
+        (Py_ssize_t)   info.cipher_suite.len, version, 0);
+    openssl_component_tls_peer_info_free(&info);
+    return t;
+}
+
+static PyObject *sss_selected_alpn_protocol(SSLServerSocketObject *self, PyObject *Py_UNUSED(a))
+{
+    openssl_component_tls_peer_info_t info;
+    if (sss_load_peer_info(self, &info) < 0) return NULL;
+    PyObject *r;
+    if (info.alpn.is_some) {
+        r = PyUnicode_FromStringAndSize((const char *) info.alpn.val.ptr,
+                                         (Py_ssize_t) info.alpn.val.len);
+    } else {
+        Py_INCREF(Py_None); r = Py_None;
+    }
+    openssl_component_tls_peer_info_free(&info);
+    return r;
+}
+
+static PyObject *sss_server_hostname(SSLServerSocketObject *self, PyObject *Py_UNUSED(a))
+{
+    /* Server-side: report the SNI server-name the client sent (if any).
+     * Mirrors stdlib SSLSocket.server_hostname on a server-side connection,
+     * which is the SNI value the client requested. */
+    openssl_component_tls_peer_info_t info;
+    if (sss_load_peer_info(self, &info) < 0) return NULL;
+    PyObject *r;
+    if (info.sni.is_some) {
+        r = PyUnicode_FromStringAndSize((const char *) info.sni.val.ptr,
+                                         (Py_ssize_t) info.sni.val.len);
+    } else {
+        Py_INCREF(Py_None); r = Py_None;
+    }
+    openssl_component_tls_peer_info_free(&info);
+    return r;
+}
+
+static PyObject *sss_peer_cert_der(SSLServerSocketObject *self, PyObject *Py_UNUSED(a))
+{
+    openssl_component_tls_peer_info_t info;
+    if (sss_load_peer_info(self, &info) < 0) return NULL;
+    if (info.peer_chain.len == 0) {
+        openssl_component_tls_peer_info_free(&info);
+        Py_RETURN_NONE;   /* anonymous TLS — no client cert presented */
+    }
+    openssl_component_x509_borrow_certificate_t cert =
+        openssl_component_x509_borrow_certificate(info.peer_chain.ptr[0]);
+    ssl_import_list_u8_t out;
+    openssl_component_x509_x509_error_t err;
+    bool ok = openssl_component_x509_method_certificate_encode(
+        cert, OPENSSL_COMPONENT_PKEY_ENCODING_DER, &out, &err);
+    if (!ok) {
+        openssl_component_x509_x509_error_free(&err);
+        openssl_component_tls_peer_info_free(&info);
+        PyErr_SetString(PyExc_RuntimeError,
+                        "_ssl_capability.peer_cert_der: x509 encode failed");
+        return NULL;
+    }
+    PyObject *r = PyBytes_FromStringAndSize((const char *) out.ptr,
+                                            (Py_ssize_t) out.len);
+    ssl_import_list_u8_free(&out);
+    openssl_component_tls_peer_info_free(&info);
+    return r;
+}
+
+static PyObject *sss_peer_cert_info(SSLServerSocketObject *self, PyObject *Py_UNUSED(a))
+{
+    openssl_component_tls_peer_info_t info;
+    if (sss_load_peer_info(self, &info) < 0) return NULL;
+    if (info.peer_chain.len == 0) {
+        openssl_component_tls_peer_info_free(&info);
+        Py_RETURN_NONE;
+    }
+    openssl_component_x509_borrow_certificate_t bc =
+        openssl_component_x509_borrow_certificate(info.peer_chain.ptr[0]);
+    PyObject *d = build_cert_info_dict(bc);
+    openssl_component_tls_peer_info_free(&info);
+    return d;
+}
+
+/* server-side peer_chain_der: the cap's server resource doesn't expose
+ * a peer-chain-der convenience like the client does, so we project the
+ * peer_info.peer_chain certificate resources through x509.encode() and
+ * return them as a list of DER bytes. Empty when no client cert was
+ * presented (anonymous TLS server). */
+static PyObject *sss_peer_chain_der(SSLServerSocketObject *self, PyObject *Py_UNUSED(a))
+{
+    openssl_component_tls_peer_info_t info;
+    if (sss_load_peer_info(self, &info) < 0) return NULL;
+    PyObject *out = PyList_New((Py_ssize_t) info.peer_chain.len);
+    if (!out) { openssl_component_tls_peer_info_free(&info); return NULL; }
+    for (size_t i = 0; i < info.peer_chain.len; i++) {
+        openssl_component_x509_borrow_certificate_t c =
+            openssl_component_x509_borrow_certificate(info.peer_chain.ptr[i]);
+        ssl_import_list_u8_t der;
+        openssl_component_x509_x509_error_t err;
+        if (!openssl_component_x509_method_certificate_encode(
+                c, OPENSSL_COMPONENT_PKEY_ENCODING_DER, &der, &err)) {
+            openssl_component_x509_x509_error_free(&err);
+            Py_DECREF(out);
+            openssl_component_tls_peer_info_free(&info);
+            PyErr_SetString(PyExc_RuntimeError,
+                "_ssl_capability.peer_chain_der: x509 encode failed");
+            return NULL;
+        }
+        PyObject *b = PyBytes_FromStringAndSize(
+            (const char *) der.ptr, (Py_ssize_t) der.len);
+        ssl_import_list_u8_free(&der);
+        if (!b) {
+            Py_DECREF(out); openssl_component_tls_peer_info_free(&info);
+            return NULL;
+        }
+        PyList_SET_ITEM(out, (Py_ssize_t) i, b);
+    }
+    openssl_component_tls_peer_info_free(&info);
+    return out;
+}
+
+static PyMethodDef SSLServerSocket_methods[] = {
+    {"read",                    (PyCFunction) sss_read,                    METH_VARARGS,
+     "read([max=8192]) -> bytes — decrypted application data."},
+    {"write",                   (PyCFunction) sss_write,                   METH_VARARGS,
+     "write(data: bytes) -> int — bytes encrypted+sent."},
+    {"pending",                 (PyCFunction) sss_has_pending,             METH_NOARGS,
+     "pending() -> bool — True if openssl has buffered data ready to read."},
+    {"socket_readable",         (PyCFunction) sss_socket_readable,         METH_NOARGS,
+     "socket_readable() -> bool — True if the TCP socket has bytes ready."},
+    {"fileno",                  (PyCFunction) sss_fileno,                  METH_NOARGS,
+     "fileno() -> int — underlying TCP fd (SSL_get_fd)."},
+    {"shutdown",                (PyCFunction) sss_shutdown,                METH_NOARGS,
+     "shutdown() -> None — close the TLS connection."},
+    {"version",                 (PyCFunction) sss_version,                 METH_NOARGS,
+     "version() -> str — \"TLSv1.2\" or \"TLSv1.3\"."},
+    {"cipher",                  (PyCFunction) sss_cipher,                  METH_NOARGS,
+     "cipher() -> (name, version, secret_bits)"},
+    {"selected_alpn_protocol",  (PyCFunction) sss_selected_alpn_protocol,  METH_NOARGS,
+     "selected_alpn_protocol() -> str | None"},
+    {"peer_cert_der",           (PyCFunction) sss_peer_cert_der,           METH_NOARGS,
+     "peer_cert_der() -> bytes | None — client cert in DER (mTLS)."},
+    {"peer_cert_info",          (PyCFunction) sss_peer_cert_info,          METH_NOARGS,
+     "peer_cert_info() -> dict | None — raw x509 info for the client cert."},
+    {"peer_chain_der",          (PyCFunction) sss_peer_chain_der,          METH_NOARGS,
+     "peer_chain_der() -> list[bytes] — client cert chain in DER (mTLS).\n"
+     "Empty for anonymous TLS (no client cert presented)."},
+    {NULL, NULL, 0, NULL}
+};
+
+static PyGetSetDef SSLServerSocket_getset[] = {
+    {"server_hostname",
+     (getter) sss_server_hostname, NULL,
+     "SNI server-name the client requested, or None.", NULL},
+    {NULL, NULL, NULL, NULL, NULL}
+};
+
+static PyTypeObject SSLServerSocket_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name      = "_ssl_capability._SSLServerSocket",
+    .tp_basicsize = sizeof(SSLServerSocketObject),
+    .tp_dealloc   = (destructor) SSLServerSocket_dealloc,
+    .tp_flags     = Py_TPFLAGS_DEFAULT,
+    .tp_doc       = "A server-side TLS connection accepted from a\n"
+                    "_SSLServerListener. Not user-constructible.",
+    .tp_methods   = SSLServerSocket_methods,
+    .tp_getset    = SSLServerSocket_getset,
+};
+
+/* --- _SSLServerListener --------------------------------------------------- */
+
+typedef struct {
+    PyObject_HEAD
+    openssl_component_tls_own_server_listener_t handle;
+    int                                          has_handle;
+} SSLServerListenerObject;
+
+static PyTypeObject SSLServerListener_Type;
+
+static void SSLServerListener_dealloc(SSLServerListenerObject *self)
+{
+    if (self->has_handle) {
+        openssl_component_tls_static_server_listener_close(self->handle);
+        self->has_handle = 0;
+    }
+    PyObject_Free(self);
+}
+
+static PyObject *ssl_listener_accept(SSLServerListenerObject *self, PyObject *Py_UNUSED(a))
+{
+    if (!self->has_handle) {
+        PyErr_SetString(SSLError, "listener is closed"); return NULL;
+    }
+    openssl_component_tls_borrow_server_listener_t b =
+        openssl_component_tls_borrow_server_listener(self->handle);
+    openssl_component_tls_own_server_t srv;
+    openssl_component_tls_tls_error_t err;
+    bool ok = openssl_component_tls_method_server_listener_accept(b, &srv, &err);
+    if (!ok) return raise_tls_error("server accept failed", &err);
+    SSLServerSocketObject *out = PyObject_New(SSLServerSocketObject,
+                                              &SSLServerSocket_Type);
+    if (!out) {
+        openssl_component_tls_static_server_close(srv);
+        return NULL;
+    }
+    out->handle = srv;
+    out->has_handle = 1;
+    return (PyObject *) out;
+}
+
+static PyObject *ssl_listener_local_port(SSLServerListenerObject *self, PyObject *Py_UNUSED(a))
+{
+    if (!self->has_handle) return PyLong_FromLong(0);
+    openssl_component_tls_borrow_server_listener_t b =
+        openssl_component_tls_borrow_server_listener(self->handle);
+    return PyLong_FromUnsignedLong(
+        (unsigned long) openssl_component_tls_method_server_listener_local_port(b));
+}
+
+static PyObject *ssl_listener_close(SSLServerListenerObject *self, PyObject *Py_UNUSED(a))
+{
+    if (self->has_handle) {
+        openssl_component_tls_static_server_listener_close(self->handle);
+        self->has_handle = 0;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef SSLServerListener_methods[] = {
+    {"accept",      (PyCFunction) ssl_listener_accept,      METH_NOARGS,
+     "accept() -> _SSLServerSocket — block until a client connects and the\n"
+     "TLS handshake completes; returns the per-connection TLS socket."},
+    {"local_port",  (PyCFunction) ssl_listener_local_port,  METH_NOARGS,
+     "local_port() -> int — port actually bound (useful when bind_tls(0))."},
+    {"close",       (PyCFunction) ssl_listener_close,       METH_NOARGS,
+     "close() -> None — stop listening; subsequent accept() raises."},
+    {NULL, NULL, 0, NULL}
+};
+
+static PyTypeObject SSLServerListener_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name      = "_ssl_capability._SSLServerListener",
+    .tp_basicsize = sizeof(SSLServerListenerObject),
+    .tp_dealloc   = (destructor) SSLServerListener_dealloc,
+    .tp_flags     = Py_TPFLAGS_DEFAULT,
+    .tp_doc       = "A bound TLS listener. Not user-constructible; obtain via\n"
+                    "_SSLContext.bind_tls(host, port).",
+    .tp_methods   = SSLServerListener_methods,
+};
+
+/* _SSLContext.bind_tls(host, port) -> _SSLServerListener.
+ * Parses stored server_cert_pem + server_key_pem, builds a server_config,
+ * and binds. ALPN preferences inherited from set_alpn_protocols. */
+static PyObject *SSLContext_bind_tls(SSLContextObject *self, PyObject *args, PyObject *kwds)
+{
+    const char *host;
+    int port;
+    static char *kwlist[] = {"host", "port", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "si:bind_tls", kwlist,
+                                     &host, &port)) return NULL;
+    if (!self->server_cert_pem || !self->server_key_pem) {
+        PyErr_SetString(SSLError,
+            "bind_tls: call set_server_cert(cert_pem, key_pem) first");
+        return NULL;
+    }
+    if (port < 0 || port > 65535) {
+        PyErr_SetString(PyExc_ValueError, "bind_tls: port out of range");
+        return NULL;
+    }
+
+    /* Parse the cert chain PEM into a list of own<certificate>. */
+    ssl_import_list_u8_t cert_in;
+    if (list_u8_dup((const uint8_t *) PyBytes_AS_STRING(self->server_cert_pem),
+                    (size_t) PyBytes_GET_SIZE(self->server_cert_pem),
+                    &cert_in) < 0) return NULL;
+    openssl_component_x509_list_own_certificate_t cert_chain;
+    openssl_component_x509_x509_error_t cert_err;
+    if (!openssl_component_x509_static_certificate_parse_chain(
+            &cert_in, &cert_chain, &cert_err)) {
+        openssl_component_x509_x509_error_free(&cert_err);
+        PyErr_SetString(SSLError, "bind_tls: failed to parse server cert chain");
+        return NULL;
+    }
+    if (cert_chain.len == 0) {
+        if (cert_chain.ptr) free(cert_chain.ptr);
+        PyErr_SetString(SSLError, "bind_tls: server cert chain is empty");
+        return NULL;
+    }
+
+    /* Parse the private key PEM. */
+    ssl_import_list_u8_t key_in;
+    if (list_u8_dup((const uint8_t *) PyBytes_AS_STRING(self->server_key_pem),
+                    (size_t) PyBytes_GET_SIZE(self->server_key_pem),
+                    &key_in) < 0) {
+        for (size_t i = 0; i < cert_chain.len; i++)
+            openssl_component_x509_certificate_drop_own(cert_chain.ptr[i]);
+        if (cert_chain.ptr) free(cert_chain.ptr);
+        return NULL;
+    }
+    openssl_component_pkey_load_options_t opts = {0};
+    /* PKCS#8 PEM is the modern default; the cap's loader auto-detects
+     * traditional vs. PKCS#8 inside the PEM blob. */
+    opts.format   = OPENSSL_COMPONENT_PKEY_KEY_FORMAT_PKCS8;
+    opts.encoding = OPENSSL_COMPONENT_PKEY_ENCODING_PEM;
+    opts.passphrase.is_some = false;
+    openssl_component_pkey_own_pkey_t key;
+    openssl_component_pkey_pkey_error_t key_err;
+    if (!openssl_component_pkey_static_pkey_load_private(&key_in, &opts, &key, &key_err)) {
+        openssl_component_pkey_pkey_error_free(&key_err);
+        for (size_t i = 0; i < cert_chain.len; i++)
+            openssl_component_x509_certificate_drop_own(cert_chain.ptr[i]);
+        if (cert_chain.ptr) free(cert_chain.ptr);
+        PyErr_SetString(SSLError, "bind_tls: failed to load server private key");
+        return NULL;
+    }
+
+    /* Build the server_config. We don't request client certs in v1
+     * (verify=none); mTLS for the server side can be wired later. */
+    openssl_component_tls_server_config_t cfg = {0};
+    cfg.protocols.min = (uint8_t) self->min_protocol;
+    cfg.protocols.max = (uint8_t) self->max_protocol;
+    cfg.verify        = 0;  /* none — anonymous TLS; mTLS = future work */
+    cfg.client_trust.is_some = false;
+    /* The tls and x509 list-cert typedefs are layout-identical but
+     * declared as distinct struct names; copy fields with an explicit
+     * cast on the pointer (the inner cert handle is a shared typedef). */
+    cfg.cert_chain.ptr =
+        (openssl_component_tls_own_certificate_t *) cert_chain.ptr;
+    cfg.cert_chain.len = cert_chain.len;
+    cfg.key           = key;              /* moves ownership in */
+    cfg.sni_hosts.ptr = NULL;
+    cfg.sni_hosts.len = 0;
+
+    cfg.alpn.is_some = (self->alpn_protocols != NULL
+                        && PyList_Size(self->alpn_protocols) > 0);
+    if (cfg.alpn.is_some) {
+        if (alpn_list_from_pylist(self->alpn_protocols,
+                                  &cfg.alpn.val.protocols) < 0) {
+            /* alpn_list_from_pylist set PyErr; cap won't get the cfg,
+             * so drop the resources it took ownership of. */
+            for (size_t i = 0; i < cert_chain.len; i++)
+                openssl_component_x509_certificate_drop_own(cert_chain.ptr[i]);
+            if (cert_chain.ptr) free(cert_chain.ptr);
+            openssl_component_pkey_pkey_drop_own(key);
+            return NULL;
+        }
+    }
+    cfg.ciphers.is_some = false;
+    cfg.groups.is_some  = false;
+    cfg.session_tickets = 1;  /* stateless — sensible default for TLS 1.3 */
+    cfg.keylog          = false;
+
+    ssl_import_string_t host_str;
+    if (list_u8_dup((const uint8_t *) host, strlen(host),
+                    (ssl_import_list_u8_t *) &host_str) < 0) {
+        for (size_t i = 0; i < cert_chain.len; i++)
+            openssl_component_x509_certificate_drop_own(cert_chain.ptr[i]);
+        if (cert_chain.ptr) free(cert_chain.ptr);
+        openssl_component_pkey_pkey_drop_own(key);
+        return NULL;
+    }
+
+    openssl_component_tls_own_server_listener_t lis;
+    openssl_component_tls_tls_error_t err;
+    bool ok = openssl_component_tls_static_server_listener_bind(
+        &host_str, (uint16_t) port, &cfg, &lis, &err);
+    /* cap took ownership of cert_chain, key, alpn, host_str on call
+     * (regardless of success — wit-bindgen-c canonical-ABI semantics). */
+    if (!ok) return raise_tls_error("bind_tls failed", &err);
+
+    SSLServerListenerObject *out = PyObject_New(SSLServerListenerObject,
+                                                &SSLServerListener_Type);
+    if (!out) {
+        openssl_component_tls_static_server_listener_close(lis);
+        return NULL;
+    }
+    out->handle = lis;
+    out->has_handle = 1;
+    return (PyObject *) out;
+}
+
 /* -------------------------------------------------------------------------
  * Module plumbing
  * ------------------------------------------------------------------------- */
@@ -1687,6 +2251,8 @@ PyMODINIT_FUNC PyInit__ssl_capability(void)
     if (PyType_Ready(&SSLContext_Type) < 0) return NULL;
     if (PyType_Ready(&SSLSocket_Type) < 0) return NULL;
     if (PyType_Ready(&MemBioSSLClient_Type) < 0) return NULL;
+    if (PyType_Ready(&SSLServerListener_Type) < 0) return NULL;
+    if (PyType_Ready(&SSLServerSocket_Type) < 0) return NULL;
 
     PyObject *m = PyModule_Create(&ssl_capability_module);
     if (!m) return NULL;
@@ -1704,6 +2270,10 @@ PyMODINIT_FUNC PyInit__ssl_capability(void)
     if (PyModule_AddObject(m, "_SSLSocket", (PyObject *) &SSLSocket_Type) < 0) goto fail;
     Py_INCREF(&MemBioSSLClient_Type);
     if (PyModule_AddObject(m, "_MemBioSSLClient", (PyObject *) &MemBioSSLClient_Type) < 0) goto fail;
+    Py_INCREF(&SSLServerListener_Type);
+    if (PyModule_AddObject(m, "_SSLServerListener", (PyObject *) &SSLServerListener_Type) < 0) goto fail;
+    Py_INCREF(&SSLServerSocket_Type);
+    if (PyModule_AddObject(m, "_SSLServerSocket", (PyObject *) &SSLServerSocket_Type) < 0) goto fail;
 
     /* Mirror CPython ssl.CERT_NONE / CERT_OPTIONAL / CERT_REQUIRED. */
     PyModule_AddIntConstant(m, "CERT_NONE", 0);
