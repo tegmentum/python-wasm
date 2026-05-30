@@ -304,9 +304,9 @@ with messages pointing at the underlying gap:
 
 | Stub | Reason |
 |---|---|
-| `SSLSession`, `SSLObject` | Deferred to openssl-component v1.1 (per `docs/phase-3-tls.md`) |
-| `DefaultVerifyPaths`, `get_default_verify_paths` | Capability bundles WebPKI roots; no OS verify-paths |
-| `DER_cert_to_PEM_cert`, `PEM_cert_to_DER_cert`, `get_server_certificate`, `cert_time_to_seconds`, `create_connection`, `RAND_add`, `RAND_status`, `get_protocol_name` | Niche helpers not yet wired through the capability |
+| ~~`SSLSession`, `SSLObject`~~ | ✅ wired 2026-05-29 — `SSLObject` via mem-bio-client; `SSLSession` via TLS 1.3 ticket resumption (`client-config.resume-session` + `client.session-ticket()`) |
+| ~~`DefaultVerifyPaths`, `get_default_verify_paths`~~ | ✅ wired 2026-05-29 — synthetic DefaultVerifyPaths so truststore's `_configure_context` calls `ctx.set_default_verify_paths()`, which loads the bundled WebPKI roots |
+| ~~`DER_cert_to_PEM_cert`, `PEM_cert_to_DER_cert`, `get_server_certificate`, `cert_time_to_seconds`, `create_connection`, `RAND_add`, `RAND_status`, `get_protocol_name`~~ | ✅ all wired 2026-05-29 — base64 helpers + cap-routed get_server_certificate + tolerated RAND_* + socket re-export |
 
 #### 5.3 — full removal of the static escape hatches (optional)
 
