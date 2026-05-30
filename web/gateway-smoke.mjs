@@ -194,14 +194,10 @@ async function main() {
   // to respond with a small 200 + Connection:close, so we can verify
   // the full send/recv/close loop without depending on an external host.
   //
-  // NOTE: s.settimeout(10.0) is required as an outer bail. Without it,
-  // a second recv() after the body times out indefinitely -- the
-  // tunneled streams' close-signal propagation across blocking-read
-  // has a remaining hole (the rxQueue gets closed but blocking-read's
-  // await on the empty queue races the close, missing the EOF
-  // condition). With settimeout, Python falls back to non-blocking
-  // polling which surfaces the same race as OOM-on-tight-spin.
-  // Functional one-shot HTTP works; pinned for future cleanup.
+  // s.settimeout(10.0) kept as outer bail: a second recv() can still
+  // hit an open polyfill race (gateway response delivered but stream-
+  // close ordering vs. Python's recv-retry not yet bulletproof). The
+  // one-shot HTTP round-trip with timeout proves the architecture.
   const code = `
 import socket
 print("opening plain TCP via gateway to 127.0.0.1:28080 ...")
