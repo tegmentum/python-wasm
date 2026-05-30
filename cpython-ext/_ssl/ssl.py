@@ -219,6 +219,19 @@ class VerifyFlags(_enum.IntFlag):
 
 # Module-level aliases that stdlib defines too (for `from ssl import *`)
 PROTOCOL_TLS = PROTOCOL_TLS_CLIENT  # alias; TLS_CLIENT is the only one we support
+# Server mode isn't currently exercised end-to-end (the cap has a server
+# resource but the Python shim doesn't drive it yet). Expose the constant
+# anyway — ASGI servers like uvicorn import it at module load even if
+# they never call wrap_socket(server_side=True).
+PROTOCOL_TLS_SERVER = 17  # stdlib value
+# Legacy aliases. CPython exposes these even on builds without the
+# corresponding protocol support; absent them, `from ssl import *` or
+# `getattr(ssl, "PROTOCOL_SSLv23")` blows up in older library code
+# (urllib3 ≤1.x, requests via vendored urllib3).
+PROTOCOL_SSLv23 = PROTOCOL_TLS
+PROTOCOL_TLSv1 = PROTOCOL_TLS
+PROTOCOL_TLSv1_1 = PROTOCOL_TLS
+PROTOCOL_TLSv1_2 = PROTOCOL_TLS
 
 # urllib3 (>=2) imports these as bare names from ssl, not via Options/VerifyFlags
 # enums. Stdlib defines them at module level too.
