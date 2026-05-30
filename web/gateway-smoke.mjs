@@ -7,26 +7,28 @@
 //
 //   node web/gateway-smoke.mjs
 //
-// CURRENT STATUS (2026-05-30): END-TO-END WORKING.
+// CURRENT STATUS (2026-05-30): END-TO-END FULL HTTP LIFECYCLE WORKING.
 //
 //   wasm Python `s.connect((host, port))`   -> tunneled, ok
 //   wasm Python `s.sendall(b"GET ...")`      -> reaches upstream
 //   upstream sends 200 + Connection:close
 //   gateway forwards response back via WS
-//   wasm Python `s.recv(4096)`               -> 133 bytes of response,
-//                                               body "hello, wasm!"
+//   wasm Python `s.recv(4096)` iter=1        -> 133-byte body
+//   wasm Python `s.recv(4096)` iter=2        -> 0 bytes (clean EOF)
+//   loop breaks; "done. total bytes: 133"; exit 0
 //
 // Requires wasi-polyfill commits: 6e3d429 (createTcpSocket signature)
 // + 412b84b (canonical-ABI connect lifecycle + io blocking-op async +
 // tuple-2-resource WRAP) + c0f938a (synthetic localAddress) +
-// 1e94091 (real readiness Pollable for input-stream subscribe;
-// previously always-ready -> wasm tight-spin -> host event-loop
-// starved -> 4 GB OOM).
+// 1e94091 (real readiness Pollable for input-stream subscribe) +
+// fe131cf (treat closed rxQueue as EOF in read paths) +
+// 2768a2b (atomic EOF: readDataAsync null-on-empty-closed) +
+// 988d8c7 (input-stream.read async + microtask-yield -- fixes the
+// 100,000-call tight-loop that starved the event loop and OOM'd
+// node when Python's recv didn't get yielded to).
 //
 // Run with `WASI_POLYFILL_USE_WS_PKG=1` to use the `ws` npm package
-// as the WebSocket impl (instead of node's built-in globalThis.WebSocket).
-// Both implementations work; the env var is a knob in case JSPI vs.
-// node-WebSocket interactions ever regress.
+// as the WebSocket impl. Both implementations work.
 
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:http'
@@ -61,12 +63,15 @@ import {
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url))
 const REPO = path.resolve(HERE, '..')
-// JSPI bundle so pollable.block can actually suspend the wasm guest
-// while awaiting the tunneled-TCP connect Promise. Recreate with:
+// JSPI bundle. Note: --async-imports is required for input-stream.read
+// in addition to --async-wasi-imports (the wasi defaults don't include
+// read since it's spec'd non-blocking; tunneled streams need it to
+// yield the event loop between Python recv-loop polls). Recreate with:
 //   npx --prefix web jco transpile build/3.14-current/python.composed.wasm \
 //     -o /tmp/python-component-node-jspi --no-nodejs-compat \
 //     --instantiation async --name python --async-mode jspi \
-//     --async-wasi-imports --async-wasi-exports
+//     --async-wasi-imports --async-wasi-exports \
+//     --async-imports 'wasi:io/streams@0.2.6#[method]input-stream.read'
 //   sed -i.bak 's|^const definedResourceTables = \[.*\];$|const definedResourceTables = new Proxy([], { get: () => true });|' /tmp/python-component-node-jspi/python.js
 const COMPONENT_DIR = '/tmp/python-component-node-jspi'
 const STDLIB_TGZ = path.join(REPO, 'web/public/stdlib.tar.gz')
@@ -194,15 +199,12 @@ async function main() {
   // to respond with a small 200 + Connection:close, so we can verify
   // the full send/recv/close loop without depending on an external host.
   //
-  // s.settimeout(10.0) kept as outer bail: a second recv() can still
-  // hit an open polyfill race (gateway response delivered but stream-
-  // close ordering vs. Python's recv-retry not yet bulletproof). The
-  // one-shot HTTP round-trip with timeout proves the architecture.
+  // Default blocking recv (no settimeout). With the polyfill's atomic
+  // EOF fixes, second recv should return cleanly on EOF.
   const code = `
 import socket
 print("opening plain TCP via gateway to 127.0.0.1:28080 ...")
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.settimeout(10.0)
 try:
     s.connect(("127.0.0.1", 28080))
     print("connected; sending GET")
